@@ -15,8 +15,6 @@ func text(_ value: String, _ rect: NSRect, _ font: NSFont, _ color: NSColor) {
     ]).draw(in: rect)
 }
 
-NSColor.black.setFill()
-NSBezierPath(roundedRect: NSRect(x: 138, y: 828, width: 126, height: 28), xRadius: 14, yRadius: 14).fill()
 text("Blog", NSRect(x: 24, y: 735, width: 250, height: 58), .systemFont(ofSize: 38, weight: .bold), .labelColor)
 text("文章草稿、发布状态与分类。", NSRect(x: 24, y: 690, width: 330, height: 34), .systemFont(ofSize: 16), .secondaryLabelColor)
 

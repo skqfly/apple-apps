@@ -22,7 +22,7 @@ jobs:
 
       - name: Render app icon and navigation preview
         run: |
-          swift ../../scripts/render-icon.swift Resources/Brand/site-mark.svg Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          swift ../../scripts/render-icon.swift Resources/Brand/logo.svg Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           swift Scripts/render-navigation.swift "$RUNNER_TEMP/navigation-preview.png"
 
       - name: Build unsigned IPA

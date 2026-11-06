@@ -1,34 +1,25 @@
-# Site Publisher
+# Apple Apps
 
-iOS 26 app for publishing and reviewing content on [skqfly’s site](https://mmddskq.top).
+skqfly 的 Apple 平台应用仓库。每个应用独立放在 `apps/<app-name>/`，仓库级脚本放在 `scripts/`。
 
-This first version establishes the app icon and the navigation structure. It does not connect to Trilium or publish content yet.
+## 应用
 
-## Navigation
+| 目录 | 应用 | 状态 |
+| --- | --- | --- |
+| `apps/site-publisher` | Site Publisher | 开发中，用于管理并发布个人网站内容 |
 
-The four destinations follow the public site navigation:
+新增应用时复制一个应用目录，保留自己的 Xcode 工程、源码、资源和预览脚本，不把多个应用塞进同一个 `.xcodeproj`。
 
-- Blog
-- Projects
-- Talks
-- Friends
+## Site Publisher
 
-Publishing controls belong to the selected destination rather than becoming a fifth top-level tab. On iOS 26, the system renders the native `TabView` tab bar as Liquid Glass automatically.
+四个导航栏目与网站一致：Blog、Projects、Talks、Friends。应用图标直接使用网站的四向标志。
 
-## Requirements
+## 构建
 
-- Xcode 26 or newer
-- iOS 26 deployment target
-- iPhone portrait layout for the first design pass
+GitHub Actions 使用 macOS 26 和 Xcode 26.6：
 
-GitHub Actions uses the `macos-26` runner to render the icon and navigation preview with Swift, then builds the app for the iPhone 17 simulator. The rendered images are uploaded as the `site-publisher-design` artifact.
+1. 用网站标志渲染 1024×1024 图标。
+2. 渲染导航预览。
+3. 构建未签名的 iOS 26 IPA。
 
-## Project layout
-
-```text
-SitePublisher.xcodeproj
-Sources/SitePublisher
-Resources/Assets.xcassets
-```
-
-Open `SitePublisher.xcodeproj` in Xcode and run the `SitePublisher` scheme.
+产物名称是 `site-publisher-ipa`。未签名 IPA 可以归档和检查，但不能直接安装到 iPhone。

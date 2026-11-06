@@ -5,18 +5,8 @@ let size = NSSize(width: 402, height: 874)
 let image = NSImage(size: size)
 image.lockFocus()
 
-NSColor(srgbRed: 0.91, green: 0.95, blue: 0.99, alpha: 1).setFill()
+NSColor(srgbRed: 0.965, green: 0.955, blue: 0.937, alpha: 1).setFill()
 NSRect(origin: .zero, size: size).fill()
-
-let top = NSGradient(colors: [
-    NSColor(srgbRed: 0.95, green: 0.97, blue: 1, alpha: 1),
-    NSColor(srgbRed: 0.86, green: 0.92, blue: 0.99, alpha: 1)
-])!
-top.draw(in: NSRect(x: 0, y: 500, width: size.width, height: 374), angle: -90)
-NSColor(srgbRed: 0.69, green: 0.80, blue: 0.95, alpha: 1).setFill()
-NSBezierPath(ovalIn: NSRect(x: -120, y: -40, width: 290, height: 290)).fill()
-NSColor(srgbRed: 0.57, green: 0.73, blue: 0.93, alpha: 1).setFill()
-NSBezierPath(ovalIn: NSRect(x: 190, y: -90, width: 310, height: 310)).fill()
 
 func text(_ value: String, _ rect: NSRect, _ font: NSFont, _ color: NSColor) {
     NSAttributedString(string: value, attributes: [

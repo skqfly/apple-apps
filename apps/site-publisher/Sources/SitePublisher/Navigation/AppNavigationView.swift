@@ -89,9 +89,8 @@ private struct SiteCanvasBackground: View {
     var body: some View {
         LinearGradient(
             colors: [
-                Color(red: 0.95, green: 0.97, blue: 1),
-                Color(red: 0.86, green: 0.92, blue: 0.99),
-                Color(red: 0.77, green: 0.88, blue: 0.98)
+                Color(red: 0.975, green: 0.967, blue: 0.953),
+                Color(red: 0.945, green: 0.933, blue: 0.914)
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing

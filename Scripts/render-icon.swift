@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-let size = 1024
+let size: CGFloat = 1024
 let image = NSImage(size: NSSize(width: size, height: size))
 image.lockFocus()
 

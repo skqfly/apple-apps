@@ -22,7 +22,9 @@ jobs:
 
       - name: Render app icon and navigation preview
         run: |
-          swift ../../scripts/render-icon.swift Resources/Brand/logo.svg Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          brew install librsvg
+          rsvg-convert -w 620 -h 620 --keep-aspect-ratio Resources/Brand/logo.svg -o "$RUNNER_TEMP/logo-mark.png"
+          swift ../../scripts/render-icon.swift "$RUNNER_TEMP/logo-mark.png" Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           swift Scripts/render-navigation.swift "$RUNNER_TEMP/navigation-preview.png"
 
       - name: Build unsigned IPA

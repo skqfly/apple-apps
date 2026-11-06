@@ -3,7 +3,7 @@ import Foundation
 
 let arguments = CommandLine.arguments
 guard arguments.count == 3 else {
-    fputs("Usage: render-icon.swift <logo.svg> <AppIcon.png>\n", stderr)
+    fputs("Usage: render-icon.swift <logo.png> <AppIcon.png>\n", stderr)
     exit(1)
 }
 
@@ -16,20 +16,18 @@ image.lockFocus()
 NSColor(srgbRed: 0.965, green: 0.955, blue: 0.937, alpha: 1).setFill()
 NSBezierPath(roundedRect: canvas, xRadius: 226, yRadius: 226).fill()
 
-guard let logo = NSImage(contentsOf: source) else {
-    fputs("Could not read the website SVG.\n", stderr)
+guard let mark = NSImage(contentsOf: source) else {
+    fputs("Could not read the rasterized website logo.\n", stderr)
     exit(1)
 }
-let longest = max(logo.size.width, logo.size.height)
-let scale = 620 / longest
-let drawSize = NSSize(width: logo.size.width * scale, height: logo.size.height * scale)
-let drawRect = NSRect(
-    x: (canvas.width - drawSize.width) / 2,
-    y: (canvas.height - drawSize.height) / 2,
-    width: drawSize.width,
-    height: drawSize.height
+NSGraphicsContext.current?.imageInterpolation = .none
+let rect = NSRect(
+    x: (canvas.width - mark.size.width) / 2,
+    y: (canvas.height - mark.size.height) / 2,
+    width: mark.size.width,
+    height: mark.size.height
 )
-logo.draw(in: drawRect, from: NSRect(origin: .zero, size: logo.size), operation: .sourceOver, fraction: 1)
+mark.draw(in: rect, from: NSRect(origin: .zero, size: mark.size), operation: .sourceOver, fraction: 1)
 
 image.unlockFocus()
 guard let tiff = image.tiffRepresentation,

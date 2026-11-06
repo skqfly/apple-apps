@@ -4,11 +4,33 @@ struct AppNavigationView: View {
     @State private var selectedSection: SiteSection = .blog
 
     var body: some View {
+        if #available(iOS 26, *) {
+            liquidGlassTabs
+        } else {
+            legacyTabs
+        }
+    }
+
+    @available(iOS 26, *)
+    private var liquidGlassTabs: some View {
         TabView(selection: $selectedSection) {
             ForEach(SiteSection.allCases) { section in
                 Tab(section.title, systemImage: section.symbolName, value: section) {
                     SectionScreen(section: section)
                 }
+            }
+        }
+        .tint(Color(red: 0.05, green: 0.38, blue: 0.95))
+    }
+
+    private var legacyTabs: some View {
+        TabView(selection: $selectedSection) {
+            ForEach(SiteSection.allCases) { section in
+                SectionScreen(section: section)
+                    .tabItem {
+                        Label(section.title, systemImage: section.symbolName)
+                    }
+                    .tag(section)
             }
         }
         .tint(Color(red: 0.05, green: 0.38, blue: 0.95))

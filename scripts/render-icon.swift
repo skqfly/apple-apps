@@ -13,7 +13,7 @@ let canvas = NSRect(x: 0, y: 0, width: 1024, height: 1024)
 let image = NSImage(size: canvas.size)
 image.lockFocus()
 
-NSColor(srgbRed: 0.965, green: 0.955, blue: 0.937, alpha: 1).setFill()
+NSColor.white.setFill()
 NSBezierPath(roundedRect: canvas, xRadius: 226, yRadius: 226).fill()
 
 guard let mark = NSImage(contentsOf: source) else {

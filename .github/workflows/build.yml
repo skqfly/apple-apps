@@ -23,7 +23,7 @@ jobs:
       - name: Render app icon and navigation preview
         run: |
           brew install librsvg
-          rsvg-convert -w 620 -h 620 --keep-aspect-ratio Resources/Brand/logo.svg -o "$RUNNER_TEMP/logo-mark.png"
+          rsvg-convert -w 860 -h 860 --keep-aspect-ratio Resources/Brand/logo.svg -o "$RUNNER_TEMP/logo-mark.png"
           swift ../../scripts/render-icon.swift "$RUNNER_TEMP/logo-mark.png" Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           swift Scripts/render-navigation.swift "$RUNNER_TEMP/navigation-preview.png"
 

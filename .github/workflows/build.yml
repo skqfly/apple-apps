@@ -13,10 +13,9 @@ jobs:
 
       - name: Select Xcode
         run: |
-          xcode_app="$(ls -d /Applications/Xcode_26*.app /Applications/Xcode.app 2>/dev/null | awk 'NR==1 { print; exit }')"
-          test -n "$xcode_app"
-          sudo xcode-select -s "$xcode_app"
+          sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
+          xcodebuild -showsdks
 
       - name: Render app icon and navigation preview
         run: |

@@ -15,7 +15,7 @@ func text(_ value: String, _ rect: NSRect, _ font: NSFont, _ color: NSColor) {
     ]).draw(in: rect)
 }
 
-text("Blog", NSRect(x: 24, y: 735, width: 250, height: 58), .systemFont(ofSize: 38, weight: .bold), .labelColor)
+text("博客", NSRect(x: 24, y: 735, width: 250, height: 58), .systemFont(ofSize: 38, weight: .bold), .labelColor)
 text("文章草稿、发布状态与分类。", NSRect(x: 24, y: 690, width: 330, height: 34), .systemFont(ofSize: 16), .secondaryLabelColor)
 
 let card = NSBezierPath(roundedRect: NSRect(x: 20, y: 470, width: 362, height: 190), xRadius: 24, yRadius: 24)

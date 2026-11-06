@@ -10,10 +10,10 @@ enum SiteSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .blog: "Blog"
-        case .projects: "Projects"
-        case .talks: "Talks"
-        case .friends: "Friends"
+        case .blog: "博客"
+        case .projects: "项目"
+        case .talks: "分享"
+        case .friends: "朋友"
         }
     }
 

@@ -28,7 +28,7 @@ struct AppNavigationView: View {
             ForEach(SiteSection.allCases) { section in
                 SectionScreen(section: section)
                     .tabItem {
-                        Label(section.title, systemImage: section.symbolName)
+                        Image(systemName: section.symbolName)
                     }
                     .tag(section)
             }

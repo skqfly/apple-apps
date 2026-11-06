@@ -15,9 +15,12 @@ struct AppNavigationView: View {
     private var liquidGlassTabs: some View {
         TabView(selection: $selectedSection) {
             ForEach(SiteSection.allCases) { section in
-                Tab(section.title, systemImage: section.symbolName, value: section) {
+                Tab(value: section) {
                     SectionScreen(section: section)
+                } label: {
+                    Image(systemName: section.symbolName)
                 }
+                .accessibilityLabel(section.title)
             }
         }
         .tint(Color(red: 0.05, green: 0.38, blue: 0.95))

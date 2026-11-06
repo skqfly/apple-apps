@@ -39,27 +39,19 @@ border.stroke()
 NSColor.white.withAlphaComponent(0.68).setFill()
 NSBezierPath(roundedRect: NSRect(x: 22, y: 34, width: 86, height: 66), xRadius: 33, yRadius: 33).fill()
 
-let items = [
-    ("text.alignleft", "Blog", true),
-    ("square.stack.3d.up", "Projects", false),
-    ("person.wave.2", "Talks", false),
-    ("person.2", "Friends", false)
-]
-for (index, item) in items.enumerated() {
+let symbols = ["text.alignleft", "square.stack.3d.up", "person.wave.2", "person.2"]
+for (index, name) in symbols.enumerated() {
     let x = CGFloat(22 + index * 92)
-    let color = item.2 ? NSColor(srgbRed: 0.05, green: 0.38, blue: 0.95, alpha: 1) : NSColor.labelColor
-    let symbol = NSImage(systemSymbolName: item.0, accessibilityDescription: nil)!
-        .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 20, weight: .regular))!
+    let color = index == 0 ? NSColor(srgbRed: 0.05, green: 0.38, blue: 0.95, alpha: 1) : NSColor.labelColor
+    let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)!
+        .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 24, weight: .regular))!
     let tinted = NSImage(size: symbol.size, flipped: false) { rect in
         symbol.draw(in: rect)
         color.set()
         rect.fill(using: .sourceIn)
         return true
     }
-    tinted.draw(in: NSRect(x: x + (86 - symbol.size.width) / 2, y: 68, width: symbol.size.width, height: symbol.size.height))
-    let label = NSAttributedString(string: item.1, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: color])
-    let labelWidth = label.size().width
-    label.draw(at: NSPoint(x: x + (86 - labelWidth) / 2, y: 44))
+    tinted.draw(in: NSRect(x: x + (86 - symbol.size.width) / 2, y: 52, width: symbol.size.width, height: symbol.size.height))
 }
 NSColor.black.setFill()
 NSBezierPath(roundedRect: NSRect(x: 136, y: 10, width: 130, height: 5), xRadius: 2.5, yRadius: 2.5).fill()

@@ -1,0 +1,42 @@
+name: Build iOS design
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          xcode_app="$(ls -d /Applications/Xcode_26*.app /Applications/Xcode.app 2>/dev/null | awk 'NR==1 { print; exit }')"
+          test -n "$xcode_app"
+          sudo xcode-select -s "$xcode_app"
+          xcodebuild -version
+
+      - name: Render app icon and navigation preview
+        run: |
+          swift Scripts/render-icon.swift Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          swift Scripts/render-navigation.swift navigation-preview.png
+
+      - name: Build for iOS Simulator
+        run: >
+          xcodebuild
+          -project SitePublisher.xcodeproj
+          -scheme SitePublisher
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath DerivedData
+          CODE_SIGNING_ALLOWED=NO
+          build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-publisher-design
+          path: |
+            navigation-preview.png
+            Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          if-no-files-found: error

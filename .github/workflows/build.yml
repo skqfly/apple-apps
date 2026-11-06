@@ -23,12 +23,12 @@ jobs:
           swift Scripts/render-icon.swift Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
           swift Scripts/render-navigation.swift navigation-preview.png
 
-      - name: Build for iOS Simulator
+      - name: Build for iOS 26
         run: >
           xcodebuild
           -project SitePublisher.xcodeproj
           -scheme SitePublisher
-          -destination 'generic/platform=iOS Simulator'
+          -destination 'generic/platform=iOS'
           -derivedDataPath DerivedData
           CODE_SIGNING_ALLOWED=NO
           build

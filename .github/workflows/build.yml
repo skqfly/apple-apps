@@ -49,7 +49,7 @@ jobs:
         with:
           name: site-publisher-ipa
           path: |
-            /tmp/SitePublisher-unsigned.ipa
-            /tmp/navigation-preview.png
-            apps/site-publisher/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+            dist/SitePublisher-unsigned.ipa
+            dist/navigation-preview.png
+            dist/AppIcon.png
           if-no-files-found: error

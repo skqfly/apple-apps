@@ -168,6 +168,7 @@ final class PendingChangesStore {
               var entries = page["entries"] as? [[String: Any]] else {
             throw StagingFailure.invalidSiteData
         }
+        var additions: [[String: Any]] = []
         for change in snapshot {
             switch change.kind {
             case .addTalk(let talkID, let text, let date, let images):
@@ -176,8 +177,8 @@ final class PendingChangesStore {
                     return ["src": src, "width": image.width, "height": image.height,
                             "alt": "说说照片", "preview": src, "previewLarge": src]
                 }
-                entries.insert(["id": talkID, "title": "", "date": ContentDate.string(date),
-                                "description": text, "images": imageEntries], at: 0)
+                additions.append(["id": talkID, "title": "", "date": ContentDate.string(date),
+                                  "description": text, "images": imageEntries])
             case .unpublishTalk(let talkID):
                 entries.removeAll { ($0["id"] as? String) == talkID }
             case .deleteTalk(let talkID, let imageSources):
@@ -187,6 +188,11 @@ final class PendingChangesStore {
                 }
             default: break
             }
+        }
+        // Staged talks are chronological. Reverse them so the latest stays first
+        // after every new talk is inserted at the front.
+        for talk in additions.reversed() {
+            entries.insert(talk, at: 0)
         }
         page["entries"] = entries
         root["talksPageContent"] = page
@@ -201,7 +207,8 @@ final class PendingChangesStore {
             switch change.kind {
             case .addPhoto(let photoID, let source, _, let width, let height, let alt):
                 library[photoID] = ["src": source, "preview": source, "previewLarge": source,
-                                    "width": width, "height": height, "alt": alt]
+                                    "width": width, "height": height, "alt": alt,
+                                    "publishedAt": Self.timestamp(.now)]
             case .unpublishPhoto(let photoID, _):
                 library.removeValue(forKey: photoID)
             case .deletePhoto(let photoID, let source):

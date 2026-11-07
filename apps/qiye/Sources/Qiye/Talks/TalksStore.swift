@@ -72,7 +72,8 @@ final class TalksStore {
 
     #if DEBUG
     private func installTimelineFixture() {
-        let imageURLs = Bundle.main.urls(forResourcesWithExtension: "jpg", subdirectory: "PhotoPreviews") ?? []
+        let nested = Bundle.main.urls(forResourcesWithExtension: "jpg", subdirectory: "PhotoPreviews") ?? []
+        let imageURLs = nested.isEmpty ? (Bundle.main.urls(forResourcesWithExtension: "jpg", subdirectory: nil) ?? []) : nested
         let selected = Array(imageURLs.sorted { $0.path < $1.path }.prefix(9))
         guard !selected.isEmpty else { error = "未找到测试图片"; return }
         let nineFirst = ProcessInfo.processInfo.arguments.contains("--nine-first")

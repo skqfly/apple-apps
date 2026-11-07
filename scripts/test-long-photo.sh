@@ -12,6 +12,14 @@ for runtime, devices in sorted(json.load(sys.stdin)["devices"].items(), reverse=
         break
 ')
 test -n "$simulator_id"
+collect_results() {
+    mkdir -p "$GITHUB_WORKSPACE/dist"
+    if [ -d "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" ]; then
+        cp -R "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" "$GITHUB_WORKSPACE/dist/InteractionTests.xcresult"
+        xcrun xcresulttool export attachments --path "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" --output-path "$GITHUB_WORKSPACE/dist/interaction-attachments" || true
+    fi
+}
+trap collect_results EXIT
 rm -rf "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult"
 xcodebuild test \
     -project Qiye.xcodeproj -scheme Qiye -configuration Debug \
@@ -22,5 +30,4 @@ xcodebuild test \
     -resultBundlePath "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" \
     CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES
 
-mkdir -p "$GITHUB_WORKSPACE/dist"
-cp -R "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" "$GITHUB_WORKSPACE/dist/InteractionTests.xcresult"
+# Result bundle and screenshots are exported by the EXIT trap.

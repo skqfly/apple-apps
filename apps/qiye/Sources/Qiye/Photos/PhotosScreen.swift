@@ -37,12 +37,7 @@ struct PhotosScreen: View {
                     .accessibilityElement(children: .combine)
                 }
 
-                if showsLocalOnly {
-                    localSection
-                } else {
-                    if !store.drafts.isEmpty { localSection }
-                    websiteSection
-                }
+                photoSections
             }
             .padding()
         }
@@ -75,6 +70,16 @@ struct PhotosScreen: View {
         }
         .fullScreenCover(item: $selection) { selected in
             PhotoDetailScreen(selection: selected, store: store)
+        }
+    }
+
+    @ViewBuilder
+    private var photoSections: some View {
+        if showsLocalOnly {
+            localSection
+        } else {
+            if !store.drafts.isEmpty { localSection }
+            websiteSection
         }
     }
 

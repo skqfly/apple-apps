@@ -2,10 +2,16 @@ import SwiftUI
 
 struct HomeScreen: View {
     let store: DashboardStore
+    let pending: PendingChangesStore
+    let repository: GitHubRepository
+    let canPush: Bool
+    @State private var pushMessage: String?
+    @State private var showsPushResult = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
+                pendingCard
                 refreshStatus
                 websiteCard
                 contributionsCard
@@ -22,6 +28,74 @@ struct HomeScreen: View {
             if store.lastRefreshedAt == nil { await store.refresh() }
         }
         .refreshable { await store.refresh() }
+        .alert("推送结果", isPresented: $showsPushResult) {
+            Button("好", role: .cancel) { }
+        } message: { Text(pushMessage ?? "") }
+    }
+
+    private var pendingCard: some View {
+        DashboardCard(title: "待推送变更", symbol: "tray.and.arrow.up", isLoading: pending.isCommitting) {
+            VStack(alignment: .leading, spacing: 14) {
+                if pending.changes.isEmpty {
+                    Label("暂存的改动会先保存在这里，一起推送。", systemImage: "checkmark.circle")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                } else {
+                    ForEach(pending.changes) { change in
+                        HStack(spacing: 10) {
+                            Label(change.kind.label, systemImage: changeSymbol(change))
+                                .font(.subheadline)
+                            Spacer(minLength: 8)
+                            Button {
+                                pending.remove(change)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("撤销 \(change.kind.label)")
+                        }
+                    }
+                }
+                if let error = pending.error {
+                    DashboardErrorNote(message: error)
+                }
+                Button {
+                    Task { await push() }
+                } label: {
+                    if pending.isCommitting {
+                        ProgressView("正在推送…").frame(maxWidth: .infinity)
+                    } else {
+                        Label(pending.changes.isEmpty ? "没有待推送的改动" : "一键推送 \(pending.changes.count) 项改动", systemImage: "arrow.up.circle.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(pending.isCommitting || pending.changes.isEmpty || !canPush)
+                if !canPush {
+                    Text("在左上角个人中心登录 GitHub 后即可推送。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func changeSymbol(_ change: PendingChange) -> String {
+        switch change.kind {
+        case .addPhoto, .addTalk: return "plus.circle.fill"
+        case .unpublishPhoto, .unpublishTalk: return "arrow.down.circle.fill"
+        case .deletePhoto, .deleteTalk: return "trash.fill"
+        }
+    }
+
+    private func push() async {
+        do {
+            let sha = try await pending.commitAll(repository: repository)
+            pushMessage = "已推送到 GitHub（提交 \(String(sha.prefix(7)))）。网站部署完成后即可见。"
+            await store.refresh()
+        } catch {
+            pushMessage = error.localizedDescription
+        }
+        showsPushResult = true
     }
 
     private var refreshStatus: some View {
@@ -186,7 +260,7 @@ struct HomeScreen: View {
     }
 
     private var contributionsCard: some View {
-        DashboardCard(title: "贡献", symbol: "github-mark", isLoading: store.contributions.isLoading, style: .contributions) {
+        DashboardCard(title: "贡献", symbol: "github-mark", isLoading: store.contributions.isLoading) {
             VStack(alignment: .leading, spacing: 16) {
                 if let calendar = store.contributions.value {
                     ContributionCalendarView(calendar: calendar)

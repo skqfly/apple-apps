@@ -3,7 +3,7 @@ import SwiftUI
 struct ProfileAvatar: View {
     let isSignedIn: Bool
     let avatarURL: URL?
-    @ScaledMetric(relativeTo: .body) private var size = 32
+    @ScaledMetric(relativeTo: .body) private var size = 36
 
     var body: some View {
         avatar

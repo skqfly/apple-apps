@@ -215,11 +215,11 @@ struct ContributionCalendarView: View {
 
     private func tileColor(_ level: Int) -> Color {
         switch level {
-        case 0: return Color.contributionInk.opacity(0.10)
-        case 1: return Color.contributionInk.opacity(0.28)
-        case 2: return Color.contributionInk.opacity(0.48)
-        case 3: return Color.contributionInk.opacity(0.72)
-        default: return Color.contributionInk
+        case 0: return Color.appAccent.opacity(0.12)
+        case 1: return Color.appAccent.opacity(0.30)
+        case 2: return Color.appAccent.opacity(0.50)
+        case 3: return Color.appAccent.opacity(0.75)
+        default: return Color.appAccent
         }
     }
 

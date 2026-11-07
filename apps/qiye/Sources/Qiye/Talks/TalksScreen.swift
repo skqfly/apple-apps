@@ -4,10 +4,12 @@ import SwiftUI
 struct TalksScreen: View {
     @State private var store: TalksStore
     @State private var showingComposer = false
+    let pending: PendingChangesStore
     let canPublish: Bool
 
-    init(repository: GitHubRepository, canPublish: Bool) {
+    init(repository: GitHubRepository, pending: PendingChangesStore, canPublish: Bool) {
         _store = State(initialValue: TalksStore(repository: repository))
+        self.pending = pending
         self.canPublish = canPublish
     }
 
@@ -17,16 +19,6 @@ struct TalksScreen: View {
                 if !canPublish {
                     Label("连接 GitHub 后可以发布新的说说", systemImage: "lock")
                         .font(.caption).foregroundStyle(.secondary)
-                }
-                if let sha = store.publishedSHA {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("已提交到 GitHub", systemImage: "checkmark.circle.fill")
-                            .font(.subheadline.weight(.medium)).foregroundStyle(Color.appAccent)
-                        Text("提交 \(String(sha.prefix(7))) · 网站将在部署完成后更新。")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 14))
                 }
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh() }
@@ -40,7 +32,9 @@ struct TalksScreen: View {
                         description: Text(store.query.isEmpty ? "新的想法，值得被记录。" : "换一个关键词再试试。")
                     )
                 } else {
-                    ForEach(store.filteredPosts) { post in TalkCard(post: post) }
+                    ForEach(store.filteredPosts) { post in
+                        TalkCard(post: post, pending: pending, canPublish: canPublish)
+                    }
                 }
             }
             .padding(20)
@@ -59,27 +53,30 @@ struct TalksScreen: View {
             }
         }
         .sheet(isPresented: $showingComposer) {
-            NewTalkSheet(repository: store.repository) { sha in
-                await store.didPublish(sha: sha)
+            NewTalkSheet(pending: pending) {
+                Task { await store.refresh() }
             }
         }
         .refreshable { await store.refresh() }
         .task { await store.loadIfNeeded() }
+        .onChange(of: pending.committedRevision) {
+            Task { await store.refresh() }
+        }
     }
 }
 
 private struct TalkCard: View {
     let post: TalkPost
+    let pending: PendingChangesStore
+    let canPublish: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(post.date, format: .dateTime.year().month().day())
                 .font(.caption).foregroundStyle(.secondary)
-            Text(post.title).font(.title3.weight(.semibold)).accessibilityAddTraits(.isHeader)
             MarkdownBlocks(post.description)
             if !post.images.isEmpty {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
-                    // Some existing entries reuse a source; offset preserves each occurrence.
                     ForEach(Array(post.images.enumerated()), id: \.offset) { entry in
                         if let url = entry.element.url, let original = entry.element.originalURL {
                             Link(destination: original) {
@@ -111,5 +108,16 @@ private struct TalkCard: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 20))
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            if canPublish {
+                Button("下架", systemImage: "arrow.down.circle") {
+                    pending.stageUnpublishTalk(talkID: post.id)
+                }
+                .tint(.orange)
+                Button("删除", systemImage: "trash", role: .destructive) {
+                    pending.stageDeleteTalk(talkID: post.id, imageSources: post.images.map(\.src))
+                }
+            }
+        }
     }
 }

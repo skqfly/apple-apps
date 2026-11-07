@@ -42,6 +42,11 @@ actor GitHubRepository {
         try await repositoryFile(path: path, ref: Self.branch)
     }
 
+    /// Reads a file at an arbitrary ref, so a staged batch stays consistent with the commit it targets.
+    func getRepositoryFile(path: String, ref: String) async throws -> Data {
+        try await repositoryFile(path: path, ref: ref)
+    }
+
     func cachedBlogPosts() -> [BlogPost] { blogCache }
     func cachedTalks() -> [TalkPost] { talksCache }
 
@@ -239,6 +244,82 @@ actor GitHubRepository {
 }
 
 extension GitHubRepository {
+    /// A single non-forced commit that can create files, update JSON, and delete image blobs in one push.
+    struct BatchChange: Sendable {
+        var files: [String: Data] = [:]
+        var deletions: [String] = []
+    }
+
+    @discardableResult
+    func publishBatch(
+        message: String,
+        assets: [String: Data],
+        changes: @escaping (String) async throws -> BatchChange
+    ) async throws -> String {
+        guard token?.isEmpty == false else { throw GitHubError.signInRequired }
+        return try await Self.$publishingCredentialRevision.withValue(credentialRevision) {
+            try await publishBatchWithCurrentCredential(message: message, assets: assets, changes: changes)
+        }
+    }
+
+    private func publishBatchWithCurrentCredential(
+        message: String,
+        assets: [String: Data],
+        changes: @escaping (String) async throws -> BatchChange
+    ) async throws -> String {
+        var assetSHAs: [String: String] = [:]
+        for (path, data) in assets {
+            let object: GitObject = try await decode(path: "\(repositoryPath)/git/blobs", method: "POST",
+                body: ["content": data.base64EncodedString(), "encoding": "base64"])
+            assetSHAs[path] = object.sha
+        }
+        for attempt in 0..<3 {
+            try Task.checkCancellation()
+            let head: Reference = try await decode(path: "\(repositoryPath)/git/ref/heads/\(Self.branch)")
+            let parent: Commit = try await decode(path: "\(repositoryPath)/git/commits/\(head.object.sha)")
+            let batch = try await changes(head.object.sha)
+            var shas = assetSHAs
+            for (path, data) in batch.files {
+                let object: GitObject = try await decode(path: "\(repositoryPath)/git/blobs", method: "POST",
+                    body: ["content": data.base64EncodedString(), "encoding": "base64"])
+                shas[path] = object.sha
+            }
+            var treeEntries: [[String: Any]] = shas.keys.sorted().map {
+                ["path": $0, "mode": "100644", "type": "blob", "sha": shas[$0] ?? ""]
+            }
+            for path in batch.deletions.sorted() {
+                treeEntries.append(["path": path, "mode": "100644", "type": "blob", "sha": NSNull()])
+            }
+            let tree: GitObject = try await decode(path: "\(repositoryPath)/git/trees", method: "POST",
+                body: ["base_tree": parent.tree.sha, "tree": treeEntries])
+            let commit: GitObject = try await decode(path: "\(repositoryPath)/git/commits", method: "POST",
+                body: ["message": message, "tree": tree.sha, "parents": [head.object.sha]])
+            do {
+                let _: Reference = try await decode(path: "\(repositoryPath)/git/refs/heads/\(Self.branch)", method: "PATCH",
+                    body: ["sha": commit.sha, "force": false])
+                return commit.sha
+            } catch let error as GitHubError {
+                switch error {
+                case .http(let status, _) where status == 409 || status == 422:
+                    let latest: Reference = try await decode(path: "\(repositoryPath)/git/refs/heads/\(Self.branch)")
+                    guard latest.object.sha != head.object.sha else { throw error }
+                    if attempt == 2 { throw GitHubError.conflict }
+                    continue
+                case .network, .invalidResponse:
+                    if await containsCommit(commit.sha) { return commit.sha }
+                    throw GitHubError.publishUncertain
+                case .http(let status, _) where status >= 500:
+                    if await containsCommit(commit.sha) { return commit.sha }
+                    throw GitHubError.publishUncertain
+                default: throw error
+                }
+            } catch is CancellationError {
+                throw GitHubError.publishUncertain
+            }
+        }
+        throw GitHubError.conflict
+    }
+
     @discardableResult
     func addTalk(title: String, content: String, date: Date = .now) async throws -> String {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)

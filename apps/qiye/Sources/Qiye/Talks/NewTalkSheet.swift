@@ -1,104 +1,145 @@
 import SwiftUI
+import PhotosUI
 
 @MainActor
 struct NewTalkSheet: View {
-    let repository: GitHubRepository
-    let onPublished: (String) async -> Void
+    let pending: PendingChangesStore
+    let onStaged: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var title = ""
     @State private var content = ""
     @State private var date = Date.now
-    @State private var isPublishing = false
+    @State private var images: [TalkImageDraft] = []
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var showsCamera = false
+    @State private var isStaging = false
     @State private var error: String?
-    @State private var publicationUncertain = false
-    @State private var confirmsRetry = false
 
     private var canSubmit: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        title.count <= 200 && content.count <= 50_000 && !isPublishing
+        content.count <= 50_000 && !isStaging
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("标题") {
-                    TextField("给这一刻起个名字", text: $title, axis: .vertical)
-                        .lineLimit(1...3)
-                        .textInputAutocapitalization(.sentences)
-                    if title.count > 200 {
-                        Text("标题最多 200 字").font(.caption).foregroundStyle(.red)
-                    }
-                }
                 Section("日期") {
                     DatePicker("发布日期", selection: $date, displayedComponents: .date)
                 }
                 Section {
                     TextEditor(text: $content)
-                        .frame(minHeight: 220)
+                        .frame(minHeight: 200)
                         .accessibilityLabel("说说正文")
                     Text("支持 Markdown。\(content.count) / 50,000 字")
                         .font(.caption).foregroundStyle(content.count > 50_000 ? Color.red : Color.secondary)
-                } header: { Text("正文") }
+                } header: { Text("内容") }
+                Section("图片") {
+                    imageGrid
+                    PhotosPicker(selection: $pickerItems, maxSelectionCount: 6 - images.count, matching: .images) {
+                        Label("从相册选择", systemImage: "photo.on.rectangle")
+                    }
+                    .disabled(images.count >= 6)
+                    Button {
+                        showsCamera = true
+                    } label: {
+                        Label("拍照", systemImage: "camera")
+                    }
+                    .disabled(images.count >= 6)
+                }
                 if let error {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(.callout).foregroundStyle(.red)
-                        if publicationUncertain {
-                            Link("查看 GitHub 提交记录", destination: URL(string: "https://github.com/\(GitHubRepository.owner)/\(GitHubRepository.name)/commits/\(GitHubRepository.branch)")!)
-                        }
                     }
                 }
                 Section {
-                    Text("发布后会创建 GitHub 提交。网站更新以部署结果为准。")
+                    Text("说说只有文字和图片，没有标题。暂存后到首页一键推送。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            .disabled(isPublishing)
+            .disabled(isStaging)
             .navigationTitle("新的说说")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }.disabled(isPublishing)
+                    Button("取消") { dismiss() }.disabled(isStaging)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        if publicationUncertain { confirmsRetry = true }
-                        else { Task { await publish() } }
+                        Task { await stage() }
                     } label: {
-                        if isPublishing { ProgressView().accessibilityLabel("正在发布") }
-                        else { Text("发布").fontWeight(.semibold) }
+                        if isStaging { ProgressView().accessibilityLabel("正在暂存") }
+                        else { Text("暂存").fontWeight(.semibold) }
                     }
                     .disabled(!canSubmit)
                 }
             }
-            .confirmationDialog("已核实 GitHub 中没有这次说说提交？", isPresented: $confirmsRetry, titleVisibility: .visible) {
-                Button("已核实未提交，重新发布") {
-                    publicationUncertain = false
-                    Task { await publish() }
+            .interactiveDismissDisabled(isStaging || !content.isEmpty || !images.isEmpty)
+            .fullScreenCover(isPresented: $showsCamera) {
+                CameraPicker { image in
+                    if let draft = TalkImageConverter.convert(image.jpegData(compressionQuality: 0.9) ?? Data()) {
+                        images.append(draft)
+                    }
                 }
-            } message: {
-                Text("上次提交可能已经成功，请先查看提交记录，重复发布会产生另一条说说。")
+                .ignoresSafeArea()
             }
-            .interactiveDismissDisabled(isPublishing || !title.isEmpty || !content.isEmpty)
+            .onChange(of: pickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                Task {
+                    for item in items {
+                        if images.count >= 6 { break }
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let draft = TalkImageConverter.convert(data) {
+                            images.append(draft)
+                        }
+                    }
+                    pickerItems = []
+                }
+            }
         }
     }
 
-    private func publish() async {
+    @ViewBuilder
+    private var imageGrid: some View {
+        if images.isEmpty {
+            Text("还没有图片").font(.caption).foregroundStyle(.secondary)
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
+                ForEach(images) { draft in
+                    ZStack(alignment: .topTrailing) {
+                        if let ui = UIImage(data: draft.jpeg) {
+                            Image(uiImage: ui)
+                                .resizable().scaledToFill()
+                                .frame(width: 80, height: 80)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        Button {
+                            images.removeAll { $0.id == draft.id }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.white, .black.opacity(0.6))
+                        }
+                        .padding(4)
+                    }
+                }
+            }
+        }
+    }
+
+    private func stage() async {
         guard canSubmit else { return }
-        isPublishing = true
+        isStaging = true
         error = nil
         do {
-            let sha = try await repository.addTalk(title: title, content: content, date: date)
-            await onPublished(sha)
-            isPublishing = false
+            try pending.stageTalk(
+                text: content.trimmingCharacters(in: .whitespacesAndNewlines),
+                date: date,
+                images: images.map { ($0.jpeg, $0.width, $0.height) }
+            )
+            onStaged()
+            isStaging = false
             dismiss()
-        } catch GitHubError.publishUncertain {
-            isPublishing = false
-            publicationUncertain = true
-            self.error = GitHubError.publishUncertain.localizedDescription
         } catch {
-            isPublishing = false
+            isStaging = false
             self.error = error.localizedDescription
         }
     }

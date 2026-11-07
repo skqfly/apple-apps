@@ -4,7 +4,6 @@ struct DashboardCard<Content: View>: View {
     let title: String
     let symbol: String
     let isLoading: Bool
-    var style: DashboardCardStyle = .surface
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -22,7 +21,6 @@ struct DashboardCard<Content: View>: View {
                     Text(title)
                 }
                 .font(.headline)
-                .foregroundStyle(style == .contributions ? Color.contributionInk : Color.primary)
                 Spacer(minLength: 8)
                 if isLoading {
                     ProgressView().controlSize(.small)
@@ -34,29 +32,8 @@ struct DashboardCard<Content: View>: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .modifier(DashboardCardBackground(style: style))
-        .shadow(color: .black.opacity(style == .contributions ? 0.08 : 0.045), radius: 18, y: 8)
-    }
-}
-
-enum DashboardCardStyle { case surface, contributions }
-
-private struct DashboardCardBackground: ViewModifier {
-    let style: DashboardCardStyle
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
-        if style == .contributions {
-            content
-                .background {
-                    shape.fill(Color.contributionSurface.opacity(colorScheme == .dark ? 0.72 : 0.58))
-                        .background(.ultraThinMaterial, in: shape)
-                }
-                .overlay { shape.strokeBorder(Color.contributionInk.opacity(0.18), lineWidth: 1) }
-        } else {
-            content.background(Color.appSurface, in: shape)
-        }
+        .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.045), radius: 18, y: 8)
     }
 }
 

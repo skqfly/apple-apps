@@ -5,6 +5,7 @@ import PhotosUI
 struct PhotosScreen: View {
     let store: PhotoLibraryStore
     let repository: GitHubRepository
+    let pending: PendingChangesStore
     let canPublish: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var showsDrafts = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo")
@@ -41,7 +42,7 @@ struct PhotosScreen: View {
         .background(Color.appBackground)
         .navigationTitle("照片")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: .topBarTrailing) {
                 PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
                     Label("添加照片", systemImage: "plus")
                 }
@@ -65,7 +66,7 @@ struct PhotosScreen: View {
             Button("好", role: .cancel) { }
         } message: { Text(importMessage ?? "") }
         .fullScreenCover(item: $selection) { selected in
-            PhotoDetailScreen(selection: selected, store: store, repository: repository, canPublish: canPublish)
+            PhotoDetailScreen(selection: selected, store: store, repository: repository, pending: pending, canPublish: canPublish)
         }
     }
 

@@ -11,6 +11,7 @@ struct AppNavigationView: View {
     @State private var photos = PhotoLibraryStore()
     @State private var dashboard = DashboardStore()
     @State private var repository = GitHubRepository()
+    @State private var pending = PendingChangesStore()
     @Environment(\.scenePhase) private var scenePhase
     @State private var account = AccountStore()
     @State private var showingAccount = ProcessInfo.processInfo.arguments.contains("--account")
@@ -68,13 +69,13 @@ struct AppNavigationView: View {
             Group {
                 switch section {
                 case .home:
-                    HomeScreen(store: dashboard)
+                    HomeScreen(store: dashboard, pending: pending, repository: repository, canPush: account.isSignedIn)
                 case .photos:
-                    PhotosScreen(store: photos, repository: repository, canPublish: account.isSignedIn)
+                    PhotosScreen(store: photos, repository: repository, pending: pending, canPublish: account.isSignedIn)
                 case .blog:
                     BlogScreen(repository: repository)
                 case .talks:
-                    TalksScreen(repository: repository, canPublish: account.isSignedIn)
+                    TalksScreen(repository: repository, pending: pending, canPublish: account.isSignedIn)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -87,10 +88,10 @@ struct AppNavigationView: View {
     @ToolbarContentBuilder
     private var profileToolbar: some ToolbarContent {
         if #available(iOS 26, *) {
-            ToolbarItem(placement: .topBarTrailing) { profileButton }
+            ToolbarItem(placement: .topBarLeading) { profileButton }
                 .sharedBackgroundVisibility(.hidden)
         } else {
-            ToolbarItem(placement: .topBarTrailing) { profileButton }
+            ToolbarItem(placement: .topBarLeading) { profileButton }
         }
     }
 

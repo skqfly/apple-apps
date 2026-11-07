@@ -5,29 +5,15 @@ struct PhotoDetailScreen: View {
     let selection: PhotoSelection
     let store: PhotoLibraryStore
     let repository: GitHubRepository
+    let pending: PendingChangesStore
     let canPublish: Bool
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmsDeletion = false
-    @State private var confirmsPublish = false
-    @State private var isPublishing = false
+    @State private var confirmsLocalDelete = false
+    @State private var confirmsUnpublish = false
+    @State private var confirmsDelete = false
+    @State private var isWorking = false
     @State private var message: String?
     @State private var showsMessage = false
-    @State private var publishedCommit: String?
-    @State private var publicationUncertain: Bool
-
-    init(selection: PhotoSelection, store: PhotoLibraryStore, repository: GitHubRepository, canPublish: Bool) {
-        self.selection = selection
-        self.store = store
-        self.repository = repository
-        self.canPublish = canPublish
-        if case .local(let draft) = selection {
-            _publishedCommit = State(initialValue: draft.publishedCommit)
-            _publicationUncertain = State(initialValue: draft.publicationUncertain ?? false)
-        } else {
-            _publishedCommit = State(initialValue: nil)
-            _publicationUncertain = State(initialValue: false)
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -45,9 +31,7 @@ struct PhotoDetailScreen: View {
                     .clipped()
                     .accessibilityLabel(selection.title)
                 }
-                if case .local = selection {
-                    publishingControls
-                }
+                managementControls
             }
             .padding(.horizontal)
             .padding(.bottom)
@@ -57,16 +41,16 @@ struct PhotoDetailScreen: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("关闭", systemImage: "xmark") { dismiss() }
-                        .disabled(isPublishing)
+                        .disabled(isWorking)
                 }
                 if case .local = selection {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("删除本机副本", systemImage: "trash", role: .destructive) { confirmsDeletion = true }
-                            .disabled(isPublishing)
+                        Button("删除本机副本", systemImage: "trash", role: .destructive) { confirmsLocalDelete = true }
+                            .disabled(isWorking)
                     }
                 }
             }
-            .confirmationDialog("删除这张待发布照片？", isPresented: $confirmsDeletion, titleVisibility: .visible) {
+            .confirmationDialog("删除这张待发布照片？", isPresented: $confirmsLocalDelete, titleVisibility: .visible) {
                 Button("删除本机副本", role: .destructive) {
                     if case .local(let draft) = selection {
                         Task {
@@ -75,81 +59,97 @@ struct PhotoDetailScreen: View {
                         }
                     }
                 }
-            } message: {
-                Text("系统相册与网站照片不会受到影响。")
-            }
-            .confirmationDialog(publicationUncertain ? "已核实 GitHub 中没有这次提交？" : "发布这张照片到个人网站？", isPresented: $confirmsPublish, titleVisibility: .visible) {
-                Button(publicationUncertain ? "已核实未提交，重新发布" : "提交到 GitHub") {
-                    publicationUncertain = false
-                    Task { await publish() }
+            } message: { Text("系统相册与网站照片不会受到影响。") }
+            .confirmationDialog("下架这张照片？", isPresented: $confirmsUnpublish, titleVisibility: .visible) {
+                Button("下架", role: .destructive) {
+                    if case .website(let photo) = selection {
+                        pending.stageUnpublishPhoto(photoID: photo.id, source: photo.src.path)
+                        message = "已暂存下架，去首页一键推送后生效。"
+                        showsMessage = true
+                    }
                 }
-            } message: {
-                Text(publicationUncertain ? "上次连接中断，提交可能已经成功。请先查看 GitHub 提交记录；重复发布会生成另一张照片。" : "照片和相册索引将写入网站公开仓库，随后触发网站部署。")
-            }
-            .alert(publishedCommit == nil ? "发布状态" : "已提交到 GitHub", isPresented: $showsMessage) {
+            } message: { Text("照片会从网站消失，但图片文件仍保留在仓库里。") }
+            .confirmationDialog("删除这张照片？", isPresented: $confirmsDelete, titleVisibility: .visible) {
+                Button("删除", role: .destructive) {
+                    if case .website(let photo) = selection {
+                        pending.stageDeletePhoto(photoID: photo.id, source: photo.src.path)
+                        message = "已暂存删除，去首页一键推送后生效。"
+                        showsMessage = true
+                    }
+                }
+            } message: { Text("照片会从网站和仓库中一并删除。") }
+            .alert("操作状态", isPresented: $showsMessage) {
                 Button("好", role: .cancel) { }
             } message: { Text(message ?? "") }
-            .interactiveDismissDisabled(isPublishing)
+            .interactiveDismissDisabled(isWorking)
         }
         .tint(.appAccent)
     }
 
-    private var publishingControls: some View {
-        VStack(spacing: 12) {
-            if let commit = publishedCommit {
-                Label("已提交，等待网站部署", systemImage: "checkmark.circle")
-                Link("查看这次提交", destination: URL(string: "https://github.com/skqfly/skqfly.github.io/commit/\(commit)")!)
-            } else {
-                if publicationUncertain {
-                    Text("上次提交结果待核实，请先检查 GitHub 记录，避免重复发布。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                    Link("查看 GitHub 提交记录", destination: URL(string: "https://github.com/\(GitHubRepository.owner)/\(GitHubRepository.name)/commits/\(GitHubRepository.branch)")!)
-                }
+    @ViewBuilder
+    private var managementControls: some View {
+        switch selection {
+        case .local:
+            VStack(spacing: 12) {
                 if !canPublish {
-                    Text("先在右上角个人中心登录 GitHub，即可发布。")
+                    Text("先在左上角个人中心登录 GitHub，即可发布。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Button {
-                    confirmsPublish = true
+                    Task { await stageLocal() }
                 } label: {
-                    if isPublishing { ProgressView("正在提交…").frame(maxWidth: .infinity) }
-                    else { Label("发布到网站", systemImage: "arrow.up.circle").frame(maxWidth: .infinity) }
+                    if isWorking { ProgressView("正在暂存…").frame(maxWidth: .infinity) }
+                    else { Label("暂存并稍后推送", systemImage: "tray.and.arrow.up").frame(maxWidth: .infinity) }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canPublish || isPublishing || store.isImporting || store.isDeleting)
+                .disabled(!canPublish || isWorking || store.isImporting || store.isDeleting)
+                Text("暂存后可在首页一次性推送，避免每个动作都提交。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
+            .padding(.vertical)
+        case .website:
+            VStack(spacing: 12) {
+                if !canPublish {
+                    Text("登录 GitHub 后可管理网站照片。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: 12) {
+                        Button {
+                            confirmsUnpublish = true
+                        } label: {
+                            Label("下架", systemImage: "arrow.down.circle").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        Button {
+                            confirmsDelete = true
+                        } label: {
+                            Label("删除", systemImage: "trash").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
+                    }
+                    .disabled(isWorking)
+                    Text("下架仅从网站移除，删除会连同图片文件一起移除。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical)
         }
-        .padding(.vertical)
     }
 
-    private func publish() async {
-        guard case .local(let draft) = selection, canPublish, !isPublishing,
-              publishedCommit == nil, !store.isImporting, !store.isDeleting else { return }
-        isPublishing = true
-        defer { isPublishing = false }
+    private func stageLocal() async {
+        guard case .local(let draft) = selection, canPublish, !isWorking,
+              !store.isImporting, !store.isDeleting else { return }
+        isWorking = true
+        defer { isWorking = false }
         do {
             let photo = try await PhotoUploadPreparation.prepare(url: store.fileURL(for: draft))
-            let commit = try await repository.addPhoto(
-                data: photo.data, filename: draft.id.uuidString.lowercased() + ".jpg",
-                width: photo.width, height: photo.height, title: "照片"
-            )
-            publishedCommit = commit
-            let recorded = await store.recordPublication(id: draft.id, commit: commit)
-            let removed = await store.removeDraft(id: draft.id)
-            message = "照片已写入 GitHub。部署结束后会出现在网站上，可在首页查看工作流状态。"
-            if !removed {
-                message! += recorded
-                    ? " 本机副本未能移除，已标记为已提交，不会再次发布。"
-                    : " 本机提交状态保存失败，请先检查 GitHub 记录，避免重复发布。"
-            }
+            try pending.stagePhoto(draftID: draft.id, jpeg: photo.data, width: photo.width, height: photo.height)
+            _ = await store.removeDraft(id: draft.id)
+            message = "已暂存到首页，稍后一键推送。"
             showsMessage = true
             await store.refresh()
-        } catch GitHubError.publishUncertain {
-            publicationUncertain = true
-            let recorded = await store.recordPublication(id: draft.id, commit: nil, uncertain: true)
-            message = GitHubError.publishUncertain.localizedDescription
-            if !recorded { message! += " 本机提交状态未能保存。" }
-            showsMessage = true
+            dismiss()
         } catch {
             message = error.localizedDescription
             showsMessage = true

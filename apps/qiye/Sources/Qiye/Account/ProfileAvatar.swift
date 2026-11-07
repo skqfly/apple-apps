@@ -24,7 +24,9 @@ struct ProfileAvatar: View {
         .overlay {
             Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5)
         }
-        .frame(minWidth: 44, minHeight: 44)
+        .padding(4)
+        .background(Color.appSurface, in: Circle())
+        .clipShape(Circle())
         .contentShape(Circle())
         .accessibilityHidden(true)
     }

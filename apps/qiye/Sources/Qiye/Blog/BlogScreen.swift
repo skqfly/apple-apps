@@ -65,7 +65,7 @@ struct BlogScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("思考与记录").font(.largeTitle.bold())
+            Text("思考与记录").font(.title2.weight(.semibold))
             Text("关于计算、建模与实践的笔记。")
                 .font(.subheadline).foregroundStyle(.secondary)
             if !store.posts.isEmpty {
@@ -73,7 +73,7 @@ struct BlogScreen: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
     }
 }

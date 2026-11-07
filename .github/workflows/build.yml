@@ -60,6 +60,11 @@ jobs:
             -archivePath "$RUNNER_TEMP/Qiye.xcarchive" \
             -derivedDataPath "$RUNNER_TEMP/DeviceBuild" \
             CODE_SIGNING_ALLOWED=NO archive
+          built_app="$RUNNER_TEMP/Qiye.xcarchive/Products/Applications/Qiye.app"
+          expected_id=$(/usr/libexec/PlistBuddy -c 'Print :GitHubOAuthClientID' Configuration/Info.plist)
+          actual_id=$(/usr/libexec/PlistBuddy -c 'Print :GitHubOAuthClientID' "$built_app/Info.plist")
+          test -n "$actual_id" && test "$actual_id" = "$expected_id"
+          echo 'Verified OAuth Client ID in archived app Info.plist'
           mkdir -p "$RUNNER_TEMP/package/Payload" "$GITHUB_WORKSPACE/dist"
           cp -R "$RUNNER_TEMP/Qiye.xcarchive/Products/Applications/Qiye.app" "$RUNNER_TEMP/package/Payload/"
           cd "$RUNNER_TEMP/package"

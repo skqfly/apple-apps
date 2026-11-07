@@ -63,5 +63,12 @@ struct GitHubLoginScreen: View {
         }
         .navigationTitle("GitHub 账户")
         .navigationBarTitleDisplayMode(.inline)
+        #if DEBUG
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("--device-login") {
+                store.beginGitHubLogin()
+            }
+        }
+        #endif
     }
 }

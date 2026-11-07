@@ -35,3 +35,12 @@ xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
 xcrun simctl launch "$simulator_id" top.mmddskq.qiye --account
 sleep 5
 xcrun simctl io "$simulator_id" screenshot "$output_dir/account-dark.png"
+xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
+xcrun simctl launch "$simulator_id" top.mmddskq.qiye --account --login
+sleep 4
+xcrun simctl io "$simulator_id" screenshot "$output_dir/login-dark.png"
+xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
+xcrun simctl launch "$simulator_id" top.mmddskq.qiye --account --login --device-login
+sleep 12
+xcrun simctl io "$simulator_id" screenshot "$output_dir/device-login-dark.png"
+xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true

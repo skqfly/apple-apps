@@ -15,7 +15,7 @@ struct TalksScreen: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 9) {
-                    Text("片刻与想法").font(.largeTitle.bold())
+                    Text("片刻与想法").font(.title2.weight(.semibold))
                     Text("在日常之间，留下一点值得回看的记录。")
                         .font(.subheadline).foregroundStyle(.secondary)
                     if !canPublish {
@@ -23,7 +23,7 @@ struct TalksScreen: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, 4)
                 if let sha = store.publishedSHA {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("已提交到 GitHub", systemImage: "checkmark.circle.fill")

@@ -5,6 +5,9 @@ struct AccountScreen: View {
     let store: AccountStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = "system"
+    #if DEBUG
+    @State private var showsLogin = ProcessInfo.processInfo.arguments.contains("--login")
+    #endif
 
     var body: some View {
         NavigationStack {
@@ -55,6 +58,12 @@ struct AccountScreen: View {
                 }
             }
             .navigationTitle("个人中心")
+            .navigationBarTitleDisplayMode(.inline)
+            #if DEBUG
+            .navigationDestination(isPresented: $showsLogin) {
+                GitHubLoginScreen(store: store)
+            }
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }

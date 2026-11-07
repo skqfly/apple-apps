@@ -3,7 +3,11 @@ import SwiftUI
 struct ContributionCalendarView: View {
     let calendar: DashboardContributions
     @State private var selectedDayID: String?
+    @State private var visibleWeekID: String?
     @ScaledMetric(relativeTo: .caption) private var tileSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption2) private var monthLabelWidth: CGFloat = 32
+    @ScaledMetric(relativeTo: .caption2) private var monthHeaderHeight: CGFloat = 20
+    @ScaledMetric(relativeTo: .caption2) private var legendWidth: CGFloat = 22
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     private let gap: CGFloat = 4
 
@@ -34,25 +38,8 @@ struct ContributionCalendarView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(alignment: .top, spacing: 8) {
-                weekdayLegend
-                ScrollViewReader { proxy in
-                    ScrollView(.horizontal) {
-                        HStack(alignment: .top, spacing: gap) {
-                            ForEach(calendar.weeks) { week in
-                                weekColumn(week).id(week.id)
-                            }
-                        }
-                        .padding(.top, 2)
-                        .padding(.bottom, 6)
-                    }
-                    .defaultScrollAnchor(.trailing)
-                    .onChange(of: calendar.endDate) {
-                        if let id = calendar.weeks.last?.id { proxy.scrollTo(id, anchor: .trailing) }
-                    }
-                }
-            }
-            .environment(\.layoutDirection, .leftToRight)
+            calendarGrid
+                .environment(\.layoutDirection, .leftToRight)
 
             HStack(spacing: 5) {
                 Image(systemName: "arrow.left.and.right")
@@ -105,28 +92,94 @@ struct ContributionCalendarView: View {
         }
     }
 
+    private var calendarGrid: some View {
+        GeometryReader { geometry in
+            // Keep tiles readable and show only complete weeks, with equal outer margins.
+            let availableWidth = max(tileSize, geometry.size.width - legendWidth - 8)
+            let weekCount = min(calendar.weeks.count, min(15, max(1, Int((availableWidth + gap) / (tileSize + gap)))))
+            let gridWidth = CGFloat(weekCount) * (tileSize + gap) - gap
+            HStack(alignment: .top, spacing: 8) {
+                weekdayLegend
+                VStack(alignment: .leading, spacing: gap) {
+                    monthHeader(weekCount: weekCount, width: gridWidth)
+                    ScrollView(.horizontal) {
+                        LazyHStack(alignment: .top, spacing: gap) {
+                            ForEach(calendar.weeks) { week in
+                                weekColumn(week).id(week.id)
+                            }
+                        }
+                        .scrollTargetLayout()
+                    }
+                    .scrollIndicators(.hidden)
+                    .scrollTargetBehavior(.viewAligned)
+                    .scrollPosition(id: $visibleWeekID, anchor: .leading)
+                    .frame(width: gridWidth, height: 7 * tileSize + 6 * gap)
+                    .onChange(of: calendar.endDate, initial: true) {
+                        showRecentWeeks(weekCount)
+                    }
+                    .onChange(of: weekCount) {
+                        showRecentWeeks(weekCount)
+                    }
+                }
+                .frame(width: gridWidth)
+            }
+            .padding(.top, 2)
+            .padding(.bottom, 6)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .frame(height: monthHeaderHeight + 7 * tileSize + 7 * gap + 8)
+    }
+
+    private func showRecentWeeks(_ count: Int) {
+        visibleWeekID = calendar.weeks.dropFirst(max(0, calendar.weeks.count - count)).first?.id
+    }
+
+    private func monthHeader(weekCount: Int, width: CGFloat) -> some View {
+        let firstIndex = calendar.weeks.firstIndex { $0.id == visibleWeekID }
+            ?? max(0, calendar.weeks.count - weekCount)
+        let weeks = Array(calendar.weeks.dropFirst(firstIndex).prefix(weekCount))
+        // Clamp labels inside the viewport. Give the newest month priority if labels overlap.
+        let labels = weeks.enumerated().compactMap { index, week -> (index: Int, text: String, x: CGFloat)? in
+            let text = week.monthLabel ?? (index == 0 ? week.days.compactMap { $0 }.first.map {
+                "\(DashboardDates.calendar.component(.month, from: $0.date))月"
+            } : nil)
+            guard let text else { return nil }
+            return (index, text, min(CGFloat(index) * (tileSize + gap), max(0, width - monthLabelWidth)))
+        }
+        let visibleLabels = labels.reversed().reduce(into: [(index: Int, text: String, x: CGFloat)]()) { result, label in
+            if result.last.map({ $0.x - label.x >= monthLabelWidth + gap }) ?? true {
+                result.append(label)
+            }
+        }
+        return ZStack(alignment: .topLeading) {
+            ForEach(visibleLabels, id: \.index) { label in
+                Text(label.text)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                    .frame(width: monthLabelWidth, height: monthHeaderHeight, alignment: .leading)
+                    .offset(x: label.x)
+            }
+        }
+        .frame(width: width, height: monthHeaderHeight, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+
     private var weekdayLegend: some View {
         VStack(spacing: gap) {
-            Color.clear.frame(width: 22, height: 20)
+            Color.clear.frame(width: legendWidth, height: monthHeaderHeight)
             ForEach(0..<7) { index in
                 Text([1: "一", 3: "三", 5: "五"][index] ?? "")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .frame(width: 22, height: tileSize)
+                    .frame(width: legendWidth, height: tileSize)
             }
         }
-        .padding(.top, 2)
         .accessibilityHidden(true)
     }
 
     private func weekColumn(_ week: DashboardContributionWeek) -> some View {
         VStack(alignment: .leading, spacing: gap) {
-            Text(week.monthLabel ?? "")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize()
-                .frame(width: tileSize, height: 20, alignment: .leading)
-                .accessibilityHidden(true)
             ForEach(0..<7) { index in
                 if let day = week.days[index] {
                     Button { selectedDayID = day.id } label: {

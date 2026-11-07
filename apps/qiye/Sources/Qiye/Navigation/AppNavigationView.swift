@@ -77,17 +77,32 @@ struct AppNavigationView: View {
                     TalksScreen(repository: repository, canPublish: account.isSignedIn)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAccount = true
-                    } label: {
-                        ProfileAvatar(isSignedIn: account.isSignedIn, avatarURL: account.avatarURL)
-                    }
-                    .accessibilityLabel(account.isSignedIn ? "个人中心，\(account.name)" : "个人中心，未登录")
-                    .accessibilityHint("登录、外观和博客设置")
-                }
-            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar { profileToolbar }
         }
+    }
+
+    @ToolbarContentBuilder
+    private var profileToolbar: some ToolbarContent {
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarTrailing) { profileButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { profileButton }
+        }
+    }
+
+    private var profileButton: some View {
+        Button {
+            showingAccount = true
+        } label: {
+            ProfileAvatar(isSignedIn: account.isSignedIn, avatarURL: account.avatarURL)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(account.isSignedIn ? "个人中心，\(account.name)" : "个人中心，未登录")
+        .accessibilityHint("登录、外观和博客设置")
     }
 }

@@ -11,6 +11,12 @@ struct WebsitePhoto: Identifiable, Equatable, Sendable {
 
     var title: String { alt.isEmpty ? "网站照片" : alt }
 
+    init(id: String, src: URL, width: Int, height: Int, alt: String, preview: URL, previewLarge: URL) {
+        self.init(id: id, sourcePath: src.path, src: src, width: width, height: height, alt: alt, preview: preview, previewLarge: previewLarge)
+    }
+
+    init(id: String, sourcePath: String, src: URL, width: Int, height: Int, alt: String, preview: URL, previewLarge: URL) {
+
     static func decode(_ data: Data, relativeTo baseURL: URL) throws -> [WebsitePhoto] {
         struct Entry: Decodable {
             let src: String

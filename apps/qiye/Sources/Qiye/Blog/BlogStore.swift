@@ -10,7 +10,27 @@ final class BlogStore {
     private let repository: GitHubRepository
     @ObservationIgnored private var hasLoaded = false
 
-    init(repository: GitHubRepository) { self.repository = repository }
+    init(repository: GitHubRepository) {
+        self.repository = repository
+        let bundle = Bundle.main
+        if let index = bundle.url(forResource: "blog-index", withExtension: "json", subdirectory: "BlogSnapshot")
+            ?? bundle.url(forResource: "blog-index", withExtension: "json"),
+           let data = try? Data(contentsOf: index),
+           let paths = try? JSONDecoder().decode([String].self, from: data) {
+            posts = paths.compactMap { path -> BlogPost? in
+                let name = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+                let ext = URL(fileURLWithPath: path).pathExtension
+                guard !name.hasPrefix("_"),
+                      let url = bundle.url(forResource: name, withExtension: ext, subdirectory: "BlogSnapshot")
+                        ?? bundle.url(forResource: name, withExtension: ext),
+                      let markdown = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+                let post = BlogPost.parse(markdown, path: path)
+                guard post.metadata["draft"]?.lowercased() != "true",
+                      post.metadata["published"]?.lowercased() != "false" else { return nil }
+                return post
+            }.sorted { $0.date == $1.date ? $0.path < $1.path : $0.date > $1.date }
+        }
+    }
 
     var filteredPosts: [BlogPost] {
         let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23,7 +43,8 @@ final class BlogStore {
 
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
-        if posts.isEmpty { posts = await repository.cachedBlogPosts() }
+        let cached = await repository.cachedBlogPosts()
+        if !cached.isEmpty { posts = cached }
         await refresh()
     }
 

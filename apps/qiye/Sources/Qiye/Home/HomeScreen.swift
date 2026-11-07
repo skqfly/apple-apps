@@ -8,8 +8,8 @@ struct HomeScreen: View {
             VStack(alignment: .leading, spacing: 18) {
                 refreshStatus
                 websiteCard
-                workflowsCard
                 contributionsCard
+                workflowsCard
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -63,9 +63,6 @@ struct HomeScreen: View {
                         HStack(spacing: 14) { healthSummary(health) }
                         VStack(alignment: .leading, spacing: 8) { healthSummary(health) }
                     }
-                    Text("测量包含网络连接、跳转和响应下载耗时。")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                     if store.website.error != nil {
                         Text("上次检测：\(health.checkedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption).foregroundStyle(.secondary)
@@ -79,9 +76,11 @@ struct HomeScreen: View {
                 if let error = store.website.error {
                     DashboardErrorNote(message: error, showsPrevious: store.website.value != nil)
                 }
-                Divider()
-                repositoryDetails
-                pagesDetails
+                if store.isConnected {
+                    Divider()
+                    repositoryDetails
+                    pagesDetails
+                }
             }
         }
     }
@@ -160,6 +159,11 @@ struct HomeScreen: View {
                     Text("最近 5 次运行").font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Link("全部运行", destination: DashboardService.actionsURL).font(.caption)
+                }
+                if !store.isConnected {
+                    Label("在右上角连接 GitHub，查看工作流的实时状态。", systemImage: "person.crop.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 if let runs = store.workflows.value {
                     if runs.isEmpty {

@@ -69,7 +69,9 @@ struct PhotosScreen: View {
 
     @ViewBuilder
     private var websiteGrid: some View {
-        if store.photos.isEmpty {
+        if store.isLoading && store.photos.isEmpty {
+            ProgressView("正在读取网站照片…").frame(maxWidth: .infinity).padding(.vertical, 50)
+        } else if store.photos.isEmpty && store.error == nil {
             ContentUnavailableView("暂无网站照片", systemImage: "photo.on.rectangle", description: Text("下拉刷新，或从左上角添加照片。"))
         } else {
             LazyVGrid(columns: columns, spacing: 8) {
@@ -79,7 +81,7 @@ struct PhotosScreen: View {
                             .aspectRatio(0.88, contentMode: .fit)
                             .overlay {
                                 GeometryReader { geometry in
-                                    RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: photo.id)
+                                    RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo))
                                         .frame(width: geometry.size.width, height: geometry.size.height)
                                 }
                             }

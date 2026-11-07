@@ -8,6 +8,8 @@ struct PhotoDraft: Identifiable, Codable, Equatable, Sendable {
     let thumbnailFilename: String
     let width: Int
     let height: Int
+    var publishedCommit: String? = nil
+    var publicationUncertain: Bool? = nil
 }
 
 struct PhotoImportResult: Equatable, Sendable {

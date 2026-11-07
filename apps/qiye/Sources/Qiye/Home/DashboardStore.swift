@@ -9,6 +9,7 @@ final class DashboardStore {
     private(set) var pages = DashboardResource<DashboardPages>()
     private(set) var contributions = DashboardResource<DashboardContributions>()
     private(set) var lastRefreshedAt: Date?
+    var isConnected: Bool { token != nil }
 
     @ObservationIgnored private var token: String?
     @ObservationIgnored private var revision = 0
@@ -48,9 +49,9 @@ final class DashboardStore {
         let requestRevision = revision
         let requestToken = token
         website.isLoading = true
-        repository.isLoading = true
-        workflows.isLoading = true
-        pages.isLoading = true
+        repository.isLoading = requestToken != nil
+        workflows.isLoading = requestToken != nil
+        pages.isLoading = requestToken != nil
         contributions.isLoading = true
         async let site: Void = loadWebsite(revision: requestRevision)
         async let repo: Void = loadRepository(token: requestToken, revision: requestRevision)
@@ -68,16 +69,19 @@ final class DashboardStore {
     }
 
     private func loadRepository(token: String?, revision: Int) async {
+        guard token != nil else { return }
         let result = await fetch(previous: repository) { [service] in try await service.repository(token: token) }
         if self.revision == revision { repository = result }
     }
 
     private func loadWorkflows(token: String?, revision: Int) async {
+        guard token != nil else { return }
         let result = await fetch(previous: workflows) { [service] in try await service.workflows(token: token) }
         if self.revision == revision { workflows = result }
     }
 
     private func loadPages(token: String?, revision: Int) async {
+        guard token != nil else { return }
         let result = await fetch(previous: pages) { [service] in try await service.pages(token: token) }
         if self.revision == revision { pages = result }
     }

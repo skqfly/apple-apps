@@ -32,6 +32,25 @@ jobs:
           brew install librsvg
           rsvg-convert -w 930 -h 930 --page-width 1024 --page-height 1024 --left 47 --top 47 --background-color white Resources/Brand/logo.svg -o Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
+      - name: Verify contribution and article models
+        run: |
+          swiftc -parse-as-library \
+            Sources/Qiye/Home/DashboardModels.swift \
+            Sources/Qiye/Home/DashboardService.swift \
+            Sources/Qiye/Blog/BlogPost.swift Sources/Qiye/GitHub/ContentDate.swift \
+            Tests/verify-models.swift -o "$RUNNER_TEMP/verify-models"
+          "$RUNNER_TEMP/verify-models"
+
+      - name: Verify authorization and atomic publishing
+        run: |
+          swiftc -swift-version 5 -parse-as-library \
+            Sources/Qiye/GitHub/GitHubRepository.swift Sources/Qiye/GitHub/GitHubError.swift \
+            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/Account/GitHubCredential.swift \
+            Sources/Qiye/Blog/BlogPost.swift Sources/Qiye/Talks/TalkPost.swift \
+            Sources/Qiye/Photos/WebsitePhoto.swift ../../Scripts/verify-auth-publishing.swift \
+            -o "$RUNNER_TEMP/verify-publishing"
+          "$RUNNER_TEMP/verify-publishing"
+
       - name: Archive and package unsigned IPA
         run: |
           set -euo pipefail

@@ -39,7 +39,8 @@ struct MarkdownBlock: Identifiable, Sendable {
             if trimmed.hasPrefix("$$") || trimmed.hasPrefix("\\[") {
                 let delimiter = trimmed.hasPrefix("$$") ? "$$" : "\\]"
                 var math = [line]
-                let opensAndCloses = trimmed.hasPrefix("$$") && trimmed.count > 4 && trimmed.hasSuffix("$$")
+                let opensAndCloses = (trimmed.hasPrefix("$$") && trimmed.count > 4 && trimmed.hasSuffix("$$")) ||
+                    (trimmed.hasPrefix("\\[") && trimmed.hasSuffix("\\]"))
                 index += 1
                 if !opensAndCloses {
                     while index < lines.count {
@@ -101,7 +102,8 @@ struct MarkdownBlock: Identifiable, Sendable {
                 let next = lines[index].trimmingCharacters(in: .whitespaces)
                 if next.isEmpty || heading(next) != nil || next.hasPrefix("```") || next.hasPrefix("~~~") ||
                     next.hasPrefix(">") || next.hasPrefix("$$") || next.hasPrefix("\\[") ||
-                    listItem(lines[index]) != nil || isRule(next) { break }
+                    listItem(lines[index]) != nil || isRule(next) ||
+                    (next.hasPrefix("|") && index + 1 < lines.count && lines[index + 1].contains("---")) { break }
                 paragraph.append(lines[index]); index += 1
             }
             for kind in splitImages(paragraph.joined(separator: "\n")) { append(kind) }

@@ -3,6 +3,11 @@ import SwiftUI
 @MainActor
 struct BlogScreen: View {
     @State private var store: BlogStore
+    #if DEBUG
+    @State private var screenshotPost: BlogPost?
+    @State private var showsScreenshotArticle = false
+    @State private var openedScreenshotArticle = false
+    #endif
 
     init(repository: GitHubRepository) {
         _store = State(initialValue: BlogStore(repository: repository))
@@ -18,7 +23,7 @@ struct BlogScreen: View {
                 if store.isLoading && store.posts.isEmpty {
                     ProgressView("正在读取 GitHub 文章…")
                         .frame(maxWidth: .infinity).padding(.vertical, 60)
-                } else if store.filteredPosts.isEmpty {
+                } else if store.filteredPosts.isEmpty && (store.error == nil || !store.posts.isEmpty) {
                     ContentUnavailableView(
                         store.query.isEmpty ? "还没有文章" : "未找到文章",
                         systemImage: "doc.text.magnifyingglass",
@@ -44,6 +49,18 @@ struct BlogScreen: View {
         .navigationDestination(for: BlogPost.self) { post in BlogDetailScreen(post: post) }
         .refreshable { await store.refresh() }
         .task { await store.loadIfNeeded() }
+        #if DEBUG
+        .navigationDestination(isPresented: $showsScreenshotArticle) {
+            if let screenshotPost { BlogDetailScreen(post: screenshotPost) }
+        }
+        .task(id: store.posts.first?.id) {
+            guard ProcessInfo.processInfo.arguments.contains("--article"), !openedScreenshotArticle,
+                  let post = store.posts.first(where: { !$0.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else { return }
+            openedScreenshotArticle = true
+            screenshotPost = post
+            showsScreenshotArticle = true
+        }
+        #endif
     }
 
     private var header: some View {

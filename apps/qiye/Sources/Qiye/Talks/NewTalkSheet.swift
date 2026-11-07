@@ -10,6 +10,8 @@ struct NewTalkSheet: View {
     @State private var date = Date.now
     @State private var isPublishing = false
     @State private var error: String?
+    @State private var publicationUncertain = false
+    @State private var confirmsRetry = false
 
     private var canSubmit: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
@@ -42,6 +44,9 @@ struct NewTalkSheet: View {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
                             .font(.callout).foregroundStyle(.red)
+                        if publicationUncertain {
+                            Link("查看 GitHub 提交记录", destination: URL(string: "https://github.com/\(GitHubRepository.owner)/\(GitHubRepository.name)/commits/\(GitHubRepository.branch)")!)
+                        }
                     }
                 }
                 Section {
@@ -57,12 +62,23 @@ struct NewTalkSheet: View {
                     Button("取消") { dismiss() }.disabled(isPublishing)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button { Task { await publish() } } label: {
+                    Button {
+                        if publicationUncertain { confirmsRetry = true }
+                        else { Task { await publish() } }
+                    } label: {
                         if isPublishing { ProgressView().accessibilityLabel("正在发布") }
                         else { Text("发布").fontWeight(.semibold) }
                     }
                     .disabled(!canSubmit)
                 }
+            }
+            .confirmationDialog("已核实 GitHub 中没有这次说说提交？", isPresented: $confirmsRetry, titleVisibility: .visible) {
+                Button("已核实未提交，重新发布") {
+                    publicationUncertain = false
+                    Task { await publish() }
+                }
+            } message: {
+                Text("上次提交可能已经成功，请先查看提交记录，重复发布会产生另一条说说。")
             }
             .interactiveDismissDisabled(isPublishing || !title.isEmpty || !content.isEmpty)
         }
@@ -77,6 +93,10 @@ struct NewTalkSheet: View {
             await onPublished(sha)
             isPublishing = false
             dismiss()
+        } catch GitHubError.publishUncertain {
+            isPublishing = false
+            publicationUncertain = true
+            self.error = GitHubError.publishUncertain.localizedDescription
         } catch {
             isPublishing = false
             self.error = error.localizedDescription

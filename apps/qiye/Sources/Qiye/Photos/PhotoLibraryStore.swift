@@ -20,6 +20,7 @@ final class PhotoLibraryStore {
     @ObservationIgnored private let storage: PhotoFileStorage
     @ObservationIgnored private let directory: URL
     @ObservationIgnored private let session: URLSession
+    @ObservationIgnored private var bundledPhotos: [String: WebsitePhoto] = [:]
     private var remoteError: String?
     private var storageError: String?
     private var canWriteDrafts = true
@@ -36,6 +37,7 @@ final class PhotoLibraryStore {
                 throw CocoaError(.fileNoSuchFile)
             }
             photos = try WebsitePhoto.decode(Data(contentsOf: url), relativeTo: Self.siteURL)
+            bundledPhotos = Dictionary(uniqueKeysWithValues: photos.map { ($0.id, $0) })
         } catch {
             remoteError = "无法读取内置照片资料，请下拉刷新。\(error.localizedDescription)"
         }
@@ -111,6 +113,31 @@ final class PhotoLibraryStore {
         return PhotoImportResult(importedCount: imported, failedCount: items.count - imported, failures: failures)
     }
 
+    /// Persist the result before cleanup so reopening a retained draft cannot silently publish it twice.
+    @discardableResult
+    func recordPublication(id: UUID, commit: String?, uncertain: Bool = false) async -> Bool {
+        guard canWriteDrafts, !isImporting, !isDeleting,
+              let index = drafts.firstIndex(where: { $0.id == id }) else {
+            storageError = "无法保存照片提交状态，请先查看 GitHub 提交记录，避免重复发布。"
+            return false
+        }
+        isDeleting = true
+        defer { isDeleting = false }
+        var updated = drafts
+        updated[index].publishedCommit = commit
+        updated[index].publicationUncertain = uncertain
+        do {
+            try await storage.writeMetadata(updated)
+            drafts = updated
+            return true
+        } catch {
+            // Keep the result in memory even if persistence fails, and surface that limitation.
+            drafts = updated
+            storageError = "未能保存照片提交状态，请先查看 GitHub 提交记录，避免重复发布。\(error.localizedDescription)"
+            return false
+        }
+    }
+
     /// Only accepts a local draft ID; published photos cannot be removed by this API.
     @discardableResult
     func removeDraft(id: UUID) async -> Bool {
@@ -134,6 +161,12 @@ final class PhotoLibraryStore {
             storageError = "未能删除本地照片，原照片已保留。\(error.localizedDescription)"
             return false
         }
+    }
+
+    func bundledPreviewID(for photo: WebsitePhoto) -> String? {
+        guard let bundled = bundledPhotos[photo.id], bundled.src == photo.src,
+              bundled.preview == photo.preview, bundled.previewLarge == photo.previewLarge else { return nil }
+        return photo.id
     }
 
     func fileURL(for draft: PhotoDraft, thumbnail: Bool = false) -> URL {

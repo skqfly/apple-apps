@@ -39,7 +39,7 @@ struct TalksScreen: View {
                 }
                 if store.isLoading && store.posts.isEmpty {
                     ProgressView("正在读取说说…").frame(maxWidth: .infinity).padding(.vertical, 50)
-                } else if store.filteredPosts.isEmpty {
+                } else if store.filteredPosts.isEmpty && (store.error == nil || !store.posts.isEmpty) {
                     ContentUnavailableView(
                         store.query.isEmpty ? "还没有说说" : "未找到说说",
                         systemImage: "text.bubble",
@@ -89,14 +89,21 @@ private struct TalkCard: View {
                     ForEach(Array(post.images.enumerated()), id: \.offset) { entry in
                         if let url = entry.element.url, let original = entry.element.originalURL {
                             Link(destination: original) {
-                                AsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case let .success(image): image.resizable().scaledToFill()
-                                    case .failure: Image(systemName: "photo").foregroundStyle(.secondary)
-                                    default: ProgressView()
+                                Color.clear
+                                    .frame(height: 170)
+                                    .overlay {
+                                        GeometryReader { geometry in
+                                            AsyncImage(url: url) { phase in
+                                                switch phase {
+                                                case let .success(image): image.resizable().scaledToFill()
+                                                case .failure: Image(systemName: "photo").foregroundStyle(.secondary)
+                                                default: ProgressView()
+                                                }
+                                            }
+                                            .frame(width: geometry.size.width, height: geometry.size.height)
+                                        }
                                     }
-                                }
-                                .frame(maxWidth: .infinity).frame(height: 170)
+                                .clipped()
                                 .background(.quaternary)
                                 .clipShape(RoundedRectangle(cornerRadius: 12))
                             }

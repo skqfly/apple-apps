@@ -38,6 +38,7 @@ actor GitHubDeviceAuthorization {
         while Date() < deadline {
             try await Task.sleep(for: .seconds(interval))
             try Task.checkCancellation()
+            guard Date() < deadline else { throw AuthorizationFailure.expired }
             let data = try await post("https://github.com/login/oauth/access_token", values: [
                 "client_id": clientID, "device_code": code.deviceCode,
                 "grant_type": "urn:ietf:params:oauth:grant-type:device_code"
@@ -49,7 +50,8 @@ actor GitHubDeviceAuthorization {
                     throw AuthorizationFailure.permissionMissing
                 }
                 return GitHubCredential(accessToken: token, refreshToken: reply.refreshToken,
-                    expiresAt: reply.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) })
+                    expiresAt: reply.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) },
+                    refreshExpiresAt: reply.refreshTokenExpiresIn.map { Date().addingTimeInterval(TimeInterval($0)) })
             }
             switch reply.error {
             case "authorization_pending": continue
@@ -63,14 +65,27 @@ actor GitHubDeviceAuthorization {
     }
 
     func refresh(clientID: String, credential: GitHubCredential) async throws -> GitHubCredential {
-        guard let refreshToken = credential.refreshToken else { throw AuthorizationFailure.expired }
+        guard let refreshToken = credential.refreshToken, !refreshToken.isEmpty,
+              credential.refreshExpiresAt.map({ $0 > Date() }) ?? true else {
+            throw AuthorizationFailure.expired
+        }
+        // GitHub explicitly exempts device-flow user tokens from client_secret.
+        // Never embed an OAuth client secret in the native application.
         let data = try await post("https://github.com/login/oauth/access_token", values: [
             "client_id": clientID, "refresh_token": refreshToken, "grant_type": "refresh_token"
         ])
         let reply = try JSONDecoder().decode(TokenReply.self, from: data)
-        guard let token = reply.accessToken, !token.isEmpty else { throw AuthorizationFailure.expired }
+        guard let token = reply.accessToken, !token.isEmpty else {
+            switch reply.error {
+            case "bad_refresh_token", "expired_token", "invalid_grant": throw AuthorizationFailure.expired
+            case "incorrect_client_credentials", "unsupported_grant_type": throw AuthorizationFailure.notConfigured
+            default: throw AuthorizationFailure.unavailable
+            }
+        }
         return GitHubCredential(accessToken: token, refreshToken: reply.refreshToken ?? refreshToken,
-            expiresAt: reply.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) })
+            expiresAt: reply.expiresIn.map { Date().addingTimeInterval(TimeInterval($0)) },
+            refreshExpiresAt: reply.refreshTokenExpiresIn.map { Date().addingTimeInterval(TimeInterval($0)) }
+                ?? credential.refreshExpiresAt)
     }
 
     private func post(_ endpoint: String, values: [String: String]) async throws -> Data {
@@ -83,6 +98,7 @@ actor GitHubDeviceAuthorization {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.httpBody = body.percentEncodedQuery?.data(using: .utf8)
         let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             throw AuthorizationFailure.unavailable
         }
@@ -95,9 +111,11 @@ actor GitHubDeviceAuthorization {
         let error: String?
         let refreshToken: String?
         let expiresIn: Int?
+        let refreshTokenExpiresIn: Int?
         enum CodingKeys: String, CodingKey {
             case accessToken = "access_token", scope, error
             case refreshToken = "refresh_token", expiresIn = "expires_in"
+            case refreshTokenExpiresIn = "refresh_token_expires_in"
         }
     }
 }
@@ -107,7 +125,7 @@ enum AuthorizationFailure: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notConfigured: "GitHub 授权应用尚未配置，或未启用 Device Flow。"
-        case .expired: "授权码已过期，请重新开始登录。"
+        case .expired: "GitHub 授权已过期，请重新开始登录。"
         case .denied: "你取消了 GitHub 授权。"
         case .unavailable: "暂时无法连接 GitHub 授权服务，请稍后重试。"
         case .permissionMissing: "此次授权未包含公开仓库发布权限，请重新授权。"

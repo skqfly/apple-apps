@@ -11,6 +11,13 @@ struct ContributionCalendarView: View {
         calendar.days.first { $0.id == selectedDayID }
     }
 
+    private var selectedDate: Binding<Date> {
+        Binding(
+            get: { selectedDay?.date ?? calendar.endDate },
+            set: { selectedDayID = DashboardDates.dayFormatter().string(from: $0) }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .firstTextBaseline) {
@@ -68,6 +75,11 @@ struct ContributionCalendarView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
             .accessibilityLabel("贡献等级图例，从少到多共五级。日历可横向滚动。")
+
+            DatePicker("查看日期", selection: selectedDate, in: calendar.startDate...calendar.endDate, displayedComponents: .date)
+                .datePickerStyle(.compact)
+                .font(.caption)
+                .environment(\.timeZone, DashboardDates.calendar.timeZone)
 
             if let day = selectedDay {
                 Text(dayDescription(day))
@@ -151,10 +163,10 @@ struct ContributionCalendarView: View {
     private func tileColor(_ level: Int) -> Color {
         switch level {
         case 0: return Color.primary.opacity(0.07)
-        case 1: return Color.appAccent.opacity(0.27)
-        case 2: return Color.appAccent.opacity(0.48)
-        case 3: return Color.appAccent.opacity(0.72)
-        default: return Color.appAccent
+        case 1: return Color.green.opacity(0.28)
+        case 2: return Color.green.opacity(0.48)
+        case 3: return Color.green.opacity(0.72)
+        default: return Color.green
         }
     }
 

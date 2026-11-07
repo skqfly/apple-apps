@@ -8,6 +8,8 @@ actor GitHubRepository {
     static let websiteURL = URL(string: "https://mmddskq.top")!
 
     private var token: String?
+    private var credentialRevision = UUID()
+    @TaskLocal private static var publishingCredentialRevision: UUID?
     private let session: URLSession
     private let repositoryPath = "repos/skqfly/skqfly.github.io"
     private var blogCache: [BlogPost] = []
@@ -19,7 +21,10 @@ actor GitHubRepository {
     }
 
     func updateToken(_ token: String?) {
-        self.token = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = token?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard self.token != normalized else { return }
+        self.token = normalized
+        credentialRevision = UUID()
     }
 
     /// GitHub API endpoint, for example `user` or `repos/.../actions/runs?per_page=10`.
@@ -41,9 +46,12 @@ actor GitHubRepository {
     func cachedTalks() -> [TalkPost] { talksCache }
 
     func fetchBlogPosts() async throws -> [BlogPost] {
-        if token == nil {
-            return try await fetchPublicBlogPosts()
-        }
+        // Prefer the public index even when signed in: a rate-limited API must not
+        // prevent reading the public blog. Older deployments may not have an index.
+        do { return try await fetchPublicBlogPosts() }
+        catch is CancellationError { throw CancellationError() }
+        catch let error as URLError where error.code == .cancelled { throw CancellationError() }
+        catch { try Task.checkCancellation() }
         let head: Reference = try await decode(path: "\(repositoryPath)/git/ref/heads/\(Self.branch)")
         let tree: GitTree = try await decode(path: "\(repositoryPath)/git/trees/\(head.object.sha)?recursive=1")
         guard !tree.truncated else {
@@ -118,16 +126,24 @@ actor GitHubRepository {
 
     private func fetchPublicBlogPosts() async throws -> [BlogPost] {
         let base = "https://raw.githubusercontent.com/skqfly/skqfly.github.io/main/"
-        guard let indexURL = URL(string: base + "src/content/posts.json"),
-              let index = try? JSONDecoder().decode([String].self, from: try await publicData(indexURL)) else {
-            throw GitHubError.invalidContent("公开博客目录暂不可用，请稍后重试。")
-        }
+        let indexURL = URL(string: base + "src/content/posts.json")!
+        let data = try await publicData(indexURL)
+        let index: [String]
+        do { index = try JSONDecoder().decode([String].self, from: data) }
+        catch { throw GitHubError.invalidContent("公开博客目录暂不可用，请稍后重试。") }
         var posts: [BlogPost] = []
-        for path in index {
-            guard path.hasPrefix("src/content/posts/"), !path.contains(".."),
-                  let url = URL(string: base + path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!) else { continue }
+        for path in Set(index).sorted() {
+            let components = path.split(separator: "/", omittingEmptySubsequences: false)
+            guard path.hasPrefix("src/content/posts/"),
+                  components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  ["md", "mdx"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()),
+                  let url = URL(string: base + components.map { Self.escape(String($0)) }.joined(separator: "/")) else {
+                throw GitHubError.invalidContent("公开博客目录含有无效文章路径。")
+            }
             let data = try await publicData(url)
-            guard let markdown = String(data: data, encoding: .utf8) else { continue }
+            guard let markdown = String(data: data, encoding: .utf8) else {
+                throw GitHubError.invalidContent("文章不是有效的 UTF-8 文本。")
+            }
             posts.append(BlogPost.parse(markdown, path: path))
         }
         posts.sort { $0.date == $1.date ? $0.path < $1.path : $0.date > $1.date }
@@ -140,8 +156,9 @@ actor GitHubRepository {
         request.timeoutInterval = 25
         request.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, response) = try await session.data(for: request)
+        try Task.checkCancellation()
         guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
-            throw GitHubError.rateLimited
+            throw GitHubError.network
         }
         return data
     }
@@ -161,7 +178,15 @@ actor GitHubRepository {
         catch { throw GitHubError.invalidResponse }
     }
 
+    private func checkPublishingCredential() throws {
+        if let expected = Self.publishingCredentialRevision, expected != credentialRevision {
+            throw GitHubError.signInRequired
+        }
+    }
+
     private func request(path: String, method: String = "GET", body: [String: Any]? = nil) async throws -> Data {
+        try Task.checkCancellation()
+        try checkPublishingCredential()
         let relative = path.hasPrefix("/") ? String(path.dropFirst()) : path
         guard !relative.hasPrefix("/"), !relative.contains("://"),
               let base = URL(string: "https://api.github.com/"),
@@ -279,6 +304,15 @@ extension GitHubRepository {
         manifest: (String) async throws -> [String: Data]
     ) async throws -> String {
         guard token?.isEmpty == false else { throw GitHubError.signInRequired }
+        return try await Self.$publishingCredentialRevision.withValue(credentialRevision) {
+            try await publishWithCurrentCredential(message: message, assets: assets, manifest: manifest)
+        }
+    }
+
+    private func publishWithCurrentCredential(
+        message: String, assets: [String: Data],
+        manifest: (String) async throws -> [String: Data]
+    ) async throws -> String {
         // Assets have stable UUID paths and immutable blobs, so they can be reused after a conflict.
         var assetSHAs: [String: String] = [:]
         for (path, data) in assets {

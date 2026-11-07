@@ -16,14 +16,19 @@ final class AccountStore {
     @ObservationIgnored private var authorizationTask: Task<Void, Never>?
     @ObservationIgnored private var operationID = UUID()
     @ObservationIgnored private var didAttemptRestore = false
+    @ObservationIgnored private var explicitlySignedOut = false
     @ObservationIgnored private var accessToken: String?
+    @ObservationIgnored private var accessTokenExpiresAt: Date?
 
     var clientID: String {
         (Bundle.main.object(forInfoDictionaryKey: "GitHubOAuthClientID") as? String ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func currentToken() -> String? { isSignedIn ? accessToken : nil }
+    func currentToken() -> String? {
+        guard isSignedIn, accessTokenExpiresAt.map({ $0 > Date() }) ?? true else { return nil }
+        return accessToken
+    }
 
     func restore() async {
         guard !didAttemptRestore, !isLoading else { return }
@@ -32,7 +37,7 @@ final class AccountStore {
     }
 
     func refreshAuthorization() async {
-        guard !isLoading else { return }
+        guard !isLoading, !explicitlySignedOut else { return }
         let id = UUID()
         operationID = id
         isLoading = true
@@ -41,22 +46,32 @@ final class AccountStore {
             guard var credential = try keychain.readCredential() else { return }
             if credential.needsRefresh {
                 credential = try await authorization.refresh(clientID: clientID, credential: credential)
+                try Task.checkCancellation()
                 guard operationID == id else { return }
                 try keychain.saveCredential(credential)
             }
             let account = try await validate(credential.accessToken)
             try Task.checkCancellation()
             guard operationID == id else { return }
-            accept(account, token: credential.accessToken)
+            accept(account, credential: credential)
         } catch is CancellationError { return
         } catch let failure as URLError where failure.code == .cancelled { return
         } catch {
             guard operationID == id else { return }
             self.error = userMessage(error)
             didAttemptRestore = false
-            if error is AuthorizationFailure {
+            let invalidAuthorization: Bool
+            if let failure = error as? AuthorizationFailure {
+                switch failure {
+                case .expired, .denied, .permissionMissing: invalidAuthorization = true
+                case .notConfigured, .unavailable: invalidAuthorization = false
+                }
+            } else { invalidAuthorization = error is AccountFailure }
+            if invalidAuthorization {
                 accessToken = nil
                 isSignedIn = false
+                name = ""
+                avatarURL = nil
                 credentialRevision += 1
             }
         }
@@ -78,11 +93,13 @@ final class AccountStore {
                 guard operationID == id else { return }
                 deviceCode = code
                 let credential = try await authorization.waitForToken(clientID: clientID, code: code)
+                try Task.checkCancellation()
+                guard operationID == id else { return }
                 let account = try await validate(credential.accessToken)
                 try Task.checkCancellation()
                 guard operationID == id else { return }
                 try keychain.saveCredential(credential)
-                accept(account, token: credential.accessToken)
+                accept(account, credential: credential)
             } catch is CancellationError { return
             } catch {
                 guard operationID == id else { return }
@@ -101,6 +118,7 @@ final class AccountStore {
 
     func logout() {
         cancelGitHubLogin()
+        explicitlySignedOut = true
         accessToken = nil
         isSignedIn = false
         name = ""
@@ -112,10 +130,12 @@ final class AccountStore {
         catch { self.error = "未能清除设备钥匙串，请解锁设备后重试。" }
     }
 
-    private func accept(_ account: GitHubAccount, token: String) {
+    private func accept(_ account: GitHubAccount, credential: GitHubCredential) {
+        explicitlySignedOut = false
         name = account.name.flatMap { $0.isEmpty ? nil : $0 } ?? account.login
         avatarURL = account.avatarURL
-        accessToken = token
+        accessToken = credential.accessToken
+        accessTokenExpiresAt = credential.expiresAt
         isSignedIn = true
         didAttemptRestore = true
         error = nil
@@ -132,7 +152,10 @@ final class AccountStore {
         let session = URLSession(configuration: configuration)
         defer { session.invalidateAndCancel() }
         let (data, response) = try await session.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw AuthorizationFailure.expired }
+        try Task.checkCancellation()
+        guard let http = response as? HTTPURLResponse else { throw AuthorizationFailure.unavailable }
+        if http.statusCode == 401 { throw AuthorizationFailure.expired }
+        guard http.statusCode == 200 else { throw AuthorizationFailure.unavailable }
         let account = try JSONDecoder().decode(GitHubAccount.self, from: data)
         guard account.login.caseInsensitiveCompare(Self.administratorLogin) == .orderedSame else {
             throw AccountFailure.wrongAccount

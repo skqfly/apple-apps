@@ -2,6 +2,7 @@ import Foundation
 
 struct WebsitePhoto: Identifiable, Equatable, Sendable {
     let id: String
+    let sourcePath: String
     let src: URL
     let width: Int
     let height: Int
@@ -16,6 +17,15 @@ struct WebsitePhoto: Identifiable, Equatable, Sendable {
     }
 
     init(id: String, sourcePath: String, src: URL, width: Int, height: Int, alt: String, preview: URL, previewLarge: URL) {
+        self.id = id
+        self.sourcePath = sourcePath
+        self.src = src
+        self.width = width
+        self.height = height
+        self.alt = alt
+        self.preview = preview
+        self.previewLarge = previewLarge
+    }
 
     static func decode(_ data: Data, relativeTo baseURL: URL) throws -> [WebsitePhoto] {
         struct Entry: Decodable {

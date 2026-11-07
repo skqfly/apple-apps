@@ -20,7 +20,7 @@ xcrun simctl status_bar "$simulator_id" override --time '9:41' --batteryState ch
 xcrun simctl install "$simulator_id" "$app_dir"
 for mode in light dark; do
     xcrun simctl ui "$simulator_id" appearance "$mode"
-    for tab in home photos; do
+    for tab in home blog talks photos; do
         xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
         xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab "$tab"
         sleep 8

@@ -33,6 +33,20 @@ struct AccountTokenKeychain {
         return token
     }
 
+    func readCredential() throws -> GitHubCredential? {
+        guard let value = try read() else { return nil }
+        if let data = value.data(using: .utf8), let credential = try? JSONDecoder().decode(GitHubCredential.self, from: data) {
+            return credential
+        }
+        return GitHubCredential(accessToken: value, refreshToken: nil, expiresAt: nil)
+    }
+
+    func saveCredential(_ credential: GitHubCredential) throws {
+        let data = try JSONEncoder().encode(credential)
+        guard let value = String(data: data, encoding: .utf8) else { throw StorageError.unavailable }
+        try save(value)
+    }
+
     func save(_ token: String) throws {
         let values: [String: Any] = [
             kSecValueData as String: Data(token.utf8),

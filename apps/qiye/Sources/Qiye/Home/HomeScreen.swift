@@ -1,131 +1,208 @@
 import SwiftUI
 
 struct HomeScreen: View {
-    let overview: SiteOverview
-    let photoCount: Int
-    let draftCount: Int
-    let openPhotos: () -> Void
-    let openTalks: () -> Void
-    @Environment(\.openURL) private var openURL
+    let store: DashboardStore
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                introduction
-                photoFeature
-                quickActions
-                recentTalk
-                if let error = overview.error {
-                    Label(error, systemImage: "wifi.slash")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 18) {
+                refreshStatus
+                websiteCard
+                workflowsCard
+                contributionsCard
             }
             .padding(.horizontal, 20)
             .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.bottom, 28)
         }
         .background(Color.appBackground)
+        .tint(.appAccent)
         .navigationTitle("首页")
-        .refreshable { await overview.refresh() }
-    }
-
-    private var introduction: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text("栖页")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text("给日常一个落点。")
-                .font(.system(.largeTitle, design: .serif).weight(.medium))
-                .fixedSize(horizontal: false, vertical: true)
-            Text("写下想法，留住眼前。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        .task {
+            if store.lastRefreshedAt == nil { await store.refresh() }
         }
+        .refreshable { await store.refresh() }
     }
 
-    private var photoFeature: some View {
-        Button(action: openPhotos) {
-            VStack(alignment: .leading, spacing: 0) {
-                Image("HomeCover")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 218)
-                    .clipped()
-                    .accessibilityHidden(true)
-                HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("照片里的生活")
-                            .font(.headline)
-                        Text("\(photoCount) 张已收录 · \(draftCount) 张本机待整理")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+    private var refreshStatus: some View {
+        HStack(spacing: 8) {
+            if store.isRefreshing {
+                Text("正在更新状态…")
+            } else if let date = store.lastRefreshedAt {
+                Text("最近检查")
+                Text(date, style: .relative)
+            } else {
+                Text("下拉刷新网站与 GitHub 状态")
+            }
+            Spacer(minLength: 4)
+            Button {
+                Task { await store.refresh() }
+            } label: {
+                Label("刷新状态", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .disabled(store.isRefreshing)
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var websiteCard: some View {
+        DashboardCard(title: "网站状态", symbol: "globe", isLoading: store.website.isLoading || store.repository.isLoading || store.pages.isLoading) {
+            VStack(alignment: .leading, spacing: 16) {
+                Link(destination: DashboardService.websiteURL) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("mmddskq.top").font(.title3.weight(.semibold))
+                        Image(systemName: "arrow.up.right").font(.caption)
                     }
-                    Spacer()
-                    Image(systemName: "arrow.up.right")
-                        .font(.title3)
-                        .accessibilityHidden(true)
+                    .frame(minHeight: 44, alignment: .leading)
                 }
-                .padding(18)
+                if let health = store.website.value {
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 14) { healthSummary(health) }
+                        VStack(alignment: .leading, spacing: 8) { healthSummary(health) }
+                    }
+                    Text("测量包含网络连接、跳转和响应下载耗时。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if store.website.error != nil {
+                        Text("上次检测：\(health.checkedAt.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                } else if store.website.isLoading {
+                    loading("正在检测网站 HTTP 状态…")
+                } else {
+                    Label("尚无法确认网站状态", systemImage: "questionmark.circle")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                if let error = store.website.error {
+                    DashboardErrorNote(message: error, showsPrevious: store.website.value != nil)
+                }
+                Divider()
+                repositoryDetails
+                pagesDetails
             }
-            .foregroundStyle(.primary)
-            .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 24))
-            .clipShape(.rect(cornerRadius: 24))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("打开照片，\(photoCount) 张已收录，\(draftCount) 张本机待整理")
     }
 
-    private var quickActions: some View {
-        HStack(spacing: 12) {
-            Button(action: openPhotos) {
-                Label("添加照片", systemImage: "photo.badge.plus")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity, minHeight: 48)
-            }
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle(radius: 16))
-            Button(action: openTalks) {
-                Label("看看说说", systemImage: "text.bubble")
-                    .font(.subheadline.weight(.medium))
-                    .frame(maxWidth: .infinity, minHeight: 48)
-            }
-            .buttonStyle(.bordered)
-            .buttonBorderShape(.roundedRectangle(radius: 16))
+    @ViewBuilder private func healthSummary(_ health: WebsiteHealth) -> some View {
+        Label(health.isReachable ? "可访问" : "响应异常", systemImage: health.isReachable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(health.isReachable ? Color.green : Color.orange)
+        HStack(spacing: 10) {
+            Text("HTTP \(health.statusCode)")
+            Text(health.duration * 1_000, format: .number.precision(.fractionLength(0))) + Text(" ms")
         }
+        .font(.caption.monospacedDigit())
+        .foregroundStyle(.secondary)
     }
 
-    @ViewBuilder
-    private var recentTalk: some View {
-        if let talk = overview.talks.first {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("最近说说").font(.headline)
-                    Spacer()
-                    Button("全部", action: openTalks)
+    private var repositoryDetails: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let repo = store.repository.value {
+                Link(destination: repo.htmlURL) {
+                    Label("\(repo.defaultBranch) · 仓库", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
                         .font(.subheadline)
+                        .frame(minHeight: 32, alignment: .leading)
                 }
-                Button {
-                    openURL(URL(string: "https://mmddskq.top/talks")!)
-                } label: {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(talk.date)
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        Text(talk.title)
-                            .font(.title3.weight(.medium))
-                        Text(talk.description)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
+                HStack(alignment: .firstTextBaseline) {
+                    Text("仓库更新")
+                    Spacer()
+                    Text(repo.updatedAt, style: .relative)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                if let pushed = repo.pushedAt {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("最近推送")
+                        Spacer()
+                        Text(pushed, style: .relative)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(18)
-                    .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 20))
+                    .font(.caption).foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.primary)
-                .buttonStyle(.plain)
+            } else if store.repository.isLoading {
+                loading("正在读取仓库信息…")
+            }
+            if let error = store.repository.error {
+                DashboardErrorNote(message: error, showsPrevious: store.repository.value != nil)
             }
         }
+    }
+
+    private var pagesDetails: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let pages = store.pages.value {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("GitHub Pages")
+                    Spacer()
+                    Text(pages.statusLabel)
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                if let branch = pages.source?.branch {
+                    Text("Pages 来源分支：\(branch)").font(.caption).foregroundStyle(.secondary)
+                }
+                if let url = pages.htmlURL {
+                    Link("查看 Pages 网站", destination: url).font(.caption)
+                }
+            } else if store.pages.isLoading {
+                loading("正在读取 Pages 构建信息…")
+            }
+            if let error = store.pages.error {
+                DashboardErrorNote(message: error, showsPrevious: store.pages.value != nil)
+            }
+        }
+    }
+
+    private var workflowsCard: some View {
+        DashboardCard(title: "GitHub Actions", symbol: "play.circle", isLoading: store.workflows.isLoading) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("最近 5 次运行").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Link("全部运行", destination: DashboardService.actionsURL).font(.caption)
+                }
+                if let runs = store.workflows.value {
+                    if runs.isEmpty {
+                        Label("仓库暂无工作流运行记录", systemImage: "tray")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(runs) { run in
+                            if run.id != runs.first?.id { Divider() }
+                            DashboardWorkflowRow(run: run)
+                        }
+                    }
+                } else if store.workflows.isLoading {
+                    loading("正在读取工作流运行记录…")
+                }
+                if let error = store.workflows.error {
+                    DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
+                }
+            }
+        }
+    }
+
+    private var contributionsCard: some View {
+        DashboardCard(title: "GitHub 贡献", symbol: "square.grid.3x3", isLoading: store.contributions.isLoading) {
+            VStack(alignment: .leading, spacing: 16) {
+                if let calendar = store.contributions.value {
+                    ContributionCalendarView(calendar: calendar)
+                } else if store.contributions.isLoading {
+                    loading("正在读取近一年的贡献日历…")
+                }
+                if let error = store.contributions.error {
+                    DashboardErrorNote(message: error, showsPrevious: store.contributions.value != nil)
+                }
+                Link("在 GitHub 查看 skqfly", destination: DashboardService.profileURL)
+                    .font(.caption)
+                    .frame(minHeight: 32, alignment: .leading)
+            }
+        }
+    }
+
+    private func loading(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 }

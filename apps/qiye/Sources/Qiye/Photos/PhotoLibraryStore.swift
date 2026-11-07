@@ -59,13 +59,7 @@ final class PhotoLibraryStore {
         isLoading = true
         defer { isLoading = false }
         do {
-            var request = URLRequest(url: Self.libraryURL)
-            request.timeoutInterval = 20
-            request.cachePolicy = .reloadIgnoringLocalCacheData
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
+            let data = try await GitHubRepository(session: session).getRepositoryFile(path: "src/data/photo-library.json")
             photos = try WebsitePhoto.decode(data, relativeTo: Self.siteURL)
             remoteError = nil
         } catch is CancellationError {

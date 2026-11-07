@@ -9,7 +9,9 @@ struct AppNavigationView: View {
         return .home
     }()
     @State private var photos = PhotoLibraryStore()
-    @State private var overview = SiteOverview()
+    @State private var dashboard = DashboardStore()
+    @State private var repository = GitHubRepository()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var account = AccountStore()
     @State private var showingAccount = ProcessInfo.processInfo.arguments.contains("--account")
 
@@ -28,7 +30,16 @@ struct AppNavigationView: View {
         .task {
             await account.restore()
         }
-        .task { await overview.refresh() }
+        .task(id: account.credentialRevision) {
+            let token = account.currentToken()
+            await repository.updateToken(token)
+            dashboard.updateToken(token)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await account.refreshAuthorization() }
+            }
+        }
     }
 
     @available(iOS 18, *)
@@ -57,17 +68,13 @@ struct AppNavigationView: View {
             Group {
                 switch section {
                 case .home:
-                    HomeScreen(
-                        overview: overview,
-                        photoCount: photos.photos.count,
-                        draftCount: photos.drafts.count,
-                        openPhotos: { selectedSection = .photos },
-                        openTalks: { selectedSection = .talks }
-                    )
+                    HomeScreen(store: dashboard)
                 case .photos:
-                    PhotosScreen(store: photos)
-                case .blog, .talks:
-                    WritingScreen(section: section, overview: overview)
+                    PhotosScreen(store: photos, repository: repository, canPublish: account.isSignedIn)
+                case .blog:
+                    BlogScreen(repository: repository)
+                case .talks:
+                    TalksScreen(repository: repository, canPublish: account.isSignedIn)
                 }
             }
             .toolbar {

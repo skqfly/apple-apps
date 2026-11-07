@@ -91,24 +91,23 @@ final class PendingChangesStore {
 
     func remove(_ change: PendingChange) {
         changes.removeAll { $0.id == change.id }
-        if case .addPhoto(_, _, let imageName, _, _, _) = change.kind { discardImage(named: imageName) }
-        if case .addTalk(_, _, _, let images) = change.kind {
-            images.forEach { discardImage(named: $0.imageName) }
-        }
+        imageNames(in: change).forEach { discardImage(named: $0) }
         bump()
     }
 
     func clear() {
-        let staged = changes.flatMap { change -> [String] in
-            switch change.kind {
-            case .addPhoto(_, _, let name, _, _, _): return [name]
-            case .addTalk(_, _, _, let images, _): return images.map(\.imageName)
-            default: return []
-            }
-        }
-        staged.forEach { discardImage(named: $0) }
+        changes.flatMap(imageNames).forEach { discardImage(named: $0) }
         changes.removeAll()
         bump()
+    }
+
+    private func imageNames(in change: PendingChange) -> [String] {
+        switch change.kind {
+        case .addPhoto(_, _, let name, _, _, _): return [name]
+        case .addTalk(_, _, _, let images, _): return images.map(\.imageName)
+        case .editTalk(_, _, _, _, let images): return images.map(\.imageName)
+        default: return []
+        }
     }
 
     // MARK: - Commit

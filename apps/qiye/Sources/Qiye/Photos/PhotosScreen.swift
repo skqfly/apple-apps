@@ -41,7 +41,7 @@ struct PhotosScreen: View {
             }
             .padding()
         }
-        .background(.background)
+        .background(Color.appBackground)
         .navigationTitle("照片")
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -118,9 +118,14 @@ struct PhotosScreen: View {
                             selection = .website(photo)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: photo.id, prefersBundledPreview: true)
-                                    .frame(maxWidth: .infinity)
+                                Color.clear
                                     .frame(height: 180)
+                                    .overlay {
+                                        GeometryReader { geometry in
+                                            RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: photo.id, prefersBundledPreview: true)
+                                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                        }
+                                    }
                                     .clipped()
                                     .background(.quaternary)
                                     .clipShape(.rect(cornerRadius: 12))
@@ -158,9 +163,14 @@ struct PhotosScreen: View {
                             selection = .local(draft)
                         } label: {
                             VStack(alignment: .leading, spacing: 8) {
-                                LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true))
-                                    .frame(maxWidth: .infinity)
+                                Color.clear
                                     .frame(height: 180)
+                                    .overlay {
+                                        GeometryReader { geometry in
+                                            LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true))
+                                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                        }
+                                    }
                                     .clipped()
                                     .background(.quaternary)
                                     .clipShape(.rect(cornerRadius: 12))

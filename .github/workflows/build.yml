@@ -53,7 +53,7 @@ jobs:
             -project Qiye.xcodeproj -scheme Qiye -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/SimulatorBuild" \
-            CODE_SIGNING_ALLOWED=NO build
+            CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES build
 
       - name: Capture actual app in light and dark
         run: bash ../../scripts/capture-simulator.sh "$RUNNER_TEMP/SimulatorBuild/Build/Products/Debug-iphonesimulator/Qiye.app" "$GITHUB_WORKSPACE/dist"

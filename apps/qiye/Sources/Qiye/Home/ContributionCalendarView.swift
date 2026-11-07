@@ -12,7 +12,7 @@ struct ContributionCalendarView: View {
     @ScaledMetric(relativeTo: .caption) private var legendWidth: CGFloat = 18
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.accessibilityContrast) private var accessibilityContrast
+    @Environment(\.colorSchemeContrast) private var accessibilityContrast
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     private let gap: CGFloat = 4
 

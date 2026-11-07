@@ -16,7 +16,7 @@ final class TalksStore {
         if let url = Bundle.main.url(forResource: "site", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let document = try? JSONDecoder().decode(BundledTalks.self, from: data) {
-            posts = document.talksPageContent.entries
+            posts = document.talksPageContent.entries.sorted { $0.date > $1.date }
         }
     }
 

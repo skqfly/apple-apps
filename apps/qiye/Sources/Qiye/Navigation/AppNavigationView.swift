@@ -75,7 +75,7 @@ struct AppNavigationView: View {
                 case .blog:
                     BlogScreen(repository: repository)
                 case .talks:
-                    TalksScreen(repository: repository, pending: pending, canPublish: account.isSignedIn)
+                    TalksScreen(repository: repository, pending: pending, photos: photos, canPublish: account.isSignedIn)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

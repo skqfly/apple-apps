@@ -34,6 +34,15 @@ struct TalkImage: Decodable, Hashable, Sendable, Identifiable {
     let preview: String?
     let previewLarge: String?
 
+    init(src: String, width: Int?, height: Int?, alt: String?, preview: String?, previewLarge: String?) {
+        self.src = src
+        self.width = width
+        self.height = height
+        self.alt = alt
+        self.preview = preview
+        self.previewLarge = previewLarge
+    }
+
     var url: URL? { resolve(previewLarge ?? preview ?? src) }
     var originalURL: URL? { resolve(src) }
     var aspectRatio: Double {

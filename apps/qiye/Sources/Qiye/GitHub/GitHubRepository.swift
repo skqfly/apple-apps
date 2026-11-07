@@ -97,9 +97,9 @@ actor GitHubRepository {
         let snapshot: TalksDocument
         do { snapshot = try JSONDecoder().decode(TalksDocument.self, from: data) }
         catch { throw GitHubError.invalidContent("网站说说资料格式已变化，暂时无法读取。") }
-        // site.json stores newest first, including talks published on the same day.
-        // Sorting same-day entries by id reversed that order.
-        let posts = snapshot.talksPageContent.entries
+        let posts = snapshot.talksPageContent.entries.sorted {
+            $0.date == $1.date ? $0.id < $1.id : $0.date > $1.date
+        }
         talksCache = posts
         return posts
     }
@@ -369,8 +369,7 @@ extension GitHubRepository {
                 throw GitHubError.invalidContent("网站照片清单结构已变化，本次未修改文件。")
             }
             library[id] = ["src": source, "preview": source, "previewLarge": source,
-                           "width": width, "height": height, "alt": alt,
-                           "publishedAt": ISO8601DateFormatter().string(from: .now)]
+                           "width": width, "height": height, "alt": alt]
             return ["src/data/photo-library.json": try Self.json(library)]
         }
     }

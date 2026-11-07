@@ -4,13 +4,16 @@ import PhotosUI
 @MainActor
 struct NewTalkSheet: View {
     let pending: PendingChangesStore
+    let photos: PhotoLibraryStore
     let onStaged: () -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var content = ""
     @State private var date = Date.now
     @State private var images: [TalkImageDraft] = []
+    @State private var reused: [TalkImage] = []
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var showsCamera = false
+    @State private var showsSitePhotos = false
     @State private var isStaging = false
     @State private var error: String?
 
@@ -34,16 +37,9 @@ struct NewTalkSheet: View {
                 } header: { Text("内容") }
                 Section("图片") {
                     imageGrid
-                    PhotosPicker(selection: $pickerItems, maxSelectionCount: 6 - images.count, matching: .images) {
-                        Label("从相册选择", systemImage: "photo.on.rectangle")
-                    }
-                    .disabled(images.count >= 6)
-                    Button {
+                    TalkImageSources(remaining: 6 - images.count - reused.count, pickerItems: $pickerItems) {
                         showsCamera = true
-                    } label: {
-                        Label("拍照", systemImage: "camera")
-                    }
-                    .disabled(images.count >= 6)
+                    } onSitePhotos: { showsSitePhotos = true }
                 }
                 if let error {
                     Section {
@@ -100,10 +96,24 @@ struct NewTalkSheet: View {
 
     @ViewBuilder
     private var imageGrid: some View {
-        if images.isEmpty {
+        if images.isEmpty && reused.isEmpty {
             Text("还没有图片").font(.caption).foregroundStyle(.secondary)
         } else {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 8)], spacing: 8) {
+                ForEach(reused, id: \.src) { image in
+                    ZStack(alignment: .topTrailing) {
+                        AsyncImage(url: image.url) { phase in
+                            if let loaded = phase.image { loaded.resizable().scaledToFill() }
+                            else { Color.secondary.opacity(0.15) }
+                        }
+                        .frame(width: 80, height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        Button { reused.removeAll { $0.src == image.src } } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.white, .black.opacity(0.6))
+                        }
+                        .padding(4)
+                    }
+                }
                 ForEach(images) { draft in
                     ZStack(alignment: .topTrailing) {
                         if let ui = UIImage(data: draft.jpeg) {
@@ -133,7 +143,8 @@ struct NewTalkSheet: View {
             try pending.stageTalk(
                 text: content.trimmingCharacters(in: .whitespacesAndNewlines),
                 date: date,
-                images: images.map { ($0.jpeg, $0.width, $0.height) }
+                images: images.map { ($0.jpeg, $0.width, $0.height) },
+                reusedSources: reused.map(\.src)
             )
             onStaged()
             isStaging = false

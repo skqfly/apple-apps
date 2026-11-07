@@ -82,6 +82,7 @@ struct HomeScreen: View {
     private func changeSymbol(_ change: PendingChange) -> String {
         switch change.kind {
         case .addPhoto, .addTalk: return "plus.circle.fill"
+        case .editTalk: return "pencil.circle.fill"
         case .unpublishPhoto, .unpublishTalk: return "arrow.down.circle.fill"
         case .deletePhoto, .deleteTalk: return "trash.fill"
         }

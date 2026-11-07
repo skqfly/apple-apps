@@ -13,7 +13,7 @@ struct PendingChange: Identifiable, Codable, Equatable, Sendable {
         /// Remove a photo and its Qiye-uploaded image file.
         case deletePhoto(photoID: String, source: String)
         /// Publish a new talk. Talks have text and optional images, no title.
-        case addTalk(talkID: String, text: String, date: Date, images: [TalkImageSpec])
+        case addTalk(talkID: String, text: String, date: Date, images: [TalkImageSpec], reusedSources: [String])
         /// Remove a talk from the public list, keeping its images.
         case unpublishTalk(talkID: String)
         /// Remove a talk and any Qiye-uploaded images it owns.
@@ -40,6 +40,7 @@ extension PendingChange.Kind {
         case .unpublishPhoto: return "下架照片"
         case .deletePhoto: return "删除照片"
         case .addTalk: return "新增说说"
+        case .editTalk: return "编辑说说"
         case .unpublishTalk: return "下架说说"
         case .deleteTalk: return "删除说说"
         }

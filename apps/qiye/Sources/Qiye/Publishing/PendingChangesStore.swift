@@ -47,16 +47,36 @@ final class PendingChangesStore {
         bump()
     }
 
-    func stageTalk(text: String, date: Date, images: [(jpeg: Data, width: Int, height: Int)]) throws {
+    func stageTalk(text: String, date: Date, images: [(jpeg: Data, width: Int, height: Int)], reusedSources: [String] = []) throws {
         let talkID = "qiye-\(UUID().uuidString.lowercased())"
+        let specs = try storeTalkImages(talkID: talkID, images: images)
+        changes.append(PendingChange(kind: .addTalk(
+            talkID: talkID, text: text, date: date, images: specs, reusedSources: reusedSources
+        )))
+        bump()
+    }
+
+    /// Edits an existing talk. `keptSources` are images already on the site; `newImages` are newly added.
+    func stageTalkEdit(talkID: String, text: String, date: Date, keptSources: [String], newImages: [(jpeg: Data, width: Int, height: Int)]) throws {
+        let specs = try storeTalkImages(talkID: talkID, images: newImages)
+        changes.removeAll { change in
+            if case .editTalk(let id, _, _, _, _) = change.kind { return id == talkID }
+            return false
+        }
+        changes.append(PendingChange(kind: .editTalk(
+            talkID: talkID, text: text, date: date, keptSources: keptSources, newImages: specs
+        )))
+        bump()
+    }
+
+    private func storeTalkImages(talkID: String, images: [(jpeg: Data, width: Int, height: Int)]) throws -> [PendingChange.Kind.TalkImageSpec] {
         var specs: [PendingChange.Kind.TalkImageSpec] = []
         for (index, image) in images.enumerated() {
-            let name = "\(talkID)-\(index).jpg"
+            let name = "\(talkID)-\(index)-\(UUID().uuidString.lowercased()).jpg"
             try store(image: image.jpeg, named: name)
             specs.append(.init(imageName: name, width: image.width, height: image.height))
         }
-        changes.append(PendingChange(kind: .addTalk(talkID: talkID, text: text, date: date, images: specs)))
-        bump()
+        return specs
     }
 
     func stageUnpublishTalk(talkID: String) {
@@ -139,10 +159,10 @@ final class PendingChangesStore {
         var files: [String: Data] = [:]
 
         let siteChanged = snapshot.contains {
-            if case .addTalk = $0.kind { return true }
-            if case .unpublishTalk = $0.kind { return true }
-            if case .deleteTalk = $0.kind { return true }
-            return false
+            switch $0.kind {
+            case .addTalk, .editTalk, .unpublishTalk, .deleteTalk: return true
+            default: return false
+            }
         }
         let photosChanged = snapshot.contains {
             if case .addPhoto = $0.kind { return true }
@@ -168,17 +188,29 @@ final class PendingChangesStore {
               var entries = page["entries"] as? [[String: Any]] else {
             throw StagingFailure.invalidSiteData
         }
-        var additions: [[String: Any]] = []
         for change in snapshot {
             switch change.kind {
-            case .addTalk(let talkID, let text, let date, let images):
-                let imageEntries: [[String: Any]] = images.enumerated().map { index, image in
+            case .addTalk(let talkID, let text, let date, let images, let reused):
+                let uploaded = images.enumerated().map { index, image -> [String: Any] in
                     let src = "/talks/\(talkID)/\(index).jpg"
                     return ["src": src, "width": image.width, "height": image.height,
                             "alt": "说说照片", "preview": src, "previewLarge": src]
                 }
-                additions.append(["id": talkID, "title": "", "date": ContentDate.string(date),
-                                  "description": text, "images": imageEntries])
+                let reusedEntries = reused.map { ["src": $0, "alt": "说说照片", "preview": $0, "previewLarge": $0] }
+                entries.insert(["id": talkID, "title": "", "date": ContentDate.string(date),
+                                "description": text, "images": reusedEntries + uploaded], at: 0)
+            case .editTalk(let talkID, let text, let date, let kept, let images):
+                guard let index = entries.firstIndex(where: { ($0["id"] as? String) == talkID }) else { break }
+                let keptEntries = kept.map { ["src": $0, "alt": "说说照片", "preview": $0, "previewLarge": $0] }
+                let uploaded = images.enumerated().map { offset, image -> [String: Any] in
+                    let src = "/talks/\(talkID)/edit-\(offset).jpg"
+                    return ["src": src, "width": image.width, "height": image.height,
+                            "alt": "说说照片", "preview": src, "previewLarge": src]
+                }
+                entries[index]["title"] = ""
+                entries[index]["date"] = ContentDate.string(date)
+                entries[index]["description"] = text
+                entries[index]["images"] = keptEntries + uploaded
             case .unpublishTalk(let talkID):
                 entries.removeAll { ($0["id"] as? String) == talkID }
             case .deleteTalk(let talkID, let imageSources):
@@ -189,14 +221,18 @@ final class PendingChangesStore {
             default: break
             }
         }
-        // Staged talks are chronological. Reverse them so the latest stays first
-        // after every new talk is inserted at the front.
-        for talk in additions.reversed() {
-            entries.insert(talk, at: 0)
-        }
         page["entries"] = entries
         root["talksPageContent"] = page
         return try Self.json(root)
+    }
+
+    private static func talkEntry(id: String, text: String, date: Date, images: [PendingChange.Kind.TalkImageSpec], prefix: String) -> [String: Any] {
+        let imageEntries: [[String: Any]] = images.enumerated().map { index, image in
+            let src = prefix + "\(index).jpg"
+            return ["src": src, "width": image.width, "height": image.height,
+                    "alt": "说说照片", "preview": src, "previewLarge": src]
+        }
+        return ["id": id, "title": "", "date": ContentDate.string(date), "description": text, "images": imageEntries]
     }
 
     private func applyPhotos(snapshot: [PendingChange], data: Data, deletions: inout [String]) throws -> Data {
@@ -207,8 +243,7 @@ final class PendingChangesStore {
             switch change.kind {
             case .addPhoto(let photoID, let source, _, let width, let height, let alt):
                 library[photoID] = ["src": source, "preview": source, "previewLarge": source,
-                                    "width": width, "height": height, "alt": alt,
-                                    "publishedAt": Self.timestamp(.now)]
+                                    "width": width, "height": height, "alt": alt]
             case .unpublishPhoto(let photoID, _):
                 library.removeValue(forKey: photoID)
             case .deletePhoto(let photoID, let source):

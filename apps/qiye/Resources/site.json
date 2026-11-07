@@ -1,0 +1,422 @@
+{
+  "aboutPageContent": {
+    "seo": {
+      "title": "关于 | skqfly",
+      "description": "了解 skqfly 的研究方向、兴趣与技术栈。",
+      "image": "/logo.svg"
+    },
+    "subtitle": "保持好奇，持续计算，也持续记录。",
+    "about": {
+      "description": "\n我是 **skqfly**，关注计算数学，喜欢科学计算与数学建模。\n\n日常使用 Python、MATLAB、LaTeX 与 FreeFEM，希望把复杂问题整理成清晰、可靠且可复现的方案。"
+    },
+    "work": {
+      "description": "目前持续投入的方向与工具。",
+      "items": [
+        {
+          "title": "计算数学",
+          "company": {
+            "name": "研究方向",
+            "image": "/logo.svg",
+            "url": "https://github.com/skqfly"
+          },
+          "date": "Now"
+        },
+        {
+          "title": "科学计算与数学建模",
+          "company": {
+            "name": "Python · MATLAB · LaTeX · FreeFEM",
+            "image": "/logo.svg",
+            "url": "https://github.com/skqfly?tab=repositories"
+          },
+          "date": "Ongoing"
+        }
+      ]
+    },
+    "connect": {
+      "description": "欢迎通过 GitHub 交流学习、研究与合作。",
+      "links": [
+        {
+          "title": "GitHub",
+          "url": "https://github.com/skqfly",
+          "icon": "mdi:github",
+          "external": true
+        }
+      ]
+    }
+  },
+  "blogPageContent": {
+    "seo": {
+      "title": "Blogs | skqfly",
+      "description": "关于计算、建模与实践的笔记。",
+      "image": "/logo.svg"
+    }
+  },
+  "friendsPageContent": {
+    "seo": {
+      "title": "Friends | skqfly",
+      "description": "skqfly 的朋友们与值得关注的网站。",
+      "image": "/logo.svg"
+    },
+    "subtitle": "朋友们与值得关注的网站。",
+    "friends": [
+      {
+        "title": "longBlog",
+        "description": "数学专业在读 · INFJ",
+        "url": "https://huowenlong.com/",
+        "domain": "huowenlong.com",
+        "image": "https://huowenlong.com/favicon.svg"
+      }
+    ]
+  },
+  "homePageContent": {
+    "seo": {
+      "title": "skqfly's home",
+      "description": "skqfly 的个人网站，记录计算数学、科学计算与数学建模。",
+      "image": "/logo.svg"
+    },
+    "role": "",
+    "description": "把复杂问题做成清晰、可复现的方案。",
+    "socialLinks": [
+      {
+        "title": "GitHub",
+        "url": "https://github.com/skqfly",
+        "icon": "mdi:github",
+        "external": true
+      },
+      {
+        "title": "X",
+        "url": "https://x.com/keqiangsong",
+        "icon": "mdi:alpha-x",
+        "external": true
+      },
+      {
+        "title": "Telegram",
+        "url": "https://t.me/skqfly",
+        "icon": "mdi:telegram",
+        "external": true
+      },
+      {
+        "title": "Email",
+        "url": "mailto:skqfly@gmail.com",
+        "icon": "mdi:email-outline"
+      }
+    ],
+    "links": [
+      {
+        "title": "Blog",
+        "url": "/blog"
+      },
+      {
+        "title": "Projects",
+        "url": "/projects"
+      },
+      {
+        "title": "Talks",
+        "url": "/talks"
+      }
+    ],
+    "avatar": "/trilium-media/hsoG3EWvAyqw.webp"
+  },
+  "identity": {
+    "name": "skqfly",
+    "logo": "/logo.svg"
+  },
+  "navBarLinks": [
+    {
+      "title": "Blog",
+      "url": "/blog"
+    },
+    {
+      "title": "Projects",
+      "url": "/projects"
+    },
+    {
+      "title": "Talks",
+      "url": "/talks"
+    },
+    {
+      "title": "Friends",
+      "url": "/friends"
+    }
+  ],
+  "projectsPageContent": {
+    "seo": {
+      "title": "Projects | skqfly",
+      "description": "skqfly 的公开项目与实验。",
+      "image": "/logo.svg"
+    },
+    "subtitle": "一些公开项目、实验与个人工具。",
+    "projects": [
+      {
+        "title": "ImgBed",
+        "description": "基于 Cloudflare 的开源文件存储、图床与网盘方案。",
+        "image": "/trilium-media/snZQtDsA7A4L.webp",
+        "categories": [
+          "Web",
+          "Open Source"
+        ],
+        "tags": [
+          "Web",
+          "Cloudflare"
+        ],
+        "url": "https://github.com/skqfly/ImgBed"
+      },
+      {
+        "title": "nodewarden",
+        "description": "运行在 Cloudflare Workers 上的第三方 Bitwarden 服务端实现。",
+        "image": "/trilium-media/LFlCWvNjemQI.webp",
+        "categories": [
+          "Tools",
+          "Open Source"
+        ],
+        "tags": [
+          "Tools",
+          "Workers"
+        ],
+        "url": "https://github.com/skqfly/nodewarden"
+      }
+    ]
+  },
+  "socialLinks": [
+    {
+      "title": "GitHub",
+      "url": "https://github.com/skqfly",
+      "icon": "mdi:github",
+      "external": true
+    }
+  ],
+  "talksPageContent": {
+    "seo": {
+      "title": "Talks | skqfly",
+      "description": "skqfly 的演讲、分享与交流记录。",
+      "image": "/logo.svg"
+    },
+    "subtitle": "",
+    "entries": [
+      {
+        "id": "records-beyond-equations",
+        "title": "记录，是计算之外的另一条线索",
+        "date": "2026-07-15",
+        "description": "在公式、代码和日常照片之间，记录帮助我把模糊的想法整理成一段可以回看、可以继续推进的过程。",
+        "images": [
+          {
+            "src": "/trilium-media/PPnyu2f2rdIt.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "无人机镜头下的绿山与石屋",
+            "preview": "/trilium-media/PPnyu2f2rdIt-480.webp",
+            "previewLarge": "/trilium-media/PPnyu2f2rdIt-960.webp"
+          },
+          {
+            "src": "/trilium-media/iQlqXg4gZzaH.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "海边栏杆旁的人与远处海岸",
+            "preview": "/trilium-media/iQlqXg4gZzaH-480.webp",
+            "previewLarge": "/trilium-media/iQlqXg4gZzaH-960.webp"
+          },
+          {
+            "src": "/trilium-media/vgM1Md96FJ5b.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "电影场记板和胶片装置前的人",
+            "preview": "/trilium-media/vgM1Md96FJ5b-480.webp",
+            "previewLarge": "/trilium-media/vgM1Md96FJ5b-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "observing-scale-between-rocks",
+        "title": "在岩石缝隙里观察尺度",
+        "date": "2026-06-06",
+        "description": "从一枚落在石缝里的绿色物体出发，观察形状、纹理与尺度。很多建模问题，也从选择合适的观察尺度开始。",
+        "images": [
+          {
+            "src": "/trilium-media/vgM1Md96FJ5b.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "电影场记板和胶片装置前的人",
+            "preview": "/trilium-media/vgM1Md96FJ5b-480.webp",
+            "previewLarge": "/trilium-media/vgM1Md96FJ5b-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "geometry-in-everyday-photos",
+        "title": "圆、线与留白：生活照片里的几何",
+        "date": "2026-06-03",
+        "description": "圆环、纸面和边缘构成一组简单几何。把生活照片抽象成点、线和区域，是理解图像结构的第一步。",
+        "images": [
+          {
+            "src": "/trilium-media/EtEKZGn9wR9K.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "雨天撑着透明雨伞站在绿地旁的人",
+            "preview": "/trilium-media/EtEKZGn9wR9K-480.webp",
+            "previewLarge": "/trilium-media/EtEKZGn9wR9K-960.webp"
+          },
+          {
+            "src": "/trilium-media/gw2rYe0OGixC.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "夜色中亮起灯光的和平饭店外墙",
+            "preview": "/trilium-media/gw2rYe0OGixC-480.webp",
+            "previewLarge": "/trilium-media/gw2rYe0OGixC-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "blue-hour-by-the-coast",
+        "title": "海岸线的蓝调时刻",
+        "date": "2026-06-01",
+        "description": "蓝色天空、海面和远处地平线几乎连成一体。这里记录曝光、色阶与渐变如何共同塑造安静的画面。",
+        "images": [
+          {
+            "src": "/trilium-media/BCYzP1pBR9WL.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "高楼之间的两人合影",
+            "preview": "/trilium-media/BCYzP1pBR9WL-480.webp",
+            "previewLarge": "/trilium-media/BCYzP1pBR9WL-960.webp"
+          },
+          {
+            "src": "/trilium-media/wjASPN7JsGKa.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "城市街头戴着眼镜的人",
+            "preview": "/trilium-media/wjASPN7JsGKa-480.webp",
+            "previewLarge": "/trilium-media/wjASPN7JsGKa-960.webp"
+          },
+          {
+            "src": "/trilium-media/gw2rYe0OGixC.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "夜色中亮起灯光的和平饭店外墙",
+            "preview": "/trilium-media/gw2rYe0OGixC-480.webp",
+            "previewLarge": "/trilium-media/gw2rYe0OGixC-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "framing-through-a-car-window",
+        "title": "车窗之外：移动中的取景",
+        "date": "2025-12-18",
+        "description": "隔着车窗拍摄，反射、速度与远景叠在同一帧里。这是一段关于运动、边界和偶然构图的短分享。",
+        "images": [
+          {
+            "src": "/trilium-media/gw2rYe0OGixC.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "夜色中亮起灯光的和平饭店外墙",
+            "preview": "/trilium-media/gw2rYe0OGixC-480.webp",
+            "previewLarge": "/trilium-media/gw2rYe0OGixC-960.webp"
+          },
+          {
+            "src": "/trilium-media/wjASPN7JsGKa.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "城市街头戴着眼镜的人",
+            "preview": "/trilium-media/wjASPN7JsGKa-480.webp",
+            "previewLarge": "/trilium-media/wjASPN7JsGKa-960.webp"
+          },
+          {
+            "src": "/trilium-media/BCYzP1pBR9WL.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "高楼之间的两人合影",
+            "preview": "/trilium-media/BCYzP1pBR9WL-480.webp",
+            "previewLarge": "/trilium-media/BCYzP1pBR9WL-960.webp"
+          },
+          {
+            "src": "/trilium-media/YQjo9stzKRQ2.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "手中拿着的一杯饮品",
+            "preview": "/trilium-media/YQjo9stzKRQ2-480.webp",
+            "previewLarge": "/trilium-media/YQjo9stzKRQ2-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "how-light-changes-space",
+        "title": "一束光如何改变空间",
+        "date": "2025-08-09",
+        "description": "洞穴里的局部照明让轮廓突然清晰。借这组照片聊光照、阴影和空间深度之间的关系。",
+        "images": [
+          {
+            "src": "/trilium-media/YQjo9stzKRQ2.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "手中拿着的一杯饮品",
+            "preview": "/trilium-media/YQjo9stzKRQ2-480.webp",
+            "previewLarge": "/trilium-media/YQjo9stzKRQ2-960.webp"
+          },
+          {
+            "src": "/trilium-media/iQlqXg4gZzaH.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "海边栏杆旁的人与远处海岸",
+            "preview": "/trilium-media/iQlqXg4gZzaH-480.webp",
+            "previewLarge": "/trilium-media/iQlqXg4gZzaH-960.webp"
+          },
+          {
+            "src": "/trilium-media/vgM1Md96FJ5b.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "电影场记板和胶片装置前的人",
+            "preview": "/trilium-media/vgM1Md96FJ5b-480.webp",
+            "previewLarge": "/trilium-media/vgM1Md96FJ5b-960.webp"
+          },
+          {
+            "src": "/trilium-media/BvXTab9QpoCY.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "东方明珠塔前的人",
+            "preview": "/trilium-media/BvXTab9QpoCY-480.webp",
+            "previewLarge": "/trilium-media/BvXTab9QpoCY-960.webp"
+          },
+          {
+            "src": "/trilium-media/EtEKZGn9wR9K.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "雨天撑着透明雨伞站在绿地旁的人",
+            "preview": "/trilium-media/EtEKZGn9wR9K-480.webp",
+            "previewLarge": "/trilium-media/EtEKZGn9wR9K-960.webp"
+          }
+        ]
+      },
+      {
+        "id": "organizing-an-experiment-from-objects",
+        "title": "从眼前的物件开始整理实验",
+        "date": "2025-04-12",
+        "description": "从玻璃柜里的排列，到纸面上的几何，实验常常从一个足够小、能够复查的观察记录开始。",
+        "images": [
+          {
+            "src": "/trilium-media/BvXTab9QpoCY.webp",
+            "width": 1920,
+            "height": 2560,
+            "alt": "东方明珠塔前的人",
+            "preview": "/trilium-media/BvXTab9QpoCY-480.webp",
+            "previewLarge": "/trilium-media/BvXTab9QpoCY-960.webp"
+          },
+          {
+            "src": "/trilium-media/EtEKZGn9wR9K.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "雨天撑着透明雨伞站在绿地旁的人",
+            "preview": "/trilium-media/EtEKZGn9wR9K-480.webp",
+            "previewLarge": "/trilium-media/EtEKZGn9wR9K-960.webp"
+          },
+          {
+            "src": "/trilium-media/vgM1Md96FJ5b.webp",
+            "width": 2560,
+            "height": 1920,
+            "alt": "电影场记板和胶片装置前的人",
+            "preview": "/trilium-media/vgM1Md96FJ5b-480.webp",
+            "previewLarge": "/trilium-media/vgM1Md96FJ5b-960.webp"
+          }
+        ]
+      }
+    ]
+  }
+}

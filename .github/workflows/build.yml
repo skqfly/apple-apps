@@ -1,57 +1,66 @@
-name: Build iOS apps
+name: Build Apple apps
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-apps-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  site-publisher:
+  qiye:
     runs-on: macos-26
+    timeout-minutes: 25
     defaults:
       run:
-        working-directory: apps/site-publisher
+        working-directory: apps/qiye
     steps:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
-        working-directory: .
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
 
-      - name: Render app icon and navigation preview
+      - name: Render original website logo
         run: |
           brew install librsvg
-          rsvg-convert -w 930 -h 930 --keep-aspect-ratio Resources/Brand/logo.svg -o "$RUNNER_TEMP/logo-mark.png"
-          swift ../../scripts/render-icon.swift "$RUNNER_TEMP/logo-mark.png" Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
-          swift Scripts/render-navigation.swift "$RUNNER_TEMP/navigation-preview.png"
+          rsvg-convert -w 930 -h 930 --page-width 1024 --page-height 1024 --left 47 --top 47 --background-color white Resources/Brand/logo.svg -o Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
-      - name: Build unsigned IPA
+      - name: Archive and package unsigned IPA
         run: |
-          xcodebuild \
-            -project SitePublisher.xcodeproj \
-            -scheme SitePublisher \
-            -configuration Release \
+          set -euo pipefail
+          xcodebuild -quiet \
+            -project Qiye.xcodeproj -scheme Qiye -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/SitePublisher.xcarchive" \
-            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            CODE_SIGNING_ALLOWED=NO \
-            archive
-          app="$RUNNER_TEMP/SitePublisher.xcarchive/Products/Applications/SitePublisher.app"
-          mkdir -p Payload
-          cp -R "$app" Payload/
-          zip -qry "$RUNNER_TEMP/SitePublisher-unsigned.ipa" Payload
-          mkdir -p "$GITHUB_WORKSPACE/dist"
-          cp "$RUNNER_TEMP/SitePublisher-unsigned.ipa" "$GITHUB_WORKSPACE/dist/"
-          cp "$RUNNER_TEMP/navigation-preview.png" "$GITHUB_WORKSPACE/dist/"
-          cp Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png "$GITHUB_WORKSPACE/dist/"
+            -archivePath "$RUNNER_TEMP/Qiye.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DeviceBuild" \
+            CODE_SIGNING_ALLOWED=NO archive
+          mkdir -p "$RUNNER_TEMP/package/Payload" "$GITHUB_WORKSPACE/dist"
+          cp -R "$RUNNER_TEMP/Qiye.xcarchive/Products/Applications/Qiye.app" "$RUNNER_TEMP/package/Payload/"
+          cd "$RUNNER_TEMP/package"
+          zip -qry "$GITHUB_WORKSPACE/dist/Qiye-unsigned.ipa" Payload
+          cp "$GITHUB_WORKSPACE/apps/qiye/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png" "$GITHUB_WORKSPACE/dist/"
+
+      - name: Build simulator app
+        run: |
+          xcodebuild -quiet \
+            -project Qiye.xcodeproj -scheme Qiye -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/SimulatorBuild" \
+            CODE_SIGNING_ALLOWED=NO build
+
+      - name: Capture actual app in light and dark
+        run: bash ../../scripts/capture-simulator.sh "$RUNNER_TEMP/SimulatorBuild/Build/Products/Debug-iphonesimulator/Qiye.app" "$GITHUB_WORKSPACE/dist"
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: site-publisher-ipa
-          path: |
-            dist/SitePublisher-unsigned.ipa
-            dist/navigation-preview.png
-            dist/AppIcon.png
+          name: qiye-build
+          path: dist
           if-no-files-found: error

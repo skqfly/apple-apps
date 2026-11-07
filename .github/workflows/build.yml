@@ -1,3 +1,4 @@
+# Build and package Qiye. workflow_dispatch allows rerunning a commit when startup fails.
 name: Build Apple apps
 
 on:

@@ -102,7 +102,7 @@ final class PendingChangesStore {
         let staged = changes.flatMap { change -> [String] in
             switch change.kind {
             case .addPhoto(_, _, let name, _, _, _): return [name]
-            case .addTalk(_, _, _, let images): return images.map(\.imageName)
+            case .addTalk(_, _, _, let images, _): return images.map(\.imageName)
             default: return []
             }
         }
@@ -127,9 +127,13 @@ final class PendingChangesStore {
             switch change.kind {
             case .addPhoto(_, let source, let imageName, _, _, _):
                 assets["public\(source)"] = try loadImage(named: imageName)
-            case .addTalk(let talkID, _, _, let images):
+            case .addTalk(let talkID, _, _, let images, _):
                 for (index, image) in images.enumerated() {
                     assets["public/talks/\(talkID)/\(index).jpg"] = try loadImage(named: image.imageName)
+                }
+            case .editTalk(let talkID, _, _, _, let images):
+                for (index, image) in images.enumerated() {
+                    assets["public/talks/\(talkID)/edit-\(index).jpg"] = try loadImage(named: image.imageName)
                 }
             default: break
             }

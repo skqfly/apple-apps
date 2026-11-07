@@ -21,10 +21,12 @@ struct DashboardService: Sendable {
     }
 
     func repository(token: String?) async throws -> DashboardRepository {
-        try await get(Self.apiBase, token: token)
+        guard token != nil else { throw DashboardFailure.message("连接 GitHub 后可查看仓库更新和工作流。") }
+        return try await get(Self.apiBase, token: token)
     }
 
     func workflows(token: String?) async throws -> [DashboardWorkflowRun] {
+        guard token != nil else { throw DashboardFailure.message("连接 GitHub 后可查看最近工作流。") }
         struct Response: Decodable { let workflowRuns: [DashboardWorkflowRun]
             enum CodingKeys: String, CodingKey { case workflowRuns = "workflow_runs" }
         }

@@ -41,6 +41,9 @@ actor GitHubRepository {
     func cachedTalks() -> [TalkPost] { talksCache }
 
     func fetchBlogPosts() async throws -> [BlogPost] {
+        if token == nil {
+            return try await fetchPublicBlogPosts()
+        }
         let head: Reference = try await decode(path: "\(repositoryPath)/git/ref/heads/\(Self.branch)")
         let tree: GitTree = try await decode(path: "\(repositoryPath)/git/trees/\(head.object.sha)?recursive=1")
         guard !tree.truncated else {
@@ -95,6 +98,11 @@ actor GitHubRepository {
     }
 
     private func repositoryFile(path: String, ref: String) async throws -> Data {
+        if token == nil, ref == Self.branch,
+           let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+           let url = URL(string: "https://raw.githubusercontent.com/skqfly/skqfly.github.io/main/" + encoded) {
+            return try await publicData(url)
+        }
         let encodedPath = path.split(separator: "/").map { Self.escape(String($0)) }.joined(separator: "/")
         let content: EncodedFile = try await decode(
             path: "\(repositoryPath)/contents/\(encodedPath)?ref=\(Self.escape(ref))"
@@ -104,6 +112,36 @@ actor GitHubRepository {
             // GitHub omits Contents API bodies above 1 MB; fetch its immutable blob instead.
             if let sha = content.sha { return try await blob(sha: sha) }
             throw GitHubError.invalidResponse
+        }
+        return data
+    }
+
+    private func fetchPublicBlogPosts() async throws -> [BlogPost] {
+        let base = "https://raw.githubusercontent.com/skqfly/skqfly.github.io/main/"
+        guard let indexURL = URL(string: base + "src/content/posts.json"),
+              let index = try? JSONDecoder().decode([String].self, from: try await publicData(indexURL)) else {
+            throw GitHubError.invalidContent("公开博客目录暂不可用，请稍后重试。")
+        }
+        var posts: [BlogPost] = []
+        for path in index {
+            guard path.hasPrefix("src/content/posts/"), !path.contains(".."),
+                  let url = URL(string: base + path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!) else { continue }
+            let data = try await publicData(url)
+            guard let markdown = String(data: data, encoding: .utf8) else { continue }
+            posts.append(BlogPost.parse(markdown, path: path))
+        }
+        posts.sort { $0.date == $1.date ? $0.path < $1.path : $0.date > $1.date }
+        blogCache = posts
+        return posts
+    }
+
+    private func publicData(_ url: URL) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 25
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+            throw GitHubError.rateLimited
         }
         return data
     }

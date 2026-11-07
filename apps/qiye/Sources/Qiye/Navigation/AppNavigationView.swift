@@ -79,10 +79,12 @@ struct AppNavigationView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("个人中心", systemImage: account.isSignedIn ? "person.crop.circle.fill" : "person.crop.circle") {
+                    Button {
                         showingAccount = true
+                    } label: {
+                        ProfileAvatar(isSignedIn: account.isSignedIn, avatarURL: account.avatarURL)
                     }
-                    .labelStyle(.iconOnly)
+                    .accessibilityLabel(account.isSignedIn ? "个人中心，\(account.name)" : "个人中心，未登录")
                     .accessibilityHint("登录、外观和博客设置")
                 }
             }

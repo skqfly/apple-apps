@@ -1,6 +1,6 @@
 import Foundation
 
-struct WebsitePhoto: Identifiable, Equatable, Sendable {
+struct WebsitePhoto: Identifiable, Codable, Equatable, Sendable {
     let id: String
     let sourcePath: String
     let src: URL

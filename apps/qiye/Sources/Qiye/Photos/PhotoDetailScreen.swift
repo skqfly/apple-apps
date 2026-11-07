@@ -6,153 +6,160 @@ struct PhotoDetailScreen: View {
     let store: PhotoLibraryStore
     let repository: GitHubRepository
     let pending: PendingChangesStore
+    let library: ContentLibraryStore
     let canPublish: Bool
+    var photos: [WebsitePhoto] = []
+    var drafts: [PhotoDraft] = []
     @Environment(\.dismiss) private var dismiss
-    @State private var confirmsLocalDelete = false
-    @State private var confirmsUnpublish = false
+    @State private var currentIndex: Int?
+    @State private var deleteTarget: WebsitePhoto?
+    @State private var purgeTarget: WebsitePhoto?
     @State private var confirmsDelete = false
+    @State private var confirmsPurge = false
     @State private var isWorking = false
     @State private var message: String?
     @State private var showsMessage = false
+    @State private var dismissesAfterMessage = false
+
+    private var selections: [PhotoSelection] {
+        let values = photos.map(PhotoSelection.website) + drafts.map(PhotoSelection.local)
+        return values.isEmpty ? [selection] : values
+    }
+
+    private var initialIndex: Int { selections.firstIndex { $0.id == selection.id } ?? 0 }
+    private var current: PhotoSelection {
+        let index = currentIndex ?? initialIndex
+        return selections.indices.contains(index) ? selections[index] : selection
+    }
+
+    private var items: [MediaViewerItem] {
+        selections.map { selected in
+            switch selected {
+            case .website(let photo):
+                MediaViewerItem(id: selected.id, url: photo.src, previewURL: photo.previewLarge)
+            case .local(let draft):
+                MediaViewerItem(id: selected.id, url: store.fileURL(for: draft), previewURL: store.fileURL(for: draft, thumbnail: true))
+            }
+        }
+    }
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                GeometryReader { geometry in
-                    Group {
-                        switch selection {
-                        case .website(let photo):
-                            RemotePhotoImage(url: photo.src, contentMode: .fit, bundledPreviewID: store.bundledPreviewID(for: photo))
-                        case .local(let draft):
-                            LocalPhotoImage(url: store.fileURL(for: draft), contentMode: .fit, maximumPixelSize: 2_560)
-                        }
-                    }
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .clipped()
-                    .accessibilityLabel(selection.title)
-                }
-                managementControls
-            }
-            .padding(.horizontal)
-            .padding(.bottom)
-            .background(Color.appBackground)
-            .accessibilityIdentifier("photo-detail-screen")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("关闭", systemImage: "xmark") { dismiss() }
-                        .disabled(isWorking)
-                }
-                if case .local = selection {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("删除本机副本", systemImage: "trash", role: .destructive) { confirmsLocalDelete = true }
-                            .disabled(isWorking)
-                    }
-                }
-            }
-            .confirmationDialog("删除这张待发布照片？", isPresented: $confirmsLocalDelete, titleVisibility: .visible) {
-                Button("删除本机副本", role: .destructive) {
-                    if case .local(let draft) = selection {
-                        Task {
-                            if await store.removeDraft(id: draft.id) { dismiss() }
-                            else { message = store.error; showsMessage = true }
-                        }
-                    }
-                }
-            } message: { Text("系统相册与网站照片不会受到影响。") }
-            .confirmationDialog("下架这张照片？", isPresented: $confirmsUnpublish, titleVisibility: .visible) {
-                Button("下架", role: .destructive) {
-                    if case .website(let photo) = selection {
-                        pending.stageUnpublishPhoto(photoID: photo.id, source: photo.src.path)
-                        message = "已暂存下架，去首页一键推送后生效。"
-                        showsMessage = true
-                    }
-                }
-            } message: { Text("照片会从网站消失，但图片文件仍保留在仓库里。") }
-            .confirmationDialog("删除这张照片？", isPresented: $confirmsDelete, titleVisibility: .visible) {
-                Button("删除", role: .destructive) {
-                    if case .website(let photo) = selection {
-                        pending.stageDeletePhoto(photoID: photo.id, source: photo.src.path)
-                        message = "已暂存删除，去首页一键推送后生效。"
-                        showsMessage = true
-                    }
-                }
-            } message: { Text("照片会从网站和仓库中一并删除。") }
-            .alert("操作状态", isPresented: $showsMessage) {
-                Button("好", role: .cancel) { }
-            } message: { Text(message ?? "") }
-            .interactiveDismissDisabled(isWorking)
+        MediaViewer(
+            items: items, initialIndex: initialIndex,
+            actions: AnyView(managementMenu),
+            onIndexChange: { currentIndex = $0 }
+        )
+        .accessibilityIdentifier("photo-detail-screen")
+        .confirmationDialog("移到已删除？", isPresented: $confirmsDelete, titleVisibility: .visible) {
+            Button("移到已删除", role: .destructive) { moveToTrash() }
+            Button("取消", role: .cancel) { deleteTarget = nil }
+        } message: {
+            Text("照片将保留在已删除中，可恢复到未发表。网站变更会在首页推送后生效。")
         }
-        .tint(.appAccent)
+        .confirmationDialog("彻底删除这张照片？", isPresented: $confirmsPurge, titleVisibility: .visible) {
+            Button("彻底删除", role: .destructive) { purge() }
+            Button("取消", role: .cancel) { purgeTarget = nil }
+        } message: {
+            Text("此操作无法撤销，照片将从内容库永久移除。")
+        }
+        .alert("操作状态", isPresented: $showsMessage) {
+            Button("好", role: .cancel) {
+                if dismissesAfterMessage { dismiss() }
+            }
+        } message: { Text(message ?? "") }
+        .interactiveDismissDisabled(isWorking)
     }
 
-    @ViewBuilder
-    private var managementControls: some View {
-        switch selection {
-        case .local:
-            VStack(spacing: 12) {
-                if !canPublish {
-                    Text("先在左上角个人中心登录 GitHub，即可发布。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                Button {
-                    Task { await stageLocal() }
-                } label: {
-                    if isWorking { ProgressView("正在暂存…").frame(maxWidth: .infinity) }
-                    else { Label("暂存并稍后推送", systemImage: "tray.and.arrow.up").frame(maxWidth: .infinity) }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canPublish || isWorking || store.isImporting || store.isDeleting)
-                Text("暂存后可在首页一次性推送，避免每个动作都提交。")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            .padding(.vertical)
-        case .website:
-            VStack(spacing: 12) {
-                if !canPublish {
-                    Text("登录 GitHub 后可管理网站照片。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                } else {
-                    HStack(spacing: 12) {
-                        Button {
-                            confirmsUnpublish = true
-                        } label: {
-                            Label("下架", systemImage: "arrow.down.circle").frame(maxWidth: .infinity)
+    private var managementMenu: some View {
+        Menu {
+            switch current {
+            case .website(let photo):
+                let state = library.stateOfPhoto(photo.id)
+                Section(state.title) {
+                    if state == .deleted {
+                        Button("恢复到未发表", systemImage: "arrow.uturn.backward") { restore(photo) }
+                        Button("彻底删除", systemImage: "trash.slash", role: .destructive) {
+                            purgeTarget = photo
+                            confirmsPurge = true
                         }
-                        .buttonStyle(.bordered)
-                        Button {
+                    } else {
+                        if state == .published {
+                            Button("下架到未发表", systemImage: "arrow.down.circle") { setState(photo, to: .unpublished) }
+                                .disabled(!canPublish)
+                        } else {
+                            Button("发表", systemImage: "arrow.up.circle") { setState(photo, to: .published) }
+                                .disabled(!canPublish)
+                        }
+                        Button("移到已删除", systemImage: "trash", role: .destructive) {
+                            deleteTarget = photo
                             confirmsDelete = true
-                        } label: {
-                            Label("删除", systemImage: "trash").frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
+                        .disabled(state == .published && !canPublish)
                     }
-                    .disabled(isWorking)
-                    Text("下架仅从网站移除，删除会连同图片文件一起移除。")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
+                if !canPublish && state != .deleted {
+                    Text("登录 GitHub 后可发表与下架")
+                }
+            case .local(let draft):
+                Button("保存到未发表", systemImage: "tray.and.arrow.down") {
+                    Task { await importDraft(draft) }
+                }
+                .disabled(ProcessInfo.processInfo.arguments.contains("--uitest-long-photo"))
             }
-            .padding(.vertical)
+        } label: {
+            if isWorking { ProgressView().tint(.white) }
+            else { Image(systemName: "ellipsis") }
         }
+        .disabled(isWorking)
+        .accessibilityLabel("管理照片")
     }
 
-    private func stageLocal() async {
-        guard case .local(let draft) = selection, canPublish, !isWorking,
-              !store.isImporting, !store.isDeleting else { return }
+    private func report(_ text: String) {
+        message = text
+        showsMessage = true
+    }
+
+    private func setState(_ photo: WebsitePhoto, to state: ContentStatusFilter) {
+        do {
+            try library.setPhotoState(photo, to: state)
+            report("照片已设为\(state.title)。网站变更会在首页推送后生效。")
+        } catch { report(error.localizedDescription) }
+    }
+
+    private func moveToTrash() {
+        guard let photo = deleteTarget else { return }
+        defer { deleteTarget = nil }
+        do {
+            try library.setPhotoState(photo, to: .deleted)
+            report("已移到已删除，可随时恢复到未发表。网站变更会在首页推送后生效。")
+        } catch { report(error.localizedDescription) }
+    }
+
+    private func restore(_ photo: WebsitePhoto) {
+        do {
+            try library.restorePhoto(photo)
+            report("已恢复到未发表。")
+        } catch { report(error.localizedDescription) }
+    }
+
+    private func purge() {
+        guard let photo = purgeTarget else { return }
+        defer { purgeTarget = nil }
+        do {
+            try library.purgePhoto(photo)
+            dismissesAfterMessage = true
+            report("照片已彻底删除。网站变更会在首页推送后生效。")
+        } catch { report(error.localizedDescription) }
+    }
+
+    private func importDraft(_ draft: PhotoDraft) async {
+        guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
         do {
-            let photo = try await PhotoUploadPreparation.prepare(url: store.fileURL(for: draft))
-            try pending.stagePhoto(draftID: draft.id, jpeg: photo.data, width: photo.width, height: photo.height)
-            _ = await store.removeDraft(id: draft.id)
-            message = "已暂存到首页，稍后一键推送。"
-            showsMessage = true
-            await store.refresh()
-            dismiss()
-        } catch {
-            message = error.localizedDescription
-            showsMessage = true
-        }
+            try await library.importPhoto(draft: draft, url: store.fileURL(for: draft))
+            if await store.removeDraft(id: draft.id) { dismiss() }
+            else { report(store.error ?? "已存入未发表，本地导入记录尚未清理。") }
+        } catch { report(error.localizedDescription) }
     }
 }

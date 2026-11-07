@@ -20,6 +20,17 @@ xcrun simctl status_bar "$simulator_id" override --time '9:41' --batteryState ch
 xcrun simctl install "$simulator_id" "$app_dir"
 for mode in light dark; do
     xcrun simctl ui "$simulator_id" appearance "$mode"
+    for count in six nine; do
+        xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
+        extra=()
+        if [ "$count" = nine ]; then extra+=(--nine-first); fi
+        xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content "${extra[@]}"
+        sleep 3
+        xcrun simctl io "$simulator_id" screenshot "$output_dir/talks-$count-$mode.png"
+    done
+done
+for mode in light dark; do
+    xcrun simctl ui "$simulator_id" appearance "$mode"
     for tab in home blog talks photos; do
         xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
         xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab "$tab"

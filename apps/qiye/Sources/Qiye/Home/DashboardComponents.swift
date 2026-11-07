@@ -1,39 +1,61 @@
 import SwiftUI
 
+// Home-local colors keep the dashboard neutral in light mode and ink green in dark mode.
+// Other screens continue to use the app's shared palette.
+enum DashboardStyle {
+    static func background(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.035, green: 0.055, blue: 0.050)
+            : Color(red: 0.950, green: 0.968, blue: 0.963)
+    }
+
+    static func surface(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.065, green: 0.090, blue: 0.081)
+            : Color(red: 0.994, green: 1.000, blue: 0.997)
+    }
+
+    static func accent(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.48, green: 0.84, blue: 0.70)
+            : Color(red: 0.08, green: 0.39, blue: 0.32)
+    }
+
+    static func outline(_ scheme: ColorScheme) -> Color {
+        scheme == .dark
+            ? Color(red: 0.24, green: 0.33, blue: 0.29)
+            : Color(red: 0.77, green: 0.85, blue: 0.81)
+    }
+}
+
 struct DashboardCard<Content: View>: View {
     let title: String
     let symbol: String
     let isLoading: Bool
     @ViewBuilder let content: Content
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    if symbol == "github-mark" {
-                        Image("GitHubMark")
-                            .resizable().scaledToFit()
-                            .frame(width: 20, height: 20)
-                            .accessibilityHidden(true)
-                    } else {
-                        Image(systemName: symbol).accessibilityHidden(true)
-                    }
-                    Text(title)
-                }
-                .font(.headline)
+                Label(title, systemImage: symbol == "github-mark" ? "chart.dots.scatter" : symbol)
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if isLoading {
                     ProgressView().controlSize(.small)
                         .accessibilityLabel("正在更新\(title)")
                 }
             }
-            .accessibilityAddTraits(.isHeader)
             content
         }
-        .padding(22)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.045), radius: 18, y: 8)
+        .background(DashboardStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(DashboardStyle.outline(colorScheme).opacity(0.7), lineWidth: 0.75)
+        }
     }
 }
 
@@ -55,19 +77,21 @@ struct DashboardErrorNote: View {
 
 struct DashboardWorkflowRow: View {
     let run: DashboardWorkflowRun
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         Link(destination: run.htmlURL) {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 Image(systemName: run.state.symbol)
                     .foregroundStyle(run.state.color)
                     .font(.title3)
                     .frame(width: 24)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(run.title)
-                        .font(.subheadline.weight(.semibold))
+                        .font(.subheadline.weight(.medium))
                         .foregroundStyle(.primary)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 6) { metadata }
@@ -82,6 +106,7 @@ struct DashboardWorkflowRow: View {
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.vertical, 7)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)

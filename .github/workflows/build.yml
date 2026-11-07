@@ -52,6 +52,17 @@ jobs:
             -o "$RUNNER_TEMP/verify-publishing"
           "$RUNNER_TEMP/verify-publishing"
 
+      - name: Verify content states and retry manifests
+        run: |
+          swiftc -swift-version 5 -D LIBRARY_VERIFICATION -parse-as-library \
+            Sources/Qiye/GitHub/GitHubRepository.swift Sources/Qiye/GitHub/GitHubError.swift \
+            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/Blog/BlogPost.swift \
+            Sources/Qiye/Talks/TalkPost.swift Sources/Qiye/Photos/WebsitePhoto.swift \
+            Sources/Qiye/Photos/PhotoDraft.swift Sources/Qiye/Photos/PhotoUploadPreparation.swift \
+            Sources/Qiye/Publishing/*.swift Tests/verify-library.swift \
+            -o "$RUNNER_TEMP/verify-library"
+          "$RUNNER_TEMP/verify-library"
+
       - name: Archive and package unsigned IPA
         run: |
           set -euo pipefail

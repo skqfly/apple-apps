@@ -37,10 +37,10 @@ final class LongPhotoHitAreaTests: XCTestCase {
 
         // SwiftUI may not forward identifiers on individual Picker Text options.
         let draftsSegment = sourcePicker.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "待发布")
+            NSPredicate(format: "label CONTAINS %@", "未发表")
         ).firstMatch
         let websiteSegment = sourcePicker.buttons.matching(
-            NSPredicate(format: "label == %@", "网站")
+            NSPredicate(format: "label BEGINSWITH %@", "已发表")
         ).firstMatch
         XCTAssertTrue(draftsSegment.waitForExistence(timeout: 5))
         XCTAssertTrue(websiteSegment.exists)

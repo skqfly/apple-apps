@@ -13,6 +13,13 @@ final class TalksStore {
 
     init(repository: GitHubRepository) {
         self.repository = repository
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitest-content") {
+            installTimelineFixture()
+            hasLoaded = true
+            return
+        }
+        #endif
         if let url = Bundle.main.url(forResource: "site", withExtension: "json"),
            let data = try? Data(contentsOf: url),
            let document = try? JSONDecoder().decode(BundledTalks.self, from: data) {
@@ -34,6 +41,9 @@ final class TalksStore {
     }
 
     func refresh() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--uitest-content") { return }
+        #endif
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
@@ -59,6 +69,24 @@ final class TalksStore {
         }
         await refresh()
     }
+
+    #if DEBUG
+    private func installTimelineFixture() {
+        let imageURLs = Bundle.main.urls(forResourcesWithExtension: "jpg", subdirectory: "PhotoPreviews") ?? []
+        let selected = Array(imageURLs.sorted { $0.path < $1.path }.prefix(9))
+        guard !selected.isEmpty else { error = "未找到测试图片"; return }
+        let nineFirst = ProcessInfo.processInfo.arguments.contains("--nine-first")
+        let counts = nineFirst ? [9, 6] : [6, 9]
+        let entries: [[String: Any]] = counts.enumerated().map { index, count in
+            let images: [[String: Any]] = (0..<count).map { offset in
+                let source = selected[offset % selected.count].absoluteString
+                return ["src": source, "preview": source, "previewLarge": source, "width": 900, "height": 900, "alt": "验证图片 \(offset + 1)"]
+            }
+            return ["id": count == 6 ? "fixture-six" : "fixture-nine", "title": "", "description": count == 6 ? "六张照片，记录一天的片刻。" : "九张照片，把值得记住的瞬间留在这里。", "date": index == 0 ? "2026-11-08T04:00:00Z" : "2026-11-07T04:00:00Z", "images": images]
+        }
+        if let data = try? JSONSerialization.data(withJSONObject: entries), let fixture = try? JSONDecoder().decode([TalkPost].self, from: data) { posts = fixture }
+    }
+    #endif
 
     private struct BundledTalks: Decodable {
         struct Page: Decodable { let entries: [TalkPost] }

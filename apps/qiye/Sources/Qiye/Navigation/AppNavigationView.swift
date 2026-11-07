@@ -11,7 +11,14 @@ struct AppNavigationView: View {
     @State private var photos = PhotoLibraryStore()
     @State private var dashboard = DashboardStore()
     @State private var repository = GitHubRepository()
-    @State private var pending = PendingChangesStore()
+    @State private var pending: PendingChangesStore
+    @State private var library: ContentLibraryStore
+
+    init() {
+        let pending = PendingChangesStore()
+        _pending = State(initialValue: pending)
+        _library = State(initialValue: ContentLibraryStore(pending: pending))
+    }
     @Environment(\.scenePhase) private var scenePhase
     @State private var account = AccountStore()
     @State private var showingAccount = ProcessInfo.processInfo.arguments.contains("--account")
@@ -29,6 +36,7 @@ struct AppNavigationView: View {
             AccountScreen(store: account)
         }
         .task {
+            library.syncPhotos(photos.photos)
             await account.restore()
         }
         .task(id: account.credentialRevision) {
@@ -71,15 +79,15 @@ struct AppNavigationView: View {
                 case .home:
                     HomeScreen(store: dashboard, pending: pending, repository: repository, canPush: account.isSignedIn)
                 case .photos:
-                    PhotosScreen(store: photos, repository: repository, pending: pending, canPublish: account.isSignedIn)
+                    PhotosScreen(store: photos, repository: repository, pending: pending, library: library, canPublish: account.isSignedIn)
                 case .blog:
                     BlogScreen(repository: repository)
                 case .talks:
-                    TalksScreen(repository: repository, pending: pending, photos: photos, canPublish: account.isSignedIn)
+                    TalksScreen(repository: repository, pending: pending, photos: photos, library: library, canPublish: account.isSignedIn, authorName: account.name, avatarURL: account.avatarURL)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar { profileToolbar }
         }

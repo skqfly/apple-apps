@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import UIKit
 
 @Observable @MainActor
 final class PendingChangesStore {
@@ -10,308 +9,442 @@ final class PendingChangesStore {
     private(set) var isCommitting = false
     private(set) var error: String?
     private(set) var lastCommitSHA: String?
-
     var count: Int { changes.count }
 
+    @ObservationIgnored private(set) var document = PublishingDocument()
     @ObservationIgnored private let imageDirectory: URL
     @ObservationIgnored private let metadataURL: URL
+    @ObservationIgnored private var loadFailure: Error?
+    @ObservationIgnored private var inFlightIDs: Set<UUID> = []
+    @ObservationIgnored private let isFixture: Bool
 
-    init() {
-        let base = URL.applicationSupportDirectory.appendingPathComponent("Publishing", isDirectory: true)
+    // A directory parameter also allows Foundation checks to inject write failures.
+    init(directory: URL? = nil) {
+        #if DEBUG
+        let fixture = ProcessInfo.processInfo.arguments.contains("--uitest-content")
+        #else
+        let fixture = false
+        #endif
+        isFixture = fixture
+        let defaultBase = URL.applicationSupportDirectory.appendingPathComponent("Publishing", isDirectory: true)
+        let fixtureBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QiyeContentUITests-\(ProcessInfo.processInfo.processIdentifier)", isDirectory: true)
+            .appendingPathComponent("Publishing/ContentLibrary", isDirectory: true)
+        let base = directory ?? (fixture ? fixtureBase : defaultBase)
         imageDirectory = base.appendingPathComponent("images", isDirectory: true)
         metadataURL = base.appendingPathComponent("changes.json")
         loadFromDisk()
     }
 
-    // MARK: - Staging
+    func report(_ failure: Error) { error = failure.localizedDescription }
 
-    func stagePhoto(draftID: UUID, jpeg: Data, width: Int, height: Int) throws {
-        let photoID = "qiye-\(draftID.uuidString.lowercased())"
-        let source = "/photos/\(photoID).jpg"
-        let imageName = "\(photoID).jpg"
-        try store(image: jpeg, named: imageName)
-        changes.append(PendingChange(kind: .addPhoto(
-            photoID: photoID, source: source, imageName: imageName,
-            width: width, height: height, alt: "照片"
-        )))
-        bump()
-    }
-
-    func stageUnpublishPhoto(photoID: String, source: String) {
-        changes.append(PendingChange(kind: .unpublishPhoto(photoID: photoID, source: source)))
-        bump()
-    }
-
-    func stageDeletePhoto(photoID: String, source: String) {
-        changes.append(PendingChange(kind: .deletePhoto(photoID: photoID, source: source)))
-        bump()
-    }
-
-    func stageTalk(text: String, date: Date, images: [(jpeg: Data, width: Int, height: Int)], reusedSources: [String] = []) throws {
-        let talkID = "qiye-\(UUID().uuidString.lowercased())"
-        let specs = try storeTalkImages(talkID: talkID, images: images)
-        changes.append(PendingChange(kind: .addTalk(
-            talkID: talkID, text: text, date: date, images: specs, reusedSources: reusedSources
-        )))
-        bump()
-    }
-
-    /// Edits an existing talk. `keptSources` are images already on the site; `newImages` are newly added.
-    func stageTalkEdit(talkID: String, text: String, date: Date, keptSources: [String], newImages: [(jpeg: Data, width: Int, height: Int)]) throws {
-        let specs = try storeTalkImages(talkID: talkID, images: newImages)
-        changes.removeAll { change in
-            if case .editTalk(let id, _, _, _, _) = change.kind { return id == talkID }
-            return false
-        }
-        changes.append(PendingChange(kind: .editTalk(
-            talkID: talkID, text: text, date: date, keptSources: keptSources, newImages: specs
-        )))
-        bump()
-    }
-
-    private func storeTalkImages(talkID: String, images: [(jpeg: Data, width: Int, height: Int)]) throws -> [PendingChange.Kind.TalkImageSpec] {
-        var specs: [PendingChange.Kind.TalkImageSpec] = []
-        for (index, image) in images.enumerated() {
-            let name = "\(talkID)-\(index)-\(UUID().uuidString.lowercased()).jpg"
-            try store(image: image.jpeg, named: name)
-            specs.append(.init(imageName: name, width: image.width, height: image.height))
-        }
-        return specs
-    }
-
-    func stageUnpublishTalk(talkID: String) {
-        changes.append(PendingChange(kind: .unpublishTalk(talkID: talkID)))
-        bump()
-    }
-
-    func stageDeleteTalk(talkID: String, imageSources: [String]) {
-        changes.append(PendingChange(kind: .deleteTalk(talkID: talkID, imageSources: imageSources)))
-        bump()
-    }
-
-    func remove(_ change: PendingChange) {
-        changes.removeAll { $0.id == change.id }
-        imageNames(in: change).forEach { discardImage(named: $0) }
-        bump()
-    }
-
-    func clear() {
-        changes.flatMap(imageNames).forEach { discardImage(named: $0) }
-        changes.removeAll()
-        bump()
-    }
-
-    private func imageNames(in change: PendingChange) -> [String] {
-        switch change.kind {
-        case .addPhoto(_, _, let name, _, _, _): return [name]
-        case .addTalk(_, _, _, let images, _): return images.map(\.imageName)
-        case .editTalk(_, _, _, _, let images): return images.map(\.imageName)
-        default: return []
-        }
-    }
-
-    // MARK: - Commit
-
-    @discardableResult
-    func commitAll(repository: GitHubRepository) async throws -> String {
-        guard !isCommitting else { throw StagingFailure.alreadyCommitting }
-        guard !changes.isEmpty else { throw StagingFailure.nothingToCommit }
-        isCommitting = true
-        error = nil
-        defer { isCommitting = false }
-        let snapshot = changes
-
-        var assets: [String: Data] = [:]
-        for change in snapshot {
-            switch change.kind {
-            case .addPhoto(_, let source, let imageName, _, _, _):
-                assets["public\(source)"] = try loadImage(named: imageName)
-            case .addTalk(let talkID, _, _, let images, _):
-                for (index, image) in images.enumerated() {
-                    assets["public/talks/\(talkID)/\(index).jpg"] = try loadImage(named: image.imageName)
-                }
-            case .editTalk(let talkID, _, _, _, let images):
-                for (index, image) in images.enumerated() {
-                    assets["public/talks/\(talkID)/edit-\(index).jpg"] = try loadImage(named: image.imageName)
-                }
-            default: break
-            }
-        }
-
+    // Publish the in-memory state only after the entire document reaches disk.
+    func transaction(_ update: (inout PublishingDocument) throws -> Void) throws {
         do {
-            let sha = try await repository.publishBatch(
-                message: "Publish from Qiye",
-                assets: assets
-            ) { head in
-                try await self.buildBatch(snapshot: snapshot, repository: repository, head: head)
-            }
-            lastCommitSHA = sha
-            committedRevision += 1
-            clear()
-            return sha
+            if let loadFailure { throw loadFailure }
+            var candidate = document
+            try update(&candidate)
+            try save(candidate)
+            document = candidate
+            changes = candidate.changes
+            revision += 1
+            error = nil
         } catch {
-            self.error = error.localizedDescription
+            report(error)
             throw error
         }
     }
 
-    private func buildBatch(
-        snapshot: [PendingChange], repository: GitHubRepository, head: String
-    ) async throws -> GitHubRepository.BatchChange {
-        var deletions: [String] = []
-        var files: [String: Data] = [:]
-
-        let siteChanged = snapshot.contains {
-            switch $0.kind {
-            case .addTalk, .editTalk, .unpublishTalk, .deleteTalk: return true
-            default: return false
-            }
-        }
-        let photosChanged = snapshot.contains {
-            if case .addPhoto = $0.kind { return true }
-            if case .unpublishPhoto = $0.kind { return true }
-            if case .deletePhoto = $0.kind { return true }
-            return false
-        }
-
-        if siteChanged {
-            let data = try await repository.getRepositoryFile(path: "src/data/site.json", ref: head)
-            files["src/data/site.json"] = try applyTalks(snapshot: snapshot, data: data, deletions: &deletions)
-        }
-        if photosChanged {
-            let data = try await repository.getRepositoryFile(path: "src/data/photo-library.json", ref: head)
-            files["src/data/photo-library.json"] = try applyPhotos(snapshot: snapshot, data: data, deletions: &deletions)
-        }
-        return GitHubRepository.BatchChange(files: files, deletions: deletions)
-    }
-
-    private func applyTalks(snapshot: [PendingChange], data: Data, deletions: inout [String]) throws -> Data {
-        guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              var page = root["talksPageContent"] as? [String: Any],
-              var entries = page["entries"] as? [[String: Any]] else {
-            throw StagingFailure.invalidSiteData
-        }
-        for change in snapshot {
-            switch change.kind {
-            case .addTalk(let talkID, let text, let date, let images, let reused):
-                let uploaded = images.enumerated().map { index, image -> [String: Any] in
-                    let src = "/talks/\(talkID)/\(index).jpg"
-                    return ["src": src, "width": image.width, "height": image.height,
-                            "alt": "说说照片", "preview": src, "previewLarge": src]
-                }
-                let reusedEntries = reused.map { ["src": $0, "alt": "说说照片", "preview": $0, "previewLarge": $0] }
-                entries.insert(["id": talkID, "title": "", "date": ContentDate.string(date),
-                                "description": text, "images": reusedEntries + uploaded], at: 0)
-            case .editTalk(let talkID, let text, let date, let kept, let images):
-                guard let index = entries.firstIndex(where: { ($0["id"] as? String) == talkID }) else { break }
-                let keptEntries = kept.map { ["src": $0, "alt": "说说照片", "preview": $0, "previewLarge": $0] }
-                let uploaded = images.enumerated().map { offset, image -> [String: Any] in
-                    let src = "/talks/\(talkID)/edit-\(offset).jpg"
-                    return ["src": src, "width": image.width, "height": image.height,
-                            "alt": "说说照片", "preview": src, "previewLarge": src]
-                }
-                entries[index]["title"] = ""
-                entries[index]["date"] = ContentDate.string(date)
-                entries[index]["description"] = text
-                entries[index]["images"] = keptEntries + uploaded
-            case .unpublishTalk(let talkID):
-                entries.removeAll { ($0["id"] as? String) == talkID }
-            case .deleteTalk(let talkID, let imageSources):
-                entries.removeAll { ($0["id"] as? String) == talkID }
-                for source in imageSources {
-                    if let path = PendingChange.Kind.repoDeletionPath(forSource: source) { deletions.append(path) }
-                }
-            default: break
-            }
-        }
-        page["entries"] = entries
-        root["talksPageContent"] = page
-        return try Self.json(root)
-    }
-
-    private static func talkEntry(id: String, text: String, date: Date, images: [PendingChange.Kind.TalkImageSpec], prefix: String) -> [String: Any] {
-        let imageEntries: [[String: Any]] = images.enumerated().map { index, image in
-            let src = prefix + "\(index).jpg"
-            return ["src": src, "width": image.width, "height": image.height,
-                    "alt": "说说照片", "preview": src, "previewLarge": src]
-        }
-        return ["id": id, "title": "", "date": ContentDate.string(date), "description": text, "images": imageEntries]
-    }
-
-    private func applyPhotos(snapshot: [PendingChange], data: Data, deletions: inout [String]) throws -> Data {
-        guard var library = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw StagingFailure.invalidPhotoData
-        }
-        for change in snapshot {
-            switch change.kind {
-            case .addPhoto(let photoID, let source, _, let width, let height, let alt):
-                library[photoID] = ["src": source, "preview": source, "previewLarge": source,
-                                    "width": width, "height": height, "alt": alt]
-            case .unpublishPhoto(let photoID, _):
-                library.removeValue(forKey: photoID)
-            case .deletePhoto(let photoID, let source):
-                library.removeValue(forKey: photoID)
-                if let path = PendingChange.Kind.repoDeletionPath(forSource: source) { deletions.append(path) }
-            default: break
-            }
-        }
-        return try Self.json(library)
-    }
-
-    private static func json(_ value: [String: Any]) throws -> Data {
-        var data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-        data.append(0x0A)
-        return data
-    }
-
-    // MARK: - Image storage
-
-    private func store(image: Data, named name: String) throws {
-        try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
-        try image.write(to: imageDirectory.appendingPathComponent(name), options: .atomic)
-    }
-
-    private func loadImage(named name: String) throws -> Data {
-        let url = imageDirectory.appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: url.path) else { throw StagingFailure.missingImage }
-        return try Data(contentsOf: url)
-    }
-
-    private func discardImage(named name: String) {
-        try? FileManager.default.removeItem(at: imageDirectory.appendingPathComponent(name))
-    }
-
-    // MARK: - Persistence
-
-    private func bump() {
-        revision += 1
-        saveToDisk()
-    }
-
-    private func saveToDisk() {
-        do {
-            try FileManager.default.createDirectory(at: metadataURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            try encoder.encode(changes).write(to: metadataURL, options: .atomic)
-        } catch {
-            // Staging remains in memory even if persistence fails.
-        }
+    private func save(_ value: PublishingDocument) throws {
+        try FileManager.default.createDirectory(at: metadataURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(value).write(to: metadataURL, options: .atomic)
     }
 
     private func loadFromDisk() {
-        guard FileManager.default.fileExists(atPath: metadataURL.path),
-              let data = try? Data(contentsOf: metadataURL) else { return }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        if let saved = try? decoder.decode([PendingChange].self, from: data) {
-            changes = saved
+        guard FileManager.default.fileExists(atPath: metadataURL.path) else { return }
+        do {
+            let data = try Data(contentsOf: metadataURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            if let legacy = try? decoder.decode([PendingChange].self, from: data) {
+                document.changes = legacy
+            } else {
+                document = try decoder.decode(PublishingDocument.self, from: data)
+                guard document.version == 1 else { throw StagingFailure.invalidLocalData }
+            }
+            changes = document.changes
+        } catch {
+            // Never replace a corrupt/unreadable queue with an empty successful save.
+            loadFailure = error
+            report(error)
         }
+    }
+
+    private func checkMutable(key: String, in candidate: PublishingDocument) throws {
+        if candidate.changes.contains(where: {
+            $0.kind.contentKey == key && (inFlightIDs.contains($0.id) || candidate.unresolvedIDs.contains($0.id))
+        }) { throw StagingFailure.operationUnresolved }
+    }
+
+    func replace(_ kind: PendingChange.Kind?, key: String, in candidate: inout PublishingDocument) throws {
+        try checkMutable(key: key, in: candidate)
+        let existing = candidate.changes.filter { $0.kind.contentKey == key }
+        if existing.count == 1, existing.first?.kind == kind { return }
+        candidate.changes.removeAll { $0.kind.contentKey == key }
+        if let kind { candidate.changes.append(PendingChange(kind: kind)) }
+    }
+
+    // MARK: Existing staging API (nonthrowing legacy callers see error and no state mutation)
+
+    func stagePhoto(draftID: UUID, jpeg: Data, width: Int, height: Int) throws {
+        let id = "qiye-\(draftID.uuidString.lowercased())"
+        if changes.contains(where: { if case .addPhoto(let current, _, _, _, _, _) = $0.kind { return current == id }; return false }) { return }
+        let name = "\(id).jpg"
+        try store(image: jpeg, named: name)
+        try transaction { candidate in
+            try replace(.addPhoto(photoID: id, source: "/photos/\(name)", imageName: name,
+                                  width: width, height: height, alt: "照片"), key: "photo:" + id, in: &candidate)
+        }
+    }
+
+    func stageUnpublishPhoto(photoID: String, source: String) {
+        legacyStage(.unpublishPhoto(photoID: photoID, source: source))
+    }
+    func stageDeletePhoto(photoID: String, source: String) {
+        legacyStage(.deletePhoto(photoID: photoID, source: source))
+    }
+    func stageUnpublishTalk(talkID: String) { legacyStage(.unpublishTalk(talkID: talkID)) }
+    func stageDeleteTalk(talkID: String, imageSources: [String]) {
+        legacyStage(.deleteTalk(talkID: talkID, imageSources: imageSources))
+    }
+    private func legacyStage(_ kind: PendingChange.Kind) {
+        do { try transaction { try replace(kind, key: kind.contentKey, in: &$0) } }
+        catch { report(error) }
+    }
+
+    func stageTalk(text: String, date: Date, images: [(jpeg: Data, width: Int, height: Int)], reusedSources: [String] = []) throws {
+        let id = "qiye-\(UUID().uuidString.lowercased())"
+        let specs = try storeTalkImages(talkID: id, images: images)
+        try transaction { candidate in
+            try replace(.addTalk(talkID: id, text: text, date: date, images: specs, reusedSources: reusedSources),
+                        key: "talk:" + id, in: &candidate)
+        }
+    }
+
+    func stageTalkEdit(talkID: String, text: String, date: Date, keptSources: [String], newImages: [(jpeg: Data, width: Int, height: Int)]) throws {
+        let specs = try storeTalkImages(talkID: talkID, images: newImages)
+        try transaction { candidate in
+            let isAddition = candidate.changes.contains { if case .addTalk(let id, _, _, _, _) = $0.kind { return id == talkID }; return false }
+            let kind: PendingChange.Kind = isAddition
+                ? .addTalk(talkID: talkID, text: text, date: date, images: specs, reusedSources: keptSources)
+                : .editTalk(talkID: talkID, text: text, date: date, keptSources: keptSources, newImages: specs)
+            try replace(kind, key: "talk:" + talkID, in: &candidate)
+        }
+    }
+
+    func remove(_ change: PendingChange) {
+        do {
+            try transaction { candidate in
+                guard candidate.changes.contains(where: { $0.id == change.id }) else { return }
+                try checkMutable(key: change.kind.contentKey, in: candidate)
+                cancel(key: change.kind.contentKey, in: &candidate)
+            }
+            collectUnusedImages()
+        } catch { report(error) }
+    }
+
+    func clear() {
+        do {
+            try transaction { candidate in
+                for key in Set(candidate.changes.map { $0.kind.contentKey }) {
+                    try checkMutable(key: key, in: candidate)
+                    cancel(key: key, in: &candidate)
+                }
+            }
+            collectUnusedImages()
+        } catch { report(error) }
+    }
+
+    private func cancel(key: String, in candidate: inout PublishingDocument) {
+        candidate.changes.removeAll { $0.kind.contentKey == key }
+        if key.hasPrefix("talk:") {
+            let id = String(key.dropFirst(5))
+            if let undo = candidate.talkUndo.removeValue(forKey: id) { candidate.talks[id] = undo }
+        } else {
+            let id = String(key.dropFirst(6))
+            if let undo = candidate.photoUndo.removeValue(forKey: id) { candidate.photos[id] = undo }
+        }
+    }
+
+    // MARK: Library reconciliation
+
+    func reconcileTalk(_ id: String, in candidate: inout PublishingDocument) throws {
+        guard let record = candidate.talks[id] else { return }
+        let key = "talk:" + id
+        if record.purged {
+            let sources = (record.remote?.images.map(\.src) ?? []) + (record.publishedSources ?? [])
+            let owned = sources.filter { PendingChange.Kind.repoDeletionPath(forSource: $0) != nil }
+            if record.remote != nil || !owned.isEmpty {
+                try replace(.deleteTalk(talkID: id, imageSources: Array(Set(owned))), key: key, in: &candidate)
+            } else {
+                try replace(nil, key: key, in: &candidate)
+                candidate.talks.removeValue(forKey: id)
+                candidate.purgedTalkIDs.insert(id)
+            }
+        } else if record.state == .published {
+            let normalized = publicTalk(record.post)
+            if record.remote.map({ publicTalk($0) }) == normalized {
+                try replace(nil, key: key, in: &candidate)
+            } else {
+                var local: [PendingChange.Kind.TalkImageSpec] = []
+                var reused: [String] = []
+                // Ordered reused paths preserve the editor's order. Local assets are
+                // supplied separately by commitAll from the complete library record.
+                for image in record.post.images {
+                    if let url = image.originalURL, url.isFileURL {
+                        let name = try ownedImageName(url)
+                        local.append(.init(imageName: name, width: image.width ?? 1, height: image.height ?? 1))
+                    }
+                    reused.append(publicTalkSource(id: id, image: image))
+                }
+                // reusedSources carries the complete order. The manifest deduplicates
+                // uploaded paths while retaining their dimensions from the specs.
+                try replace(.addTalk(talkID: id, text: record.post.content, date: record.post.date,
+                                     images: local, reusedSources: reused), key: key, in: &candidate)
+            }
+        } else {
+            try replace(record.remote == nil ? nil : .unpublishTalk(talkID: id), key: key, in: &candidate)
+        }
+        if !candidate.hasChanges(for: key) { candidate.talkUndo.removeValue(forKey: id) }
+    }
+
+    func reconcilePhoto(_ id: String, in candidate: inout PublishingDocument) throws {
+        guard let record = candidate.photos[id] else { return }
+        let key = "photo:" + id
+        if record.purged {
+            if record.remote != nil || record.publishedSource != nil {
+                try replace(.deletePhoto(photoID: id, source: record.publishedSource ?? record.photo.sourcePath), key: key, in: &candidate)
+            } else {
+                try replace(nil, key: key, in: &candidate)
+                candidate.photos.removeValue(forKey: id)
+                candidate.purgedPhotoIDs.insert(id)
+            }
+        } else if record.state == .published {
+            if publicPhoto(record.photo) == record.remote {
+                try replace(nil, key: key, in: &candidate)
+            } else {
+                let name = record.photo.src.isFileURL ? try ownedImageName(record.photo.src) : ""
+                try replace(.addPhoto(photoID: id, source: record.photo.sourcePath, imageName: name,
+                                      width: record.photo.width, height: record.photo.height, alt: record.photo.alt),
+                            key: key, in: &candidate)
+            }
+        } else {
+            try replace(record.remote == nil ? nil : .unpublishPhoto(photoID: id, source: record.photo.sourcePath),
+                        key: key, in: &candidate)
+        }
+        if !candidate.hasChanges(for: key) { candidate.photoUndo.removeValue(forKey: id) }
+    }
+
+    private func publicTalkSource(id: String, image: TalkImage) -> String {
+        if let url = image.originalURL, url.isFileURL {
+            return PendingChange.Kind.talkSource(talkID: id, image: .init(imageName: url.lastPathComponent,
+                                                                       width: image.width ?? 1, height: image.height ?? 1))
+        }
+        return image.src
+    }
+
+    private func publicTalk(_ post: TalkPost) -> TalkPost {
+        TalkPost(id: post.id, title: "", date: post.date, description: post.content, images: post.images.map {
+            let src = publicTalkSource(id: post.id, image: $0)
+            return TalkImage(src: src, width: $0.width, height: $0.height, alt: "说说照片", preview: src, previewLarge: src)
+        })
+    }
+
+    private func publicPhoto(_ photo: WebsitePhoto) -> WebsitePhoto {
+        let url = URL(string: photo.sourcePath, relativeTo: GitHubRepository.websiteURL)!.absoluteURL
+        return WebsitePhoto(id: photo.id, sourcePath: photo.sourcePath, src: url, width: photo.width,
+                            height: photo.height, alt: photo.alt, preview: url, previewLarge: url)
+    }
+
+    // MARK: Commit
+
+    @discardableResult
+    func commitAll(repository: GitHubRepository) async throws -> String {
+        guard !isFixture else { throw StagingFailure.fixturePublishingDisabled }
+        guard !isCommitting else { throw StagingFailure.alreadyCommitting }
+        guard !changes.isEmpty else { throw StagingFailure.nothingToCommit }
+        isCommitting = true
+        error = nil
+        let snapshot = changes
+        let ids = Set(snapshot.map(\.id))
+        let newlyJournaled = ids.subtracting(document.unresolvedIDs)
+        inFlightIDs = ids
+        defer { isCommitting = false; inFlightIDs = [] }
+        do {
+            let assets = try assets(for: snapshot)
+            // Journal before sending anything. An interrupted attempt remains retryable.
+            try transaction { $0.unresolvedIDs.formUnion(ids) }
+            let sha = try await repository.publishBatch(message: "Publish from Qiye", assets: assets) { head in
+                try await self.buildBatch(snapshot: snapshot, repository: repository, head: head)
+            }
+            // Only acknowledge the captured IDs. New operations staged while awaiting
+            // GitHub remain in the queue and their image files remain on disk.
+            try transaction { candidate in
+                for change in snapshot { acknowledge(change, in: &candidate) }
+                candidate.changes.removeAll { ids.contains($0.id) }
+                candidate.unresolvedIDs.subtract(ids)
+            }
+            lastCommitSHA = sha
+            committedRevision += 1
+            collectUnusedImages()
+            return sha
+        } catch {
+            // publishUncertain is deliberately retained, including across restarts.
+            // Other errors are known by GitHubRepository to precede a successful ref update.
+            if let githubError = error as? GitHubError, case .publishUncertain = githubError {
+                report(error)
+                throw error
+            }
+            if !(error is CancellationError) {
+                // A local acknowledgement failure after remote success must also retain
+                // the journal. A retry applies the same IDs and immutable asset paths.
+                if error is GitHubError { try? transaction { $0.unresolvedIDs.subtract(newlyJournaled) } }
+            }
+            report(error)
+            throw error
+        }
+    }
+
+    private func acknowledge(_ change: PendingChange, in candidate: inout PublishingDocument) {
+        switch change.kind {
+        case .addTalk(let id, _, _, _, _), .editTalk(let id, _, _, _, _):
+            if var record = candidate.talks[id] {
+                let remote = publicTalk(record.post)
+                record.publishedSources = Array(Set((record.publishedSources ?? []) + (record.remote?.images.map(\.src) ?? []) + remote.images.map(\.src)))
+                record.remote = remote
+                candidate.talks[id] = record
+            }
+            candidate.talkUndo.removeValue(forKey: id)
+        case .unpublishTalk(let id):
+            candidate.talks[id]?.remote = nil
+            candidate.talkUndo.removeValue(forKey: id)
+        case .deleteTalk(let id, _):
+            candidate.talks.removeValue(forKey: id)
+            candidate.purgedTalkIDs.insert(id)
+            candidate.talkUndo.removeValue(forKey: id)
+        case .addPhoto(let id, _, _, _, _, _):
+            if var record = candidate.photos[id] {
+                record.remote = publicPhoto(record.photo)
+                record.publishedSource = record.photo.sourcePath
+                candidate.photos[id] = record
+            }
+            candidate.photoUndo.removeValue(forKey: id)
+        case .unpublishPhoto(let id, _):
+            candidate.photos[id]?.remote = nil
+            candidate.photoUndo.removeValue(forKey: id)
+        case .deletePhoto(let id, _):
+            candidate.photos.removeValue(forKey: id)
+            candidate.purgedPhotoIDs.insert(id)
+            candidate.photoUndo.removeValue(forKey: id)
+        }
+    }
+
+    private func assets(for snapshot: [PendingChange]) throws -> [String: Data] {
+        var assets: [String: Data] = [:]
+        for change in snapshot {
+            switch change.kind {
+            case .addPhoto(_, let source, let name, _, _, _):
+                if !name.isEmpty { assets["public" + source] = try loadImage(named: name) }
+            case .addTalk(let id, _, _, let images, _), .editTalk(let id, _, _, _, let images):
+                for image in images {
+                    assets["public" + PendingChange.Kind.talkSource(talkID: id, image: image)] = try loadImage(named: image.imageName)
+                }
+                if let record = document.talks[id] {
+                    for image in record.post.images {
+                        if let url = image.originalURL, url.isFileURL {
+                            assets["public" + publicTalkSource(id: id, image: image)] = try loadImage(named: ownedImageName(url))
+                        }
+                    }
+                }
+            default: break
+            }
+        }
+        return assets
+    }
+
+    private func buildBatch(snapshot: [PendingChange], repository: GitHubRepository, head: String) async throws -> GitHubRepository.BatchChange {
+        // Deletion candidates must be checked against BOTH final manifests, including
+        // all site sections (blog covers etc.), before deleting a shared image blob.
+        let site = try await repository.getRepositoryFile(path: "src/data/site.json", ref: head)
+        let photos = try await repository.getRepositoryFile(path: "src/data/photo-library.json", ref: head)
+        var result = try PublishingManifest.apply(snapshot, site: site, photos: photos)
+        let retainedSources = document.talks.values.filter { !$0.purged }.flatMap { record in
+            record.post.images.map { publicTalkSource(id: record.post.id, image: $0) }
+        } + document.photos.values.filter { !$0.purged }.map { $0.photo.sourcePath }
+        let retained = Set(retainedSources.compactMap { PendingChange.Kind.repoDeletionPath(forSource: $0) })
+        result.deletions.removeAll { retained.contains($0) }
+        return result
+    }
+
+    // MARK: Owned image files
+
+    func imageURL(named name: String) -> URL { imageDirectory.appendingPathComponent(name) }
+
+    private func validImageName(_ name: String) -> Bool {
+        !name.isEmpty && name == URL(fileURLWithPath: name).lastPathComponent && !name.contains("/") && !name.contains("\\")
+    }
+
+    private func ownedImageName(_ url: URL) throws -> String {
+        guard url.isFileURL, url.standardizedFileURL.deletingLastPathComponent() == imageDirectory.standardizedFileURL,
+              validImageName(url.lastPathComponent) else { throw StagingFailure.foreignLocalImage }
+        return url.lastPathComponent
+    }
+
+    func store(image: Data, named name: String) throws {
+        guard validImageName(name) else { throw StagingFailure.missingImage }
+        try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
+        try image.write(to: imageURL(named: name), options: .atomic)
+    }
+
+    private func loadImage(named name: String) throws -> Data {
+        guard validImageName(name), FileManager.default.fileExists(atPath: imageURL(named: name).path) else {
+            throw StagingFailure.missingImage
+        }
+        return try Data(contentsOf: imageURL(named: name))
+    }
+
+    func storeTalkImages(talkID: String, images: [(jpeg: Data, width: Int, height: Int)]) throws -> [PendingChange.Kind.TalkImageSpec] {
+        try images.map { image in
+            guard image.width > 0, image.height > 0, !image.jpeg.isEmpty else { throw StagingFailure.missingImage }
+            let name = "\(UUID().uuidString.lowercased()).jpg"
+            try store(image: image.jpeg, named: name)
+            return .init(imageName: name, width: image.width, height: image.height)
+        }
+    }
+
+    func collectUnusedImages() {
+        // Include undo records: cancelling an edit must be able to restore its images.
+        let talks = Array(document.talks.values) + Array(document.talkUndo.values)
+        let photos = Array(document.photos.values) + Array(document.photoUndo.values)
+        var retained = Set(document.changes.flatMap { $0.kind.imageNames })
+        for record in talks {
+            for image in record.post.images {
+                if let url = image.originalURL, url.isFileURL, let name = try? ownedImageName(url) { retained.insert(name) }
+            }
+        }
+        for record in photos {
+            if record.photo.src.isFileURL, let name = try? ownedImageName(record.photo.src) { retained.insert(name) }
+        }
+        guard let files = try? FileManager.default.contentsOfDirectory(at: imageDirectory, includingPropertiesForKeys: nil) else { return }
+        for file in files where !retained.contains(file.lastPathComponent) { try? FileManager.default.removeItem(at: file) }
     }
 
     enum StagingFailure: LocalizedError {
         case nothingToCommit, alreadyCommitting, missingImage, invalidSiteData, invalidPhotoData
+        case operationUnresolved, purgedContent, mustDeleteFirst, invalidLocalData, foreignLocalImage, fixturePublishingDisabled
         var errorDescription: String? {
             switch self {
             case .nothingToCommit: return "没有待推送的变更。"
@@ -319,6 +452,12 @@ final class PendingChangesStore {
             case .missingImage: return "暂存的图片文件已丢失，请重新选择。"
             case .invalidSiteData: return "网站说说资料结构已变化，本次未修改文件。"
             case .invalidPhotoData: return "网站照片资料结构已变化，本次未修改文件。"
+            case .operationUnresolved: return "这项变更正在推送或结果尚待确认，请先重试首页推送后再修改或撤销。"
+            case .purgedContent: return "内容已经彻底删除。"
+            case .mustDeleteFirst: return "请先将内容移入回收站，再确认彻底删除。"
+            case .invalidLocalData: return "本地发布记录无法读取，原始文件已保留。"
+            case .foreignLocalImage: return "图片不在内容库中，请重新导入。"
+            case .fixturePublishingDisabled: return "截图测试内容不能推送到网站。"
             }
         }
     }

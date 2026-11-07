@@ -287,8 +287,13 @@ extension GitHubRepository {
             var treeEntries: [[String: Any]] = shas.keys.sorted().map {
                 ["path": $0, "mode": "100644", "type": "blob", "sha": shas[$0] ?? ""]
             }
-            for path in batch.deletions.sorted() {
-                treeEntries.append(["path": path, "mode": "100644", "type": "blob", "sha": NSNull()])
+            if !batch.deletions.isEmpty {
+                let existing: GitTree = try await decode(path: "\(repositoryPath)/git/trees/\(parent.tree.sha)?recursive=1")
+                guard !existing.truncated else { throw GitHubError.invalidContent("仓库文件树过大，暂时无法安全删除图片。") }
+                let paths = Set(existing.tree.filter { $0.type == "blob" }.map(\.path))
+                for path in Set(batch.deletions).sorted() where paths.contains(path) && shas[path] == nil {
+                    treeEntries.append(["path": path, "mode": "100644", "type": "blob", "sha": NSNull()])
+                }
             }
             let tree: GitObject = try await decode(path: "\(repositoryPath)/git/trees", method: "POST",
                 body: ["base_tree": parent.tree.sha, "tree": treeEntries])

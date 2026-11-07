@@ -6,34 +6,43 @@ struct PhotosScreen: View {
     let store: PhotoLibraryStore
     let repository: GitHubRepository
     let pending: PendingChangesStore
+    let library: ContentLibraryStore
     let canPublish: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var showsDrafts = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo")
+    @State private var status: ContentStatusFilter = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") ? .unpublished : .published
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var selection: PhotoSelection?
+    @State private var viewingPhotos: [WebsitePhoto] = []
+    @State private var viewingDrafts: [PhotoDraft] = []
     @State private var importMessage: String?
     @State private var showsImportResult = false
+    @State private var isMovingDrafts = false
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
     }
 
+    private var visiblePhotos: [WebsitePhoto] { library.photos(in: status) }
+    private var isBusy: Bool { store.isImporting || store.isDeleting || isMovingDrafts }
+    private var usesFixture: Bool { ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") }
+    private var counts: [ContentStatusFilter: Int] {
+        Dictionary(uniqueKeysWithValues: ContentStatusFilter.allCases.map { state in
+            (state, library.photos(in: state).count + (state == .unpublished ? store.drafts.count : 0))
+        })
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                Picker("照片范围", selection: $showsDrafts) {
-                    Text("网站").tag(false)
-                    Text("待发布 \(store.drafts.count)").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("photo-source-picker")
-                .zIndex(1)
+                ContentStatusPicker(selection: $status, counts: counts)
+                    .accessibilityIdentifier("photo-source-picker")
+                    .zIndex(1)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-                if store.isImporting { ProgressView("正在保存照片…") }
-                if showsDrafts { localGrid } else { websiteGrid }
+                if isBusy { ProgressView("正在保存照片…") }
+                photoGrid
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
@@ -41,91 +50,165 @@ struct PhotosScreen: View {
         }
         .background(Color.appBackground)
         .navigationTitle("照片")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
-                    Label("添加照片", systemImage: "plus")
-                }
-                .disabled(store.isImporting || store.isDeleting)
-                .accessibilityHint("选择照片，预览后可发布到 GitHub")
-            }
+        .toolbar { addToolbar }
+        .refreshable { await refresh() }
+        .task {
+            library.syncPhotos(store.photos)
+            await store.refreshIfNeeded()
+            library.syncPhotos(store.photos)
+            let failures = await moveDraftsToLibrary()
+            if !failures.isEmpty { report(failures.joined(separator: "\n")) }
         }
-        .refreshable { await store.refresh() }
-        .task { await store.refreshIfNeeded() }
+        .onChange(of: store.photos) { _, photos in library.syncPhotos(photos) }
         .onChange(of: pickerItems) { _, items in
             guard !items.isEmpty else { return }
-            Task {
-                let result = await store.importPhotos(items)
-                pickerItems = []
-                if result.importedCount > 0 { showsDrafts = true }
-                importMessage = result.message
-                showsImportResult = true
-            }
+            Task { await importPhotos(items) }
         }
-        .alert("照片已准备", isPresented: $showsImportResult) {
+        .alert("照片", isPresented: $showsImportResult) {
             Button("好", role: .cancel) { }
         } message: { Text(importMessage ?? "") }
         .fullScreenCover(item: $selection) { selected in
-            PhotoDetailScreen(selection: selected, store: store, repository: repository, pending: pending, canPublish: canPublish)
+            PhotoDetailScreen(
+                selection: selected, store: store, repository: repository, pending: pending,
+                library: library, canPublish: canPublish,
+                photos: viewingPhotos, drafts: viewingDrafts
+            )
         }
     }
 
+    @ToolbarContentBuilder
+    private var addToolbar: some ToolbarContent {
+        if #available(iOS 26, *) {
+            ToolbarItem(placement: .topBarTrailing) { addButton }
+                .sharedBackgroundVisibility(.hidden)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) { addButton }
+        }
+    }
+
+    private var addButton: some View {
+        PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
+            Image(systemName: "plus")
+                .font(.system(size: 19, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .modifier(PhotoAddButtonBackground())
+        }
+        .buttonStyle(.plain)
+        .disabled(isBusy)
+        .accessibilityLabel("添加照片")
+        .accessibilityIdentifier("photo-add-button")
+        .accessibilityHint("保存到未发表，预览后可发表")
+    }
+
     @ViewBuilder
-    private var websiteGrid: some View {
-        if store.isLoading && store.photos.isEmpty {
+    private var photoGrid: some View {
+        if store.isLoading && visiblePhotos.isEmpty && status == .published {
             ProgressView("正在读取网站照片…").frame(maxWidth: .infinity).padding(.vertical, 50)
-        } else if store.photos.isEmpty && store.error == nil {
-            ContentUnavailableView("暂无网站照片", systemImage: "photo.on.rectangle", description: Text("下拉刷新，或从左上角添加照片。"))
+        } else if visiblePhotos.isEmpty && (status != .unpublished || store.drafts.isEmpty) {
+            ContentUnavailableView(
+                "暂无\(status.title)照片", systemImage: status == .deleted ? "trash" : "photo.on.rectangle",
+                description: Text(status == .deleted ? "删除的照片会保留在这里，可恢复到未发表。" : "点右上角添加照片，或下拉刷新。")
+            )
         } else {
             LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(store.photos) { photo in
-                    Button { selection = .website(photo) } label: {
+                ForEach(visiblePhotos) { photo in
+                    Button { open(.website(photo)) } label: {
                         photoTile {
-                            RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo))
+                            if photo.preview.isFileURL {
+                                LocalPhotoImage(url: photo.preview)
+                            } else {
+                                RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo))
+                            }
                         }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(photo.title)
-                    .accessibilityHint("查看照片大图")
+                    .accessibilityHint("在 App 内查看大图")
                 }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var localGrid: some View {
-        if store.drafts.isEmpty {
-            ContentUnavailableView("还没有待发布照片", systemImage: "photo.badge.plus", description: Text("从左上角选取照片，再点开大图确认发布。"))
-        } else {
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(store.drafts) { draft in
-                    Button { selection = .local(draft) } label: {
-                        photoTile {
-                            LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true))
+                if status == .unpublished {
+                    ForEach(store.drafts) { draft in
+                        Button { open(.local(draft)) } label: {
+                            photoTile { LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true)) }
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
+                        .accessibilityLabel(draft.title.isEmpty ? "未发表照片" : draft.title)
+                        .accessibilityHint("在 App 内查看大图")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
-                    .accessibilityLabel("待发布照片")
-                    .accessibilityHint("预览并发布到网站")
                 }
             }
         }
     }
 
-    /// The image is clipped twice so neither its pixels nor its hit area can escape the tile.
+    /// Bound both drawing and hit testing to the tile, including very tall images.
     private func photoTile<Content: View>(@ViewBuilder image: () -> Content) -> some View {
         Color.clear
             .aspectRatio(0.88, contentMode: .fit)
             .overlay {
-                image()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
+                GeometryReader { geometry in
+                    image()
+                        .scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .clipped()
+                }
+                .allowsHitTesting(false)
             }
-            .clipped()
-            .contentShape(.rect)
             .background(.quaternary)
             .clipShape(.rect(cornerRadius: 12))
+            .contentShape(.rect)
+    }
+
+    private func open(_ photo: PhotoSelection) {
+        viewingPhotos = visiblePhotos
+        viewingDrafts = status == .unpublished ? store.drafts : []
+        selection = photo
+    }
+
+    private func refresh() async {
+        await store.refresh()
+        library.syncPhotos(store.photos)
+    }
+
+    private func report(_ message: String) {
+        importMessage = message
+        showsImportResult = true
+    }
+
+    private func importPhotos(_ items: [PhotosPickerItem]) async {
+        let result = await store.importPhotos(items)
+        pickerItems = []
+        let failures = await moveDraftsToLibrary()
+        if result.importedCount > 0 { status = .unpublished }
+        report(([result.message] + failures).joined(separator: "\n"))
+    }
+
+    private func moveDraftsToLibrary() async -> [String] {
+        guard !usesFixture, !isMovingDrafts else { return [] }
+        isMovingDrafts = true
+        defer { isMovingDrafts = false }
+        var failures: [String] = []
+        for draft in store.drafts {
+            do {
+                try await library.importPhoto(draft: draft, url: store.fileURL(for: draft))
+                if !(await store.removeDraft(id: draft.id)) {
+                    failures.append(store.error ?? "照片已存入内容库，本地导入记录尚未清理。")
+                }
+            } catch {
+                failures.append("\(draft.title)：\(error.localizedDescription)")
+            }
+        }
+        return failures
+    }
+}
+
+private struct PhotoAddButtonBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: .circle)
+                .overlay { Circle().strokeBorder(.primary.opacity(0.16), lineWidth: 0.6) }
+        }
     }
 }

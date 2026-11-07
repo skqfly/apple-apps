@@ -3,7 +3,7 @@ import SwiftUI
 struct ProfileAvatar: View {
     let isSignedIn: Bool
     let avatarURL: URL?
-    @ScaledMetric(relativeTo: .body) private var size = 36
+    private let size: CGFloat = 38
 
     var body: some View {
         avatar
@@ -41,7 +41,7 @@ struct ProfileAvatar: View {
 }
 
 /// A pressable ring. iOS 26 uses interactive Liquid Glass; earlier systems use a translucent ring.
-private struct ProfileGlassRing: ViewModifier {
+struct ProfileGlassRing: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26, *) {
             content.glassEffect(.regular.interactive(), in: .circle)

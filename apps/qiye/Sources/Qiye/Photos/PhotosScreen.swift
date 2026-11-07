@@ -7,7 +7,7 @@ struct PhotosScreen: View {
     let repository: GitHubRepository
     let canPublish: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var showsDrafts = false
+    @State private var showsDrafts = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo")
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var selection: PhotoSelection?
     @State private var importMessage: String?
@@ -25,6 +25,8 @@ struct PhotosScreen: View {
                     Text("待发布 \(store.drafts.count)").tag(true)
                 }
                 .pickerStyle(.segmented)
+                .accessibilityIdentifier("photo-source-picker")
+                .zIndex(1)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -77,17 +79,9 @@ struct PhotosScreen: View {
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(store.photos) { photo in
                     Button { selection = .website(photo) } label: {
-                        Color.clear
-                            .aspectRatio(0.88, contentMode: .fit)
-                            .overlay {
-                                GeometryReader { geometry in
-                                    RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo))
-                                        .frame(width: geometry.size.width, height: geometry.size.height)
-                                }
-                            }
-                            .clipped()
-                            .background(.quaternary)
-                            .clipShape(.rect(cornerRadius: 12))
+                        photoTile {
+                            RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo))
+                        }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(photo.title)
@@ -105,23 +99,32 @@ struct PhotosScreen: View {
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(store.drafts) { draft in
                     Button { selection = .local(draft) } label: {
-                        Color.clear
-                            .aspectRatio(0.88, contentMode: .fit)
-                            .overlay {
-                                GeometryReader { geometry in
-                                    LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true))
-                                        .frame(width: geometry.size.width, height: geometry.size.height)
-                                }
-                            }
-                            .clipped()
-                            .background(.quaternary)
-                            .clipShape(.rect(cornerRadius: 12))
+                        photoTile {
+                            LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true))
+                        }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
                     .accessibilityLabel("待发布照片")
                     .accessibilityHint("预览并发布到网站")
                 }
             }
         }
+    }
+
+    /// The image is clipped twice so neither its pixels nor its hit area can escape the tile.
+    private func photoTile<Content: View>(@ViewBuilder image: () -> Content) -> some View {
+        Color.clear
+            .aspectRatio(0.88, contentMode: .fit)
+            .overlay {
+                image()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            }
+            .clipped()
+            .contentShape(.rect)
+            .background(.quaternary)
+            .clipShape(.rect(cornerRadius: 12))
     }
 }

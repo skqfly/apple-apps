@@ -5,7 +5,7 @@ struct HomeScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 28) {
                 refreshStatus
                 websiteCard
                 contributionsCard
@@ -186,7 +186,7 @@ struct HomeScreen: View {
     }
 
     private var contributionsCard: some View {
-        DashboardCard(title: "GitHub 贡献", symbol: "square.grid.3x3", isLoading: store.contributions.isLoading) {
+        DashboardCard(title: "贡献", symbol: "github-mark", isLoading: store.contributions.isLoading, style: .contributions) {
             VStack(alignment: .leading, spacing: 16) {
                 if let calendar = store.contributions.value {
                     ContributionCalendarView(calendar: calendar)

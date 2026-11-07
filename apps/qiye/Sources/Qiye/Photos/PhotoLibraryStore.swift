@@ -2,6 +2,9 @@ import Foundation
 import Observation
 import SwiftUI
 import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 @Observable
 @MainActor
@@ -28,7 +31,14 @@ final class PhotoLibraryStore {
 
     /// Reads bundled photos and existing drafts immediately; performs no network request.
     init(bundle: Bundle = .main, directory: URL? = nil, session: URLSession = .shared) {
-        let localDirectory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("Photos", isDirectory: true)
+        let usesFixture = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo")
+        let localDirectory: URL
+        if usesFixture {
+            localDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("QiyeUITestLongPhoto", isDirectory: true)
+        } else {
+            localDirectory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("Photos", isDirectory: true)
+        }
         self.directory = localDirectory
         self.storage = PhotoFileStorage(directory: localDirectory)
         self.session = session
@@ -41,17 +51,27 @@ final class PhotoLibraryStore {
         } catch {
             remoteError = "无法读取内置照片资料，请下拉刷新。\(error.localizedDescription)"
         }
-        do {
-            drafts = try PhotoFileStorage.readDrafts(in: localDirectory)
-        } catch {
+        if usesFixture {
+            #if DEBUG
+            installLongPhotoFixture()
+            #else
             canWriteDrafts = false
-            storageError = "无法读取本地照片记录。为保留原有文件，已暂停导入和删除。\(error.localizedDescription)"
+            storageError = "长图测试夹具只在调试构建中可用。"
+            #endif
+        } else {
+            do {
+                drafts = try PhotoFileStorage.readDrafts(in: localDirectory)
+            } catch {
+                canWriteDrafts = false
+                storageError = "无法读取本地照片记录。为保留原有文件，已暂停导入和删除。\(error.localizedDescription)"
+            }
         }
     }
 
     func refreshIfNeeded() async {
         guard !hasRequestedRefresh else { return }
         hasRequestedRefresh = true
+        guard !ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") else { return }
         await refresh()
     }
 
@@ -175,4 +195,58 @@ final class PhotoLibraryStore {
 
     private static let siteURL = URL(string: "https://mmddskq.top")!
     private static let libraryURL = URL(string: "https://raw.githubusercontent.com/skqfly/skqfly.github.io/main/src/data/photo-library.json")!
+
+    #if DEBUG
+    /// Replaces only the isolated fixture directory with one 360 by 3600 draft.
+    private func installLongPhotoFixture() {
+        let id = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+        let draft = PhotoDraft(
+            id: id, title: "长图点击测试",
+            importedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            filename: id.uuidString + ".original",
+            thumbnailFilename: id.uuidString + ".thumbnail.jpg",
+            width: 360, height: 3600
+        )
+        do {
+            if FileManager.default.fileExists(atPath: directory.path) {
+                try FileManager.default.removeItem(at: directory)
+            }
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let image = try Self.longPhotoJPEG(width: 360, height: 3600, label: "2023-11-14")
+            try image.write(to: directory.appendingPathComponent(draft.filename), options: .atomic)
+            try image.write(to: directory.appendingPathComponent(draft.thumbnailFilename), options: .atomic)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode([draft]).write(to: directory.appendingPathComponent("metadata.json"), options: .atomic)
+            drafts = [draft]
+            canWriteDrafts = false
+        } catch {
+            canWriteDrafts = false
+            storageError = "无法准备长图测试照片。\(error.localizedDescription)"
+        }
+    }
+
+    private static func longPhotoJPEG(width: Int, height: Int, label: String) throws -> Data {
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let image = UIGraphicsImageRenderer(bounds: bounds, format: format).image { context in
+            UIColor(red: 0.18, green: 0.22, blue: 0.34, alpha: 1).setFill()
+            context.fill(bounds)
+            UIColor(red: 0.86, green: 0.48, blue: 0.28, alpha: 1).setFill()
+            context.fill(CGRect(x: 28, y: 28, width: CGFloat(width - 56), height: CGFloat(height - 56)))
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let text = NSAttributedString(string: label, attributes: [
+                .font: UIFont.monospacedDigitSystemFont(ofSize: 42, weight: .bold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraph
+            ])
+            text.draw(in: CGRect(x: 20, y: 80, width: CGFloat(width - 40), height: 70))
+        }
+        guard let data = image.jpegData(compressionQuality: 0.8) else { throw CocoaError(.fileWriteUnknown) }
+        return data
+    }
+    #endif
 }

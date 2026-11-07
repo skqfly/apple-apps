@@ -52,6 +52,7 @@ struct PhotoDetailScreen: View {
             .padding(.horizontal)
             .padding(.bottom)
             .background(Color.appBackground)
+            .accessibilityIdentifier("photo-detail-screen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

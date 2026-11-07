@@ -2,8 +2,10 @@ import SwiftUI
 
 struct GitHubLoginScreen: View {
     let store: AccountStore
-    @Environment(\.openURL) private var openURL
+    @State private var token = ""
     @State private var confirmsLogout = false
+    @State private var loginTask: Task<Void, Never>?
+    @FocusState private var tokenFocused: Bool
 
     var body: some View {
         Form {
@@ -13,38 +15,35 @@ struct GitHubLoginScreen: View {
                     Button("退出登录", role: .destructive) { confirmsLogout = true }
                         .confirmationDialog("退出 GitHub 登录？", isPresented: $confirmsLogout, titleVisibility: .visible) {
                             Button("退出登录", role: .destructive) { store.logout() }
-                        } message: {
-                            Text("此手机保存的授权凭据将被删除。")
-                        }
-                }
-            } else if let code = store.deviceCode {
-                Section("在 GitHub 完成授权") {
-                    Text("复制这组代码，然后在 GitHub 页面输入。")
-                    Text(code.userCode)
-                        .font(.largeTitle.monospaced().bold())
-                        .textSelection(.enabled)
-                        .accessibilityLabel("授权码 \(code.userCode)")
-                    Button("打开 GitHub 授权页面", systemImage: "arrow.up.right.square") {
-                        openURL(code.verificationURI)
-                    }
-                    ProgressView("等待你在 GitHub 上确认…")
-                    Button("取消", role: .cancel) { store.cancelGitHubLogin() }
+                        } message: { Text("会删除这台设备钥匙串里的登录凭据。") }
                 }
             } else {
                 Section {
-                    Label("通过 GitHub 登录", systemImage: "person.crop.circle.badge.checkmark")
-                        .font(.headline)
-                    Text("登录后可以把说说和照片发布到你的公开网站仓库。")
-                        .foregroundStyle(.secondary)
-                    Button("使用 GitHub 登录", systemImage: "arrow.up.right.square") {
-                        store.beginGitHubLogin()
-                    }
-                    .disabled(store.isLoading || store.clientID.isEmpty)
-                    if store.isLoading { ProgressView("正在连接 GitHub…") }
+                    SecureField("GitHub token", text: $token)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.asciiCapable)
+                        .privacySensitive()
+                        .focused($tokenFocused)
+                        .submitLabel(.go)
+                        .onSubmit(signIn)
+                        .disabled(store.isLoading)
+                        .accessibilityIdentifier("github-token-field")
+                    Button("验证并登录", systemImage: "person.crop.circle.badge.checkmark", action: signIn)
+                        .disabled(store.isLoading || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if store.isLoading { ProgressView("正在验证账户与网站仓库…") }
+                } header: { Text("使用 token 登录") } footer: {
+                    Text("仅登录 skqfly；验证成功后保存在设备钥匙串，不会写入网站或同步到 iCloud。")
                 }
-                if store.clientID.isEmpty {
-                    Section("配置待完成") {
-                        Text("需要先为栖页注册 GitHub OAuth App，并启用 Device Flow。")
+                Section("创建 token") {
+                    Link("创建 Fine-grained token", destination: URL(string: "https://github.com/settings/personal-access-tokens/new")!)
+                    Text("Resource owner 选择 skqfly，只选择 skqfly.github.io 仓库。")
+                    Text("仓库权限：Contents 选 Read and write，Actions 选 Read-only；Metadata 保持默认。设置合适的到期日期。")
+                        .foregroundStyle(.secondary)
+                    DisclosureGroup("也可以使用 classic token") {
+                        Link("创建 classic token", destination: URL(string: "https://github.com/settings/tokens/new?scopes=public_repo&description=Qiye")!)
+                        Text("只需 public_repo；它可访问账号下所有公开仓库，Fine-grained token 的范围更小。")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -55,20 +54,20 @@ struct GitHubLoginScreen: View {
                 }
             }
             Section {
-                Text("授权在 GitHub 官方页面完成，密码不会交给栖页。授权凭据仅保存在这台设备的钥匙串中。")
-                Text("公开仓库权限用于提交说说、照片及读取工作流；GitHub OAuth 的 public_repo 权限适用于账号下的公开仓库。")
-            } header: {
-                Text("授权说明")
+                Text("token 省去了浏览器授权步骤，仍需要手机网络能访问 api.github.com。请在此设备输入，不要发到聊天。")
+                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("GitHub 账户")
         .navigationBarTitleDisplayMode(.inline)
-        #if DEBUG
-        .task {
-            if ProcessInfo.processInfo.arguments.contains("--device-login") {
-                store.beginGitHubLogin()
-            }
+        .onDisappear { token = ""; loginTask?.cancel() }
+    }
+
+    private func signIn() {
+        guard !store.isLoading else { return }
+        tokenFocused = false
+        loginTask = Task {
+            if await store.signIn(token: token) { token = "" }
         }
-        #endif
     }
 }

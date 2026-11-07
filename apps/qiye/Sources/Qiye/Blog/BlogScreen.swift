@@ -65,9 +65,6 @@ struct BlogScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("思考与记录").font(.title2.weight(.semibold))
-            Text("关于计算、建模与实践的笔记。")
-                .font(.subheadline).foregroundStyle(.secondary)
             if !store.posts.isEmpty {
                 Text("\(store.posts.count) 篇文章")
                     .font(.caption).foregroundStyle(.secondary)

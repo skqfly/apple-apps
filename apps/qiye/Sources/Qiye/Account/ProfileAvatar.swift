@@ -6,29 +6,28 @@ struct ProfileAvatar: View {
     @ScaledMetric(relativeTo: .body) private var size = 32
 
     var body: some View {
-        Group {
-            if isSignedIn, let avatarURL {
-                AsyncImage(url: avatarURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().scaledToFill()
-                    } else {
-                        placeholder
-                    }
+        avatar
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .padding(3)
+            .modifier(ProfileGlassRing())
+            .contentShape(Circle())
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var avatar: some View {
+        if isSignedIn, let avatarURL {
+            AsyncImage(url: avatarURL) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else {
+                    placeholder
                 }
-            } else {
-                placeholder
             }
+        } else {
+            placeholder
         }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay {
-            Circle().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5)
-        }
-        .padding(4)
-        .background(Color.appSurface, in: Circle())
-        .clipShape(Circle())
-        .contentShape(Circle())
-        .accessibilityHidden(true)
     }
 
     private var placeholder: some View {
@@ -36,5 +35,20 @@ struct ProfileAvatar: View {
             .resizable()
             .scaledToFit()
             .foregroundStyle(Color.appAccent)
+            .padding(1)
+            .background(Color.appSurface, in: Circle())
+    }
+}
+
+/// A pressable ring. iOS 26 uses interactive Liquid Glass; earlier systems use a translucent ring.
+private struct ProfileGlassRing: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content.glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay { Circle().strokeBorder(.primary.opacity(0.16), lineWidth: 0.6) }
+        }
     }
 }

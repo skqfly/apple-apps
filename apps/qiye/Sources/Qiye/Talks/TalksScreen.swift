@@ -14,16 +14,10 @@ struct TalksScreen: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("片刻与想法").font(.title2.weight(.semibold))
-                    Text("在日常之间，留下一点值得回看的记录。")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                    if !canPublish {
-                        Label("连接 GitHub 后可以发布新的说说", systemImage: "lock")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                if !canPublish {
+                    Label("连接 GitHub 后可以发布新的说说", systemImage: "lock")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                .padding(.vertical, 4)
                 if let sha = store.publishedSHA {
                     VStack(alignment: .leading, spacing: 6) {
                         Label("已提交到 GitHub", systemImage: "checkmark.circle.fill")

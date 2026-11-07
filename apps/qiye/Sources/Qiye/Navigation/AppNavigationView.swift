@@ -106,3 +106,12 @@ struct AppNavigationView: View {
         .accessibilityHint("登录、外观和博客设置")
     }
 }
+
+/// Keeps the avatar's glass treatment and gives older systems a small press response.
+private struct ProfileGlassButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
+    }
+}

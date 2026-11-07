@@ -141,7 +141,7 @@ struct PhotosScreen: View {
     }
 
     /// Bound both drawing and hit testing to the tile, including very tall images.
-    private func photoTile<Content: View>(@ViewBuilder image: () -> Content) -> some View {
+    private func photoTile<Content: View>(@ViewBuilder image: @escaping () -> Content) -> some View {
         Color.clear
             .aspectRatio(0.88, contentMode: .fit)
             .overlay {

@@ -174,6 +174,7 @@ private struct TalkTimelineRow: View {
         .padding(.horizontal, 20).padding(.vertical, 20)
         .background(Color.appSurface)
         .overlay(alignment: .bottom) { Divider().padding(.leading, 74) }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("talk-row-\(post.id)")
     }
 }

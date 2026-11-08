@@ -89,7 +89,11 @@ struct AppNavigationView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar { profileToolbar }
+            .toolbar {
+                if section == .home {
+                    profileToolbar
+                }
+            }
         }
     }
 

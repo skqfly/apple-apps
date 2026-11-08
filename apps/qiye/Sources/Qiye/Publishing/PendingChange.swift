@@ -12,6 +12,8 @@ struct PendingChange: Identifiable, Codable, Equatable, Sendable {
         case unpublishPhoto(photoID: String, source: String)
         /// Remove a photo and its Qiye-uploaded image file.
         case deletePhoto(photoID: String, source: String)
+        /// Rewrite the public photo-library key order. The ordered IDs are published photos only.
+        case reorderPhotos(orderedIDs: [String])
         /// Publish a new talk. Talks have text and optional images, no title.
         case addTalk(talkID: String, text: String, date: Date, images: [TalkImageSpec], reusedSources: [String])
         /// Replace an existing talk's text, date and images.

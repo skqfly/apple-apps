@@ -53,13 +53,13 @@ struct PhotosScreen: View {
         .toolbar { addToolbar }
         .refreshable { await refresh() }
         .task {
-            library.syncPhotos(store.photos)
+            library.syncPhotos(store.photos, authoritative: store.hasRemoteSnapshot)
             await store.refreshIfNeeded()
-            library.syncPhotos(store.photos)
+            library.syncPhotos(store.photos, authoritative: store.hasRemoteSnapshot)
             let failures = await moveDraftsToLibrary()
             if !failures.isEmpty { report(failures.joined(separator: "\n")) }
         }
-        .onChange(of: store.photos) { _, photos in library.syncPhotos(photos) }
+        .onChange(of: store.photos) { _, photos in library.syncPhotos(photos, authoritative: store.hasRemoteSnapshot) }
         .onChange(of: pickerItems) { _, items in
             guard !items.isEmpty else { return }
             Task { await importPhotos(items) }
@@ -89,7 +89,7 @@ struct PhotosScreen: View {
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.appAccent)
                 .frame(width: 44, height: 44)
                 .modifier(PhotoAddButtonBackground())
         }
@@ -166,7 +166,7 @@ struct PhotosScreen: View {
 
     private func refresh() async {
         await store.refresh()
-        library.syncPhotos(store.photos)
+        library.syncPhotos(store.photos, authoritative: store.hasRemoteSnapshot)
     }
 
     private func report(_ message: String) {

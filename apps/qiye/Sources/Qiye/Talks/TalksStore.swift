@@ -3,6 +3,7 @@ import Observation
 
 @Observable @MainActor
 final class TalksStore {
+    private(set) var hasRemoteSnapshot = false
     private(set) var posts: [TalkPost] = []
     private(set) var isLoading = false
     private(set) var error: String?
@@ -45,10 +46,12 @@ final class TalksStore {
         if ProcessInfo.processInfo.arguments.contains("--uitest-content") { return }
         #endif
         guard !isLoading else { return }
+        hasRemoteSnapshot = false
         isLoading = true
         defer { isLoading = false }
         do {
             posts = try await repository.fetchTalks()
+            hasRemoteSnapshot = true
             error = nil
             hasLoaded = true
         } catch is CancellationError { }

@@ -9,6 +9,7 @@ import UIKit
 @Observable
 @MainActor
 final class PhotoLibraryStore {
+    private(set) var hasRemoteSnapshot = false
     private(set) var photos: [WebsitePhoto] = []
     private(set) var drafts: [PhotoDraft] = []
     private(set) var isLoading = false
@@ -78,11 +79,13 @@ final class PhotoLibraryStore {
     /// A failed request leaves the bundled or last successful photo list visible.
     func refresh() async {
         guard !isLoading else { return }
+        hasRemoteSnapshot = false
         isLoading = true
         defer { isLoading = false }
         do {
             let data = try await GitHubRepository(session: session).getRepositoryFile(path: "src/data/photo-library.json")
             photos = try WebsitePhoto.decode(data, relativeTo: Self.siteURL)
+            hasRemoteSnapshot = true
             remoteError = nil
         } catch is CancellationError {
             return

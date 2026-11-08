@@ -376,17 +376,23 @@ final class PendingChangesStore {
     }
 
     private func buildBatch(snapshot: [PendingChange], repository: GitHubRepository, head: String) async throws -> GitHubRepository.BatchChange {
-        // Deletion candidates must be checked against BOTH final manifests, including
-        // all site sections (blog covers etc.), before deleting a shared image blob.
+        // Both manifests and local archives protect shared images. The repository
+        // additionally checks blog blobs in this head's immutable tree before deleting.
         let site = try await repository.getRepositoryFile(path: "src/data/site.json", ref: head)
         let photos = try await repository.getRepositoryFile(path: "src/data/photo-library.json", ref: head)
-        var result = try PublishingManifest.apply(snapshot, site: site, photos: photos)
+        var talkImages: [String: [TalkImage]] = [:]
+        for record in document.talks.values where !record.purged {
+            talkImages[record.post.id] = record.post.images
+        }
         let retainedSources = document.talks.values.filter { !$0.purged }.flatMap { record in
-            record.post.images.map { publicTalkSource(id: record.post.id, image: $0) }
-        } + document.photos.values.filter { !$0.purged }.map { $0.photo.sourcePath }
-        let retained = Set(retainedSources.compactMap { PendingChange.Kind.repoDeletionPath(forSource: $0) })
-        result.deletions.removeAll { retained.contains($0) }
-        return result
+            record.post.images.flatMap { image in
+                [publicTalkSource(id: record.post.id, image: image), image.preview, image.previewLarge].compactMap { $0 }
+            }
+        } + document.photos.values.filter { !$0.purged }.flatMap {
+            [$0.photo.sourcePath, $0.photo.preview.absoluteString, $0.photo.previewLarge.absoluteString]
+        }
+        return try PublishingManifest.apply(snapshot, site: site, photos: photos,
+            talkImages: talkImages, retainedImageSources: retainedSources)
     }
 
     // MARK: Owned image files
@@ -404,6 +410,7 @@ final class PendingChangesStore {
     }
 
     func store(image: Data, named name: String) throws {
+        if let loadFailure { throw loadFailure }
         guard validImageName(name) else { throw StagingFailure.missingImage }
         try FileManager.default.createDirectory(at: imageDirectory, withIntermediateDirectories: true)
         try image.write(to: imageURL(named: name), options: .atomic)
@@ -426,6 +433,7 @@ final class PendingChangesStore {
     }
 
     func collectUnusedImages() {
+        guard loadFailure == nil else { return }
         // Include undo records: cancelling an edit must be able to restore its images.
         let talks = Array(document.talks.values) + Array(document.talkUndo.values)
         let photos = Array(document.photos.values) + Array(document.photoUndo.values)

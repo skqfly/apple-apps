@@ -41,7 +41,7 @@ struct TalksScreen: View {
                 .padding(.horizontal, 18).padding(.vertical, 14)
                 if let notice { Text(notice).font(.caption).foregroundStyle(Color.appAccent).padding(.horizontal).padding(.bottom, 12) }
                 if let error = store.error {
-                    ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts) }.padding(.horizontal)
+                    ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }.padding(.horizontal)
                 }
                 if posts.isEmpty {
                     ContentUnavailableView(status == .deleted ? "回收站是空的" : "这里还没有说说", systemImage: status == .deleted ? "trash" : "text.bubble", description: Text(status == .unpublished ? "新建和下架的说说会保存在这里。" : ""))
@@ -82,9 +82,9 @@ struct TalksScreen: View {
                 purging = nil
             }
         } message: { Text("本机保留的内容将被移除，无法从回收站恢复。") }
-        .task { library.syncTalks(store.posts); await store.loadIfNeeded(); library.syncTalks(store.posts) }
-        .refreshable { await store.refresh(); library.syncTalks(store.posts) }
-        .onChange(of: pending.committedRevision) { Task { await store.refresh(); library.syncTalks(store.posts) } }
+        .task { library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot); await store.loadIfNeeded(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
+        .refreshable { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
+        .onChange(of: pending.committedRevision) { Task { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) } }
     }
 
     @ToolbarContentBuilder
@@ -97,7 +97,7 @@ struct TalksScreen: View {
     }
     private var composeButton: some View {
         Button { composer = true } label: {
-            Image(systemName: "square.and.pencil").font(.system(size: 19, weight: .semibold))
+            Image(systemName: "square.and.pencil").font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.appAccent)
                 .frame(width: 44, height: 44).modifier(ProfileGlassRing())
         }
         .buttonStyle(.plain).accessibilityLabel("写说说").accessibilityIdentifier("compose-talk")

@@ -58,6 +58,53 @@ private func encoded(_ object: Any) throws -> Data {
         broken.stageUnpublishTalk(talkID: "unchanged")
         try check(broken.count == 0 && broken.error != nil, "failed disk write pretended success")
 
+        // A corrupt document must never turn an unknown reference set into garbage collection.
+        let corruptBase = base.appendingPathComponent("corrupt")
+        let corruptImages = corruptBase.appendingPathComponent("images")
+        try FileManager.default.createDirectory(at: corruptImages, withIntermediateDirectories: true)
+        let retainedImage = corruptImages.appendingPathComponent("retained.jpg")
+        let retainedBytes = Data([0xFF, 0xD8, 0xFF])
+        try retainedBytes.write(to: retainedImage)
+        let corruptJSON = Data("{broken".utf8)
+        try corruptJSON.write(to: corruptBase.appendingPathComponent("changes.json"))
+        let corrupt = PendingChangesStore(directory: corruptBase)
+        let corruptLibrary = ContentLibraryStore(pending: corrupt)
+        do {
+            try corruptLibrary.saveTalk(text: "cannot save", date: date, kept: [], newImages: [], editing: nil)
+            throw CheckFailure(message: "corrupt document accepted a save")
+        } catch is CheckFailure { throw CheckFailure(message: "corrupt document accepted a save") }
+        catch { }
+        corrupt.collectUnusedImages()
+        let bytesAfterFailure = try Data(contentsOf: retainedImage)
+        try check(bytesAfterFailure == retainedBytes, "failed save after corrupt load deleted archived image")
+        do {
+            try corrupt.store(image: Data([1]), named: "new.jpg")
+            throw CheckFailure(message: "corrupt document accepted an image write")
+        } catch is CheckFailure { throw CheckFailure(message: "corrupt document accepted an image write") }
+        catch { }
+        let metadataAfterFailure = try Data(contentsOf: corruptBase.appendingPathComponent("changes.json"))
+        try check(metadataAfterFailure == corruptJSON, "corrupt metadata was overwritten")
+
+        // Persisted published records win over bundled/failed-refresh snapshots on reopen.
+        let snapshotBase = base.appendingPathComponent("snapshots")
+        let snapshots = ContentLibraryStore(pending: PendingChangesStore(directory: snapshotBase))
+        let latestTalk = TalkPost(id: "snapshot", date: date, description: "latest", images: [])
+        snapshots.syncTalks([latestTalk])
+        let latestURL = URL(string: "https://mmddskq.top/photos/qiye-latest.jpg")!
+        let latestPhoto = WebsitePhoto(id: "snapshot-photo", src: latestURL, width: 80, height: 60,
+            alt: "latest", preview: latestURL, previewLarge: latestURL)
+        snapshots.syncPhotos([latestPhoto])
+        let reopenedSnapshots = ContentLibraryStore(pending: PendingChangesStore(directory: snapshotBase))
+        let staleTalk = TalkPost(id: latestTalk.id, date: date, description: "bundled", images: [])
+        reopenedSnapshots.syncTalks([staleTalk], authoritative: false)
+        let stalePhoto = WebsitePhoto(id: latestPhoto.id, src: latestURL, width: 1, height: 1,
+            alt: "bundled", preview: latestURL, previewLarge: latestURL)
+        reopenedSnapshots.syncPhotos([stalePhoto], authoritative: false)
+        try check(reopenedSnapshots.talks(in: .published).first == latestTalk, "bundled talk overwrote persisted edit")
+        try check(reopenedSnapshots.photos(in: .published).first == latestPhoto, "bundled photo overwrote persisted record")
+        reopenedSnapshots.syncTalks([staleTalk], authoritative: true)
+        try check(reopenedSnapshots.talks(in: .published).first == staleTalk, "fresh network snapshot was ignored")
+
         // Old synthesized enum payload omitted reusedSources.
         let old: [String: Any] = ["id": UUID().uuidString, "kind": ["addTalk": ["talkID": "legacy", "text": "old", "date": "2026-01-02T00:00:00Z", "images": []]]]
         let decoder = JSONDecoder()
@@ -67,19 +114,85 @@ private func encoded(_ object: Any) throws -> Data {
             try check(reused.isEmpty, "legacy reused sources not defaulted")
         } else { throw CheckFailure(message: "wrong migrated operation") }
 
-        // Replay produces the same manifest and cannot delete shared assets.
         let shared = "/photos/qiye-shared.jpg"
-        let site = try encoded(["talksPageContent": ["entries": [["id": "other", "images": [["src": shared]]]]]])
         let photos = try encoded(["photo": ["src": shared]])
+        let remove = PendingChange(kind: .deletePhoto(photoID: "photo", source: shared))
+        let emptySite = try encoded(["talksPageContent": ["entries": [] as [[String: Any]]]])
+        let emptyPhotos = try encoded([String: String]())
+        let absoluteShared = "https://mmddskq.top" + shared
+        try check(PendingChange.Kind.repoDeletionPath(forSource: absoluteShared) == "public" + shared,
+                  "absolute site image did not normalize")
+        try check(PendingChange.Kind.repoDeletionPath(forSource: absoluteShared + "?v=1#photo") == "public" + shared,
+                  "query/fragment reference did not protect source")
+        try check(PendingChange.Kind.repoDeletionPath(forSource: "https://other.example" + shared) == nil,
+                  "foreign origin was treated as an owned image")
+        try check(PendingChange.Kind.repoDeletionPath(forSource: "https://mmddskq.top/photos/qiye-x/../secret.jpg") == nil,
+                  "absolute traversal accepted")
+        try check(PendingChange.Kind.repoDeletionPath(forSource: "/photos/qiye-%2e%2e/secret.jpg") == nil,
+                  "encoded traversal accepted")
+        let archiveProtected = try PublishingManifest.apply([remove], site: emptySite, photos: photos,
+            retainedImageSources: [absoluteShared])
+        try check(archiveProtected.deletions.isEmpty, "absolute archive reference did not protect shared image")
+        let absoluteSite = try encoded(["talksPageContent": ["entries": [["id": "absolute", "images": [["src": absoluteShared]]]]]])
+        let publicProtected = try PublishingManifest.apply([remove], site: absoluteSite, photos: photos)
+        try check(publicProtected.deletions.isEmpty, "absolute manifest reference did not protect shared image")
+        let candidate = "public" + shared
+        try check(GitHubRepository.unreferencedImageDeletions([candidate], blogContents: ["image: {\"url\":\"\(absoluteShared)\"}"]).isEmpty,
+                  "blog frontmatter reference was deleted")
+        try check(GitHubRepository.unreferencedImageDeletions([candidate], blogContents: ["![shared](\(shared))"]).isEmpty,
+                  "blog body reference was deleted")
+        try check(GitHubRepository.unreferencedImageDeletions([candidate], blogContents: nil).isEmpty,
+                  "unreadable/truncated blog scan allowed deletion")
+        try check(GitHubRepository.unreferencedImageDeletions([candidate], blogContents: ["unrelated"]) == [candidate],
+                  "unreferenced image could not be collected")
+
+        // Restoring a remotely sourced image must not rely on a previous public entry.
+        let reusedImage = TalkImage(src: shared, width: 640, height: 480, alt: "original caption",
+            preview: "/photos/qiye-shared-preview.jpg", previewLarge: "/photos/qiye-shared-large.jpg")
+        let restored = PendingChange(kind: .addTalk(talkID: "restored", text: "restored", date: date,
+            images: [], reusedSources: [shared]))
+        let restoredBatch = try PublishingManifest.apply([restored], site: emptySite, photos: emptyPhotos,
+            talkImages: ["restored": [reusedImage]])
+        let restoredJSON = try JSONSerialization.jsonObject(with: restoredBatch.files["src/data/site.json"]!) as! [String: Any]
+        let restoredPage = restoredJSON["talksPageContent"] as! [String: Any]
+        let restoredEntries = restoredPage["entries"] as! [[String: Any]]
+        let restoredImages = restoredEntries[0]["images"] as! [[String: Any]]
+        try check(restoredImages[0]["width"] as? Int == 640 && restoredImages[0]["height"] as? Int == 480,
+                  "restored remote image lost dimensions")
+        try check(restoredImages[0]["alt"] as? String == reusedImage.alt &&
+                  restoredImages[0]["preview"] as? String == reusedImage.preview &&
+                  restoredImages[0]["previewLarge"] as? String == reusedImage.previewLarge,
+                  "restored remote image lost caption/previews")
+        let restoredReplay = try PublishingManifest.apply([restored], site: restoredBatch.files["src/data/site.json"]!, photos: emptyPhotos,
+            talkImages: ["restored": [reusedImage]])
+        try check(restoredReplay.files == restoredBatch.files, "restored metadata changed on retry")
+        let localImage = TalkImage(src: "file:///tmp/library/local.jpg", width: 90, height: 60, alt: "local caption",
+            preview: "file:///tmp/library/preview.jpg", previewLarge: nil)
+        let localSpec = PendingChange.Kind.TalkImageSpec(imageName: "local.jpg", width: 90, height: 60)
+        let localSource = PendingChange.Kind.talkSource(talkID: "local", image: localSpec)
+        let localAdd = PendingChange(kind: .addTalk(talkID: "local", text: "local", date: date,
+            images: [localSpec], reusedSources: [localSource, shared]))
+        let localBatch = try PublishingManifest.apply([localAdd], site: emptySite, photos: emptyPhotos,
+            talkImages: ["local": [localImage, reusedImage]])
+        let localJSON = try JSONSerialization.jsonObject(with: localBatch.files["src/data/site.json"]!) as! [String: Any]
+        let localPage = localJSON["talksPageContent"] as! [String: Any]
+        let localEntries = localPage["entries"] as! [[String: Any]]
+        let localImages = localEntries[0]["images"] as! [[String: Any]]
+        try check(localImages.compactMap { $0["src"] as? String } == [localSource, shared], "mixed image order lost")
+        try check(localImages[0]["preview"] as? String == localSource && localImages[0]["previewLarge"] as? String == localSource,
+                  "local file URL leaked into public previews")
+        try check(localImages[0]["alt"] as? String == "local caption", "upload replaced complete local metadata")
+
+        // Replay produces the same manifest and cannot delete shared assets.
+        let site = try encoded(["talksPageContent": ["entries": [["id": "other", "images": [["src": shared]]]]]])
         let add = PendingChange(kind: .addTalk(talkID: "new", text: "hello", date: date,
             images: [.init(imageName: "immutable-uuid.jpg", width: 50, height: 40)], reusedSources: []))
-        let remove = PendingChange(kind: .deletePhoto(photoID: "photo", source: shared))
         let batch = try PublishingManifest.apply([add, remove], site: site, photos: photos)
         try check(batch.deletions.isEmpty, "deleted an image referenced by another talk")
         let replay = try PublishingManifest.apply([add, remove], site: batch.files["src/data/site.json"]!, photos: batch.files["src/data/photo-library.json"]!)
         try check(batch.files == replay.files, "retry was not idempotent")
         try check(PendingChange.Kind.repoDeletionPath(forSource: "/photos/qiye-x/../secret.jpg") == nil, "unsafe deletion accepted")
-        print("PASS: persisted states, restore, cancel, merge/order, pure-image drafts, disk failure, legacy queue, durable uncertain retry, idempotent manifest, shared-image protection")
+        print("PASS: persisted states, restore, cancel, merge/order, pure-image drafts, disk failure, corrupt-load image protection, snapshot authority, legacy queue, durable uncertain retry, idempotent manifest, absolute/archive/blog shared-image protection, complete reused metadata, public preview URLs")
     }
 }
 #endif

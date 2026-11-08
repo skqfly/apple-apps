@@ -287,11 +287,22 @@ extension GitHubRepository {
             var treeEntries: [[String: Any]] = shas.keys.sorted().map {
                 ["path": $0, "mode": "100644", "type": "blob", "sha": shas[$0] ?? ""]
             }
-            if !batch.deletions.isEmpty {
-                let existing: GitTree = try await decode(path: "\(repositoryPath)/git/trees/\(parent.tree.sha)?recursive=1")
-                guard !existing.truncated else { throw GitHubError.invalidContent("仓库文件树过大，暂时无法安全删除图片。") }
+            if !batch.deletions.isEmpty,
+               let existing: GitTree = try? await decode(path: "\(repositoryPath)/git/trees/\(parent.tree.sha)?recursive=1"),
+               !existing.truncated {
                 let paths = Set(existing.tree.filter { $0.type == "blob" }.map(\.path))
-                for path in Set(batch.deletions).sorted() where paths.contains(path) && shas[path] == nil {
+                var blogContents: [String]? = []
+                for file in existing.tree where file.type == "blob" && file.path.hasPrefix("src/content/posts/") &&
+                    ["md", "mdx"].contains(URL(fileURLWithPath: file.path).pathExtension.lowercased()) {
+                    guard let data = try? await blob(sha: file.sha), let text = String(data: data, encoding: .utf8) else {
+                        blogContents = nil
+                        break
+                    }
+                    blogContents?.append(text)
+                }
+                // Incomplete trees or unreadable posts retain images without blocking publication.
+                for path in Self.unreferencedImageDeletions(batch.deletions, blogContents: blogContents)
+                    where paths.contains(path) && shas[path] == nil {
                     treeEntries.append(["path": path, "mode": "100644", "type": "blob", "sha": NSNull()])
                 }
             }
@@ -323,6 +334,23 @@ extension GitHubRepository {
             }
         }
         throw GitHubError.conflict
+    }
+
+    nonisolated static func unreferencedImageDeletions(_ candidates: [String], blogContents: [String]?) -> [String] {
+        guard let blogContents else { return [] }
+        // Match paths anywhere in frontmatter, Markdown or MDX. A false positive
+        // keeps an unused image; it can never break an article's shared reference.
+        let texts = blogContents.map { text in
+            let unescaped = text.replacingOccurrences(of: "\\/", with: "/")
+            return unescaped.removingPercentEncoding ?? unescaped
+        }
+        return Set(candidates).sorted().filter { path in
+            guard path.hasPrefix("public/photos/qiye-") || path.hasPrefix("public/talks/qiye-"),
+                  path.hasSuffix(".jpg"), !path.contains("%"), !path.contains("\\"),
+                  path.split(separator: "/").allSatisfy({ $0 != "." && $0 != ".." }) else { return false }
+            let source = String(path.dropFirst(6))
+            return !texts.contains { $0.contains(source) }
+        }
     }
 
     @discardableResult

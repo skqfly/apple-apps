@@ -54,11 +54,12 @@ final class ContentLibraryStore {
 
     init(pending: PendingChangesStore) { self.pending = pending }
 
-    func syncTalks(_ posts: [TalkPost]) {
+    func syncTalks(_ posts: [TalkPost], authoritative: Bool = true) {
         do {
             try pending.transaction { document in
                 for (offset, post) in posts.enumerated() where !document.purgedTalkIDs.contains(post.id) {
                     if var record = document.talks[post.id] {
+                        guard authoritative else { continue }
                         guard !record.purged, record.state == .published,
                               !document.hasChanges(for: "talk:" + post.id) else { continue }
                         record.remote = post
@@ -75,11 +76,12 @@ final class ContentLibraryStore {
         } catch { pending.report(error) }
     }
 
-    func syncPhotos(_ photos: [WebsitePhoto]) {
+    func syncPhotos(_ photos: [WebsitePhoto], authoritative: Bool = true) {
         do {
             try pending.transaction { document in
                 for (offset, photo) in photos.enumerated() where !document.purgedPhotoIDs.contains(photo.id) {
                     if var record = document.photos[photo.id] {
+                        guard authoritative else { continue }
                         guard !record.purged, record.state == .published,
                               !document.hasChanges(for: "photo:" + photo.id) else { continue }
                         record.remote = photo

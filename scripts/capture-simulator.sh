@@ -22,9 +22,11 @@ for mode in light dark; do
     xcrun simctl ui "$simulator_id" appearance "$mode"
     for count in six nine; do
         xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
-        extra=()
-        if [ "$count" = nine ]; then extra+=(--nine-first); fi
-        xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content "${extra[@]}"
+        if [ "$count" = nine ]; then
+            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content --nine-first
+        else
+            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content
+        fi
         sleep 3
         xcrun simctl io "$simulator_id" screenshot "$output_dir/talks-$count-$mode.png"
     done

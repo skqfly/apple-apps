@@ -73,11 +73,20 @@ extension PendingChange.Kind {
     /// The repository file path to delete, but only for images this app uploaded.
     /// Trilium-managed media is shared and must never be removed by Qiye.
     static func repoDeletionPath(forSource source: String) -> String? {
-        guard source.hasPrefix("/photos/qiye-") || source.hasPrefix("/talks/qiye-"),
-              !source.contains("%"), !source.contains("?"), !source.contains("#"),
-              !source.contains("\\"), source.hasSuffix(".jpg"),
-              source.split(separator: "/").allSatisfy({ $0 != "." && $0 != ".." }) else { return nil }
-        return "public" + source
+        // Validate before URL resolution, which can otherwise hide traversal segments.
+        guard !source.contains("%"), !source.contains("\\"),
+              let components = URLComponents(string: source),
+              components.user == nil, components.password == nil,
+              components.path.split(separator: "/").allSatisfy({ $0 != "." && $0 != ".." }) else { return nil }
+        if components.scheme != nil || components.host != nil {
+            guard ["https", "http"].contains(components.scheme?.lowercased() ?? "https"),
+                  components.host?.lowercased() == GitHubRepository.websiteURL.host?.lowercased(),
+                  components.port == nil else { return nil }
+        }
+        let path = components.path.hasPrefix("public/") ? String(components.path.dropFirst(6)) : components.path
+        guard path.hasPrefix("/photos/qiye-") || path.hasPrefix("/talks/qiye-"),
+              path.hasSuffix(".jpg") else { return nil }
+        return "public" + path
     }
 }
 

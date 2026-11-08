@@ -36,7 +36,7 @@ struct AppNavigationView: View {
             AccountScreen(store: account)
         }
         .task {
-            library.syncPhotos(photos.photos)
+            library.syncPhotos(photos.photos, authoritative: photos.hasRemoteSnapshot)
             await account.restore()
         }
         .task(id: account.credentialRevision) {

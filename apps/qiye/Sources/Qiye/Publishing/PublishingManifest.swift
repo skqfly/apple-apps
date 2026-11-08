@@ -70,8 +70,8 @@ enum PublishingManifest {
         let references = referencedPaths(in: root).union(referencedPaths(in: library))
             .union(retainedImageSources.compactMap { PendingChange.Kind.repoDeletionPath(forSource: $0) })
         var files: [String: Data] = [:]
-        if siteChanged { files["src/data/site.json"] = try json(root, sortKeys: true) }
-        if photosChanged { files["src/data/photo-library.json"] = try json(library, sortKeys: false) }
+        if siteChanged { files["src/data/site.json"] = try json(root) }
+        if photosChanged { files["src/data/photo-library.json"] = try orderedJSON(library) }
         return GitHubRepository.BatchChange(files: files, deletions: candidates.subtracting(references).sorted())
     }
 
@@ -127,11 +127,32 @@ enum PublishingManifest {
         return []
     }
 
-    private static func json(_ value: [String: Any], sortKeys: Bool = true) throws -> Data {
-        var options: JSONSerialization.WritingOptions = [.prettyPrinted, .withoutEscapingSlashes]
-        if sortKeys { options.insert(.sortedKeys) }
-        var data = try JSONSerialization.data(withJSONObject: value, options: options)
+    private static func json(_ value: [String: Any]) throws -> Data {
+        var data = try JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         data.append(0x0A)
         return data
+    }
+
+    /// Writes a JSON object whose top-level key order is meaningful: the website
+    /// photo wall renders `Object.values(photoLibrary)` in this exact order.
+    /// `JSONSerialization` may sort or reorder keys, so the top level is emitted
+    /// by hand while each value still goes through the standard serializer.
+    private static func orderedJSON(_ object: [String: Any]) throws -> Data {
+        var body = "{"
+        let count = object.count
+        var index = 0
+        for (key, value) in object {
+            let keyJSON = try JSONSerialization.data(withJSONObject: key, options: .withoutEscapingSlashes)
+            guard JSONSerialization.isValidJSONObject(value) else { throw PendingChangesStore.StagingFailure.invalidPhotoData }
+            let valueJSON = try JSONSerialization.data(withJSONObject: value, options: .withoutEscapingSlashes)
+            body += "\n  "
+            body += String(decoding: keyJSON, as: UTF8.self)
+            body += ": "
+            body += String(decoding: valueJSON, as: UTF8.self)
+            index += 1
+            if index < count { body += "," }
+        }
+        body += "\n}\n"
+        return Data(body.utf8)
     }
 }

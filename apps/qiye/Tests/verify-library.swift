@@ -215,9 +215,13 @@ private func encoded(_ object: Any) throws -> Data {
         try orderLibrary.movePhoto("a-first", before: "z-last")
         try check(orderPending.changes.last?.id == orderOperation.id, "same order created another operation")
         try orderLibrary.movePhoto("a-first", before: nil)
-        try orderLibrary.movePhoto("z-last", before: "m-middle")
-        try orderLibrary.movePhoto("a-first", before: "z-last")
         try check(orderPending.count == 0, "returning to remote order left a pending change")
+        try orderLibrary.movePhoto("z-last", before: "a-first")
+        try check(orderPending.count == 1, "moving away from remote order did not stage")
+        orderPending.remove(orderPending.changes.last!)
+        try check(orderLibrary.photos(in: .published).map(\.id) == ["z-last", "m-middle", "a-first"],
+                  "undoing a drag did not restore the acknowledged website order")
+        try check(orderPending.count == 0, "undoing a drag left a pending change")
 
         let libraryJSON = try encoded(["z-last": ["src": "/z"], "m-middle": ["src": "/m"], "a-first": ["src": "/a"], "kept": ["src": "/k"]])
         let orderedBatch = try PublishingManifest.apply([orderOperation], site: emptySite, photos: libraryJSON)

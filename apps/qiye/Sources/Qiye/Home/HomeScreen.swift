@@ -166,11 +166,6 @@ struct HomeScreen: View {
             }
             .navigationTitle("待推送变更")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { showsPendingDetails = false }
-                }
-            }
         }
         .presentationDragIndicator(.visible)
         .alert("推送结果", isPresented: $showsPendingPushResult) {
@@ -199,6 +194,7 @@ struct HomeScreen: View {
         case .editTalk: return "pencil.circle.fill"
         case .unpublishPhoto, .unpublishTalk: return "arrow.down.circle.fill"
         case .deletePhoto, .deleteTalk: return "trash.fill"
+        case .reorderPhotos: return "arrow.up.arrow.down.circle.fill"
         }
     }
 

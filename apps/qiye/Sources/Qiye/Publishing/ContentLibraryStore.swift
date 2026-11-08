@@ -30,6 +30,9 @@ struct LibraryPhotoRecord: Codable, Sendable {
     var publishedSource: String? = nil
     var purged = false
     var order: Int? = nil
+    // Keep the last acknowledged website order separate from local drag order.
+    // This lets undo compare against GitHub instead of the already-moved wall.
+    var remoteOrder: Int? = nil
 }
 
 struct PublishingDocument: Codable {
@@ -79,6 +82,9 @@ final class ContentLibraryStore {
     func syncPhotos(_ photos: [WebsitePhoto], authoritative: Bool = true) {
         do {
             try pending.transaction { document in
+                // A pending drag must not be flattened by a background refresh: keep the
+                // local order, update the remote bookkeeping, and append genuinely new photos.
+                let hasPendingOrder = document.hasChanges(for: "photo-order")
                 for (offset, photo) in photos.enumerated() where !document.purgedPhotoIDs.contains(photo.id) {
                     if var record = document.photos[photo.id] {
                         guard authoritative else { continue }
@@ -86,12 +92,19 @@ final class ContentLibraryStore {
                               !document.hasChanges(for: "photo:" + photo.id) else { continue }
                         record.remote = photo
                         record.publishedSource = photo.sourcePath
-                        record.order = offset
+                        record.remoteOrder = offset
+                        if !hasPendingOrder { record.order = offset }
                         if record.state == .published { record.photo = photo }
                         document.photos[photo.id] = record
                     } else {
+                        // Brand-new photos arrive in website order. While a local reorder is
+                        // staged they append after the current end instead of clobbering it.
+                        let localOrder = hasPendingOrder
+                            ? (document.photos.values.filter { $0.state == .published }.compactMap(\.order).max() ?? -1) + 1
+                            : offset
                         document.photos[photo.id] = .init(photo: photo, state: .published, remote: photo,
-                                                          publishedSource: photo.sourcePath, order: offset)
+                                                          publishedSource: photo.sourcePath, order: localOrder,
+                                                          remoteOrder: offset)
                     }
                 }
             }

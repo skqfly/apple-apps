@@ -173,6 +173,11 @@ final class PendingChangesStore {
         if key.hasPrefix("talk:") {
             let id = String(key.dropFirst(5))
             if let undo = candidate.talkUndo.removeValue(forKey: id) { candidate.talks[id] = undo }
+        } else if key == "photo-order" {
+            // Undoing a drag restores the wall to the last acknowledged website order.
+            for (id, record) in candidate.photos where !record.purged && record.state == .published {
+                candidate.photos[id]?.order = record.remoteOrder ?? record.order
+            }
         } else {
             let id = String(key.dropFirst(6))
             if let undo = candidate.photoUndo.removeValue(forKey: id) { candidate.photos[id] = undo }
@@ -244,6 +249,7 @@ final class PendingChangesStore {
         } else {
             try replace(record.remote == nil ? nil : .unpublishPhoto(photoID: id, source: record.photo.sourcePath),
                         key: key, in: &candidate)
+            if record.remote == nil { candidate.photos[id]?.remoteOrder = nil }
         }
         if !candidate.hasChanges(for: key) { candidate.photoUndo.removeValue(forKey: id) }
         try reconcilePhotoOrder(in: &candidate)
@@ -255,7 +261,7 @@ final class PendingChangesStore {
             return $0.photo.id < $1.photo.id
         }
         let remote = candidate.photos.values.filter { $0.remote != nil && $0.state == .published }.sorted {
-            if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+            if $0.remoteOrder != $1.remoteOrder { return ($0.remoteOrder ?? Int.max) < ($1.remoteOrder ?? Int.max) }
             return $0.photo.id < $1.photo.id
         }
         let current = ordered.map(\.photo.id)
@@ -355,18 +361,24 @@ final class PendingChangesStore {
             if var record = candidate.photos[id] {
                 record.remote = publicPhoto(record.photo)
                 record.publishedSource = record.photo.sourcePath
+                record.remoteOrder = record.order
                 candidate.photos[id] = record
             }
             candidate.photoUndo.removeValue(forKey: id)
         case .unpublishPhoto(let id, _):
             candidate.photos[id]?.remote = nil
+            candidate.photos[id]?.remoteOrder = nil
             candidate.photoUndo.removeValue(forKey: id)
         case .deletePhoto(let id, _):
             candidate.photos.removeValue(forKey: id)
             candidate.purgedPhotoIDs.insert(id)
             candidate.photoUndo.removeValue(forKey: id)
         case .reorderPhotos:
-            break
+            let published = candidate.photos.values.filter { $0.remote != nil && $0.state == .published }.sorted {
+                if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+                return $0.photo.id < $1.photo.id
+            }
+            for record in published { candidate.photos[record.photo.id]?.remoteOrder = record.order }
         }
     }
 

@@ -17,6 +17,7 @@ struct PhotosScreen: View {
     @State private var importMessage: String?
     @State private var showsImportResult = false
     @State private var isMovingDrafts = false
+    @State private var draggingPhotoID: String?
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
@@ -128,11 +129,10 @@ struct PhotosScreen: View {
                     .accessibilityIdentifier("photo-tile-\(photo.id)")
                     .onDrag {
                         draggingPhotoID = photo.id
-                        dragSession += 1
                         return NSItemProvider(object: photo.id as NSString)
                     }
                     .onDrop(of: [.text], delegate: PhotoReorderDrop(
-                        destinationID: photo.id, draggingID: $draggingPhotoID, session: dragSession, library: library
+                        destinationID: photo.id, draggingID: $draggingPhotoID, library: library
                     ))
                 }
                 if status == .unpublished {
@@ -148,7 +148,7 @@ struct PhotosScreen: View {
                 }
             }
             .onDrop(of: [.text], delegate: PhotoReorderDrop(
-                destinationID: nil, draggingID: $draggingPhotoID, session: dragSession, library: library
+                destinationID: nil, draggingID: $draggingPhotoID, library: library
             ))
         }
     }
@@ -169,9 +169,6 @@ struct PhotosScreen: View {
             .background(.quaternary)
             .clipShape(.rect(cornerRadius: 12))
             .contentShape(.rect)
-            .onDrop(of: [.text], delegate: PhotoReorderDrop(
-                destinationID: nil, draggingID: $draggingPhotoID, session: dragSession, library: library
-            ))
     }
 
     private func open(_ photo: PhotoSelection) {
@@ -226,5 +223,31 @@ private struct PhotoAddButtonBackground: ViewModifier {
                 .background(.ultraThinMaterial, in: .circle)
                 .overlay { Circle().strokeBorder(.primary.opacity(0.16), lineWidth: 0.6) }
         }
+    }
+}
+
+/// Reorders published photos while a drag is in flight. `movePhoto` writes both the
+/// local wall order and the staged website order in one atomic transaction.
+private struct PhotoReorderDrop: DropDelegate {
+    let destinationID: String?
+    @Binding var draggingID: String?
+    let library: ContentLibraryStore
+
+    func dropEntered(info: DropInfo) {
+        guard let draggingID, draggingID != destinationID else { return }
+        do {
+            try library.movePhoto(draggingID, before: destinationID)
+        } catch {
+            self.draggingID = nil
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        draggingID = nil
+        return true
     }
 }

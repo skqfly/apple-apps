@@ -98,6 +98,8 @@ extension PendingChange.Kind {
             return "talk:" + id
         case .addPhoto(let id, _, _, _, _, _), .unpublishPhoto(let id, _), .deletePhoto(let id, _):
             return "photo:" + id
+        case .reorderPhotos:
+            return "photo-order"
         }
     }
 

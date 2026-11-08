@@ -18,6 +18,7 @@ struct PhotosScreen: View {
     @State private var showsImportResult = false
     @State private var isMovingDrafts = false
     @State private var draggingPhotoID: String?
+    @State private var hoveredPhotoID: String?
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
@@ -123,7 +124,18 @@ struct PhotosScreen: View {
                         }
                     }
                     .buttonStyle(.plain)
-                    .opacity(draggingPhotoID == photo.id ? 0.45 : 1)
+                    .opacity(draggingPhotoID == nil ? 1 : (draggingPhotoID == photo.id ? 1 : 0.7))
+                    .scaleEffect(draggingPhotoID == photo.id ? 1.06 : 1)
+                    .zIndex(draggingPhotoID == photo.id ? 1 : 0)
+                    .shadow(color: draggingPhotoID == photo.id ? .black.opacity(0.28) : .clear, radius: 8, y: 2)
+                    .overlay {
+                        if hoveredPhotoID == photo.id && draggingPhotoID != photo.id {
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Color.appAccent, lineWidth: 2.5)
+                        }
+                    }
+                    .animation(.snappy(duration: 0.18), value: draggingPhotoID == photo.id)
+                    .animation(.snappy(duration: 0.18), value: hoveredPhotoID == photo.id)
                     .accessibilityLabel(photo.title)
                     .accessibilityHint("在 App 内查看大图，长按后拖动可调整顺序")
                     .accessibilityIdentifier("photo-tile-\(photo.id)")
@@ -132,13 +144,14 @@ struct PhotosScreen: View {
                         return NSItemProvider(object: photo.id as NSString)
                     }
                     .onDrop(of: [.text], delegate: PhotoReorderDrop(
-                        destinationID: photo.id, draggingID: $draggingPhotoID, library: library
+                        destinationID: photo.id, draggingID: $draggingPhotoID,
+                        hoveredID: $hoveredPhotoID, library: library
                     ))
                 }
                 if status == .unpublished {
                     ForEach(store.drafts) { draft in
                         Button { open(.local(draft)) } label: {
-                            photoTile { LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true)) }
+                            photoTile { LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true), fallbackURL: store.fileURL(for: draft, thumbnail: false)) }
                         }
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
@@ -148,8 +161,10 @@ struct PhotosScreen: View {
                 }
             }
             .onDrop(of: [.text], delegate: PhotoReorderDrop(
-                destinationID: nil, draggingID: $draggingPhotoID, library: library
+                destinationID: nil, draggingID: $draggingPhotoID,
+                hoveredID: $hoveredPhotoID, library: library
             ))
+            .animation(.snappy(duration: 0.25), value: visiblePhotos.map(\.id))
         }
     }
 
@@ -231,15 +246,22 @@ private struct PhotoAddButtonBackground: ViewModifier {
 private struct PhotoReorderDrop: DropDelegate {
     let destinationID: String?
     @Binding var draggingID: String?
+    @Binding var hoveredID: String?
     let library: ContentLibraryStore
 
     func dropEntered(info: DropInfo) {
         guard let draggingID, draggingID != destinationID else { return }
+        hoveredID = destinationID
         do {
             try library.movePhoto(draggingID, before: destinationID)
         } catch {
             self.draggingID = nil
+            self.hoveredID = nil
         }
+    }
+
+    func dropExited(info: DropInfo) {
+        if hoveredID == destinationID { hoveredID = nil }
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
@@ -248,6 +270,7 @@ private struct PhotoReorderDrop: DropDelegate {
 
     func performDrop(info: DropInfo) -> Bool {
         draggingID = nil
+        hoveredID = nil
         return true
     }
 }

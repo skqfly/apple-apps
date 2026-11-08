@@ -3,6 +3,7 @@ import ImageIO
 
 struct LocalPhotoImage: View {
     let url: URL
+    var fallbackURL: URL? = nil
     var contentMode: ContentMode = .fill
     var maximumPixelSize = 600
     @State private var image: CGImage?
@@ -29,20 +30,30 @@ struct LocalPhotoImage: View {
             image = nil
             failed = false
             let sourceURL = url
+            let fallback = fallbackURL
             let pixelSize = maximumPixelSize
             let decoded = await Task.detached(priority: .userInitiated) {
-                guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) else { return nil as CGImage? }
-                let options: [CFString: Any] = [
-                    kCGImageSourceCreateThumbnailFromImageAlways: true,
-                    kCGImageSourceCreateThumbnailWithTransform: true,
-                    kCGImageSourceThumbnailMaxPixelSize: pixelSize,
-                    kCGImageSourceShouldCacheImmediately: true
-                ]
-                return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+                decode(sourceURL, maximumPixelSize: pixelSize) ?? fallback.flatMap { decode($0, maximumPixelSize: pixelSize) }
             }.value
             guard !Task.isCancelled else { return }
             image = decoded
             failed = decoded == nil
         }
+    }
+
+    /// Prefers a cached thumbnail, then falls back to the full-size image so a
+    /// valid photo never shows an error just because thumbnail creation was skipped.
+    private static func decode(_ sourceURL: URL, maximumPixelSize: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumPixelSize,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        if let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+            return thumbnail
+        }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 }

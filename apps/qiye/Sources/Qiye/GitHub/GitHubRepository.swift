@@ -158,14 +158,27 @@ actor GitHubRepository {
 
     private func publicData(_ url: URL) async throws -> Data {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 25
+        request.timeoutInterval = 45
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        let (data, response) = try await session.data(for: request)
-        try Task.checkCancellation()
-        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
-            throw GitHubError.network
+        // One fast retry absorbs a transient drop while keeping the UI from waiting too long.
+        var lastError: Error?
+        for _ in 0...1 {
+            do {
+                let (data, response) = try await session.data(for: request)
+                try Task.checkCancellation()
+                guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
+                    throw GitHubError.network
+                }
+                return data
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
+                throw CancellationError()
+            } catch {
+                lastError = error
+            }
         }
-        return data
+        throw lastError ?? GitHubError.network
     }
 
     private func blob(sha: String) async throws -> Data {

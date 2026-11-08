@@ -7,8 +7,8 @@ import UIKit
 // MARK: - App Theme & Dynamic Accent
 
 /// Manages the user's selected accent color and persists it across launches.
-@Observable @MainActor
-final class AppTheme {
+@Observable
+final class AppTheme: @unchecked Sendable {
     static let shared = AppTheme()
 
     /// Pre-configured designer palettes for one-tap switching.
@@ -31,6 +31,7 @@ final class AppTheme {
     ]
 
     private let defaultsKey = "customThemeAccentHex"
+    private let lock = NSLock()
 
     var selectedHex: String {
         didSet {
@@ -39,12 +40,22 @@ final class AppTheme {
         }
     }
 
-    private(set) var accentColor: Color = Color(red: 0.1608, green: 0.4196, blue: 0.4431)
+    private var _accentColor: Color = Color(red: 0.1608, green: 0.4196, blue: 0.4431)
+
+    var accentColor: Color {
+        lock.lock()
+        defer { lock.unlock() }
+        return _accentColor
+    }
 
     private init() {
         let stored = UserDefaults.standard.string(forKey: defaultsKey) ?? "#296B58"
         self.selectedHex = stored
-        updateAccentColor()
+        if let resolved = Color(hex: stored) {
+            self._accentColor = resolved
+        } else {
+            self._accentColor = Self.presets[0].color
+        }
     }
 
     func selectPreset(_ preset: Preset) {
@@ -65,11 +76,13 @@ final class AppTheme {
     }
 
     private func updateAccentColor() {
+        lock.lock()
         if let resolved = Color(hex: selectedHex) {
-            accentColor = resolved
+            _accentColor = resolved
         } else {
-            accentColor = Self.presets[0].color
+            _accentColor = Self.presets[0].color
         }
+        lock.unlock()
     }
 }
 

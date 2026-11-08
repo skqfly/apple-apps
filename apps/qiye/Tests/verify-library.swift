@@ -192,7 +192,38 @@ private func encoded(_ object: Any) throws -> Data {
         let replay = try PublishingManifest.apply([add, remove], site: batch.files["src/data/site.json"]!, photos: batch.files["src/data/photo-library.json"]!)
         try check(batch.files == replay.files, "retry was not idempotent")
         try check(PendingChange.Kind.repoDeletionPath(forSource: "/photos/qiye-x/../secret.jpg") == nil, "unsafe deletion accepted")
-        print("PASS: persisted states, restore, cancel, merge/order, pure-image drafts, disk failure, corrupt-load image protection, snapshot authority, legacy queue, durable uncertain retry, idempotent manifest, absolute/archive/blog shared-image protection, complete reused metadata, public preview URLs")
+
+        // Published order follows the drag result and survives reopening.
+        let orderBase = base.appendingPathComponent("photo-order")
+        let orderLibrary = ContentLibraryStore(pending: PendingChangesStore(directory: orderBase))
+        func photo(_ id: String) -> WebsitePhoto {
+            let url = URL(string: "https://mmddskq.top/photos/\(id).jpg")!
+            return WebsitePhoto(id: id, src: url, width: 20, height: 20, alt: id, preview: url, previewLarge: url)
+        }
+        orderLibrary.syncPhotos(["z-last", "m-middle", "a-first"].map(photo))
+        try orderLibrary.movePhoto("a-first", before: "z-last")
+        try check(orderLibrary.photos(in: .published).map(\.id) == ["a-first", "z-last", "m-middle"], "drag did not move before target")
+        let orderOperation = orderLibrary.pending.changes.last!
+        if case .reorderPhotos(let ids) = orderOperation.kind {
+            try check(ids == ["a-first", "z-last", "m-middle"], "website order operation differs from wall")
+        } else { throw CheckFailure(message: "published drag did not stage website order") }
+        let reopenedOrder = ContentLibraryStore(pending: PendingChangesStore(directory: orderBase))
+        try check(reopenedOrder.photos(in: .published).map(\.id) == ["a-first", "z-last", "m-middle"], "photo order did not persist")
+        try orderLibrary.movePhoto("a-first", before: "z-last")
+        try check(orderPending.changes.last?.id == orderOperation.id, "same order created another operation")
+        try orderLibrary.movePhoto("a-first", before: nil)
+        try orderLibrary.movePhoto("z-last", before: "m-middle")
+        try orderLibrary.movePhoto("a-first", before: "z-last")
+        try check(orderPending.count == 0, "returning to remote order left a pending change")
+
+        let libraryJSON = try encoded(["z-last": ["src": "/z"], "m-middle": ["src": "/m"], "a-first": ["src": "/a"], "kept": ["src": "/k"]])
+        let orderedBatch = try PublishingManifest.apply([orderOperation], site: emptySite, photos: libraryJSON)
+        let orderedObject = try JSONSerialization.jsonObject(with: orderedBatch.files["src/data/photo-library.json"]!) as! [String: Any]
+        try check(Array(orderedObject.keys) == ["a-first", "z-last", "m-middle", "kept"], "website JSON did not preserve drag order")
+        let orderReplay = try PublishingManifest.apply([orderOperation], site: emptySite, photos: orderedBatch.files["src/data/photo-library.json"]!)
+        try check(orderReplay.files == orderedBatch.files, "photo order changed when retried")
+
+        print("PASS: persisted states, restore, cancel, merge/order, pure-image drafts, disk failure, corrupt-load image protection, snapshot authority, legacy queue, durable uncertain retry, idempotent manifest, absolute/archive/blog shared-image protection, complete reused metadata, public preview URLs, drag photo order")
     }
 }
 #endif

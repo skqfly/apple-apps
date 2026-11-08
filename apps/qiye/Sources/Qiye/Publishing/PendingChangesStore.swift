@@ -246,6 +246,16 @@ final class PendingChangesStore {
                         key: key, in: &candidate)
         }
         if !candidate.hasChanges(for: key) { candidate.photoUndo.removeValue(forKey: id) }
+        try reconcilePhotoOrder(in: &candidate)
+    }
+
+    func reconcilePhotoOrder(in candidate: inout PublishingDocument) throws {
+        let ordered = candidate.photos.values.filter { !$0.purged && $0.state == .published }.sorted {
+            if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+            return $0.photo.id < $1.photo.id
+        }.map(\.photo.id)
+        let remote = ordered.compactMap { candidate.photos[$0]?.remote }
+        try replace(ordered == remote.map(\.id) ? nil : .reorderPhotos(orderedIDs: ordered), key: "photo-order", in: &candidate)
     }
 
     private func publicTalkSource(id: String, image: TalkImage) -> String {
@@ -349,6 +359,8 @@ final class PendingChangesStore {
             candidate.photos.removeValue(forKey: id)
             candidate.purgedPhotoIDs.insert(id)
             candidate.photoUndo.removeValue(forKey: id)
+        case .reorderPhotos:
+            break
         }
     }
 

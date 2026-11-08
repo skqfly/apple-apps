@@ -115,6 +115,29 @@ final class ContentLibraryStore {
         }.map(\.photo)
     }
 
+    /// Reorder one state locally and, for published photos, stage the website order.
+    func movePhoto(_ id: String, before destinationID: String?) throws {
+        try pending.transaction { document in
+            guard let moving = document.photos[id], !moving.purged else { throw PendingChangesStore.StagingFailure.purgedContent }
+            var records = document.photos.values.filter { !$0.purged && $0.state == moving.state }.sorted {
+                if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+                return $0.photo.id < $1.photo.id
+            }
+            guard let source = records.firstIndex(where: { $0.photo.id == id }) else { return }
+            let photo = records.remove(at: source)
+            let destination = destinationID.flatMap { target in records.firstIndex { $0.photo.id == target } } ?? records.count
+            records.insert(photo, at: destination)
+            for (offset, record) in records.enumerated() {
+                document.photos[record.photo.id]?.order = offset
+            }
+            guard moving.state == .published else { return }
+            let ordered = records.map(\.photo.id)
+            let remote = ordered.compactMap { document.photos[$0]?.remote }
+            try pending.replace(ordered == remote.map(\.id) ? nil : .reorderPhotos(orderedIDs: ordered),
+                                key: "photo-order", in: &document)
+        }
+    }
+
     func stateOfTalk(_ id: String) -> ContentStatusFilter {
         _ = revision
         return pending.document.talks[id]?.state ?? .published

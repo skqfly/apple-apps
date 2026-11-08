@@ -182,8 +182,10 @@ struct HomeScreen: View {
         switch change.kind {
         case .addPhoto(_, _, _, _, _, let alt):
             return alt.isEmpty ? "新照片" : alt
-        case .unpublishPhoto(let id, _), .deletePhoto(let id, _):
+        case .deletePhoto(let id, _), .unpublishPhoto(let id, _):
             return id
+        case .reorderPhotos(let ids):
+            return "\(ids.count) 张已发表照片"
         case .addTalk(_, let text, _, _, _), .editTalk(_, let text, _, _, _):
             return text.isEmpty ? "图片说说" : String(text.prefix(100))
         case .unpublishTalk(let id), .deleteTalk(let id, _):

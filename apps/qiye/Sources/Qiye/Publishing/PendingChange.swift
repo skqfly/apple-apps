@@ -63,6 +63,7 @@ extension PendingChange.Kind {
         case .addPhoto: return "新增照片"
         case .unpublishPhoto: return "下架照片"
         case .deletePhoto: return "删除照片"
+        case .reorderPhotos: return "调整照片顺序"
         case .addTalk: return "新增说说"
         case .editTalk: return "编辑说说"
         case .unpublishTalk: return "下架说说"

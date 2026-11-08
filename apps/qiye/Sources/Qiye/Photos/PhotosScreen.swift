@@ -122,8 +122,18 @@ struct PhotosScreen: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .opacity(draggingPhotoID == photo.id ? 0.45 : 1)
                     .accessibilityLabel(photo.title)
-                    .accessibilityHint("在 App 内查看大图")
+                    .accessibilityHint("在 App 内查看大图，长按后拖动可调整顺序")
+                    .accessibilityIdentifier("photo-tile-\(photo.id)")
+                    .onDrag {
+                        draggingPhotoID = photo.id
+                        dragSession += 1
+                        return NSItemProvider(object: photo.id as NSString)
+                    }
+                    .onDrop(of: [.text], delegate: PhotoReorderDrop(
+                        destinationID: photo.id, draggingID: $draggingPhotoID, session: dragSession, library: library
+                    ))
                 }
                 if status == .unpublished {
                     ForEach(store.drafts) { draft in
@@ -137,6 +147,9 @@ struct PhotosScreen: View {
                     }
                 }
             }
+            .onDrop(of: [.text], delegate: PhotoReorderDrop(
+                destinationID: nil, draggingID: $draggingPhotoID, session: dragSession, library: library
+            ))
         }
     }
 
@@ -156,6 +169,9 @@ struct PhotosScreen: View {
             .background(.quaternary)
             .clipShape(.rect(cornerRadius: 12))
             .contentShape(.rect)
+            .onDrop(of: [.text], delegate: PhotoReorderDrop(
+                destinationID: nil, draggingID: $draggingPhotoID, session: dragSession, library: library
+            ))
     }
 
     private func open(_ photo: PhotoSelection) {

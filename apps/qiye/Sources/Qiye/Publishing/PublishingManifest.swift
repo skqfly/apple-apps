@@ -53,6 +53,16 @@ enum PublishingManifest {
                 photosChanged = true
                 library.removeValue(forKey: id)
                 if let path = PendingChange.Kind.repoDeletionPath(forSource: source) { candidates.insert(path) }
+            case .reorderPhotos(let orderedIDs):
+                photosChanged = true
+                var ordered: [String: Any] = [:]
+                var seen: Set<String> = []
+                for id in orderedIDs {
+                    guard seen.insert(id).inserted, let entry = library[id] else { continue }
+                    ordered[id] = entry
+                }
+                for (id, entry) in library where !seen.contains(id) { ordered[id] = entry }
+                library = ordered
             }
         }
         page["entries"] = entries

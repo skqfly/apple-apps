@@ -204,7 +204,9 @@ private func encoded(_ object: Any) throws -> Data {
         orderLibrary.syncPhotos(["z-last", "m-middle", "a-first"].map(photo))
         try orderLibrary.movePhoto("a-first", before: "z-last")
         try check(orderLibrary.photos(in: .published).map(\.id) == ["a-first", "z-last", "m-middle"], "drag did not move before target")
-        let orderOperation = orderPending.changes.last!
+        guard let orderOperation = orderPending.changes.last else {
+            throw CheckFailure(message: "no staged changes: \(orderPending.error ?? "nil")")
+        }
         if case .reorderPhotos(let ids) = orderOperation.kind {
             try check(ids == ["a-first", "z-last", "m-middle"], "website order operation differs from wall")
         } else { throw CheckFailure(message: "published drag did not stage website order") }

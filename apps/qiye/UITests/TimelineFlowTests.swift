@@ -26,21 +26,21 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
         viewer.swipeDown()
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: viewer)], timeout: 5) == .completed)
-        XCTAssertTrue(app.segmentedControls["talk-status-picker"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["content-status-picker"].firstMatch.waitForExistence(timeout: 5))
     }
     func testUnpublishDeleteAndRestore() {
         let menu = app.buttons["talk-actions-fixture-six"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
         app.buttons["下架到未发表"].tap()
-        let states = app.segmentedControls["talk-status-picker"]
-        states.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "未发表")).firstMatch.tap()
+        let states = app.buttons
+        states.matching(NSPredicate(format: "identifier == %@", "content-status-unpublished")).firstMatch.tap()
         XCTAssertTrue(menu.waitForExistence(timeout: 5)); menu.tap()
         app.buttons["移到已删除"].tap()
         app.sheets.buttons["移到已删除"].tap()
-        states.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "已删除")).firstMatch.tap()
+        states.matching(NSPredicate(format: "identifier == %@", "content-status-deleted")).firstMatch.tap()
         XCTAssertTrue(menu.waitForExistence(timeout: 5)); menu.tap()
         app.buttons["恢复到未发表"].tap()
-        states.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "未发表")).firstMatch.tap()
+        states.matching(NSPredicate(format: "identifier == %@", "content-status-unpublished")).firstMatch.tap()
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
     }
     func testNineGridHasThreeRows() {

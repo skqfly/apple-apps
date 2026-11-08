@@ -37,7 +37,6 @@ struct TalksScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 ContentStatusPicker(selection: $status, counts: Dictionary(uniqueKeysWithValues: ContentStatusFilter.allCases.map { ($0, library.talks(in: $0).count) }))
-                .accessibilityIdentifier("talk-status-picker")
                 .padding(.horizontal, 18).padding(.vertical, 14)
                 if let notice { Text(notice).font(.caption).foregroundStyle(Color.appAccent).padding(.horizontal).padding(.bottom, 12) }
                 if let error = store.error {

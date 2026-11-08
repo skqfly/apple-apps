@@ -32,16 +32,11 @@ final class LongPhotoHitAreaTests: XCTestCase {
     }
 
     func testLongPortraitDraftDoesNotInterceptWebsiteSegmentTap() throws {
-        let sourcePicker = app.segmentedControls["photo-source-picker"]
+        let sourcePicker = app.descendants(matching: .any)["content-status-picker"].firstMatch
         XCTAssertTrue(sourcePicker.waitForExistence(timeout: 10), "Photos source picker must be exposed.")
 
-        // SwiftUI may not forward identifiers on individual Picker Text options.
-        let draftsSegment = sourcePicker.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "未发表")
-        ).firstMatch
-        let websiteSegment = sourcePicker.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "已发表")
-        ).firstMatch
+        let draftsSegment = app.buttons["content-status-unpublished"]
+        let websiteSegment = app.buttons["content-status-published"]
         XCTAssertTrue(draftsSegment.waitForExistence(timeout: 5))
         XCTAssertTrue(websiteSegment.exists)
         if !draftsSegment.isSelected { draftsSegment.tap() }

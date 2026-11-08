@@ -50,7 +50,6 @@ struct PhotosScreen: View {
         ScrollView {
             VStack(spacing: 16) {
                 ContentStatusPicker(selection: $status, counts: counts)
-                    .accessibilityIdentifier("photo-source-picker")
                     .zIndex(1)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
@@ -127,19 +126,23 @@ struct PhotosScreen: View {
             isSelecting = true
             Haptics.medium()
         } label: {
-            Text("选择")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.appAccent)
-                .frame(height: 44)
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.appAccent)
+                .frame(width: 34, height: 34)
+                .background(.quaternary.opacity(0.55), in: Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("选择照片")
+        .accessibilityIdentifier("photo-select-button")
     }
 
     private var cancelButton: some View {
         Button {
             exitSelection()
         } label: {
-            Text("取消").font(.subheadline.weight(.semibold)).foregroundStyle(Color.appAccent)
+            Text("取消")
+                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.appAccent)
                 .frame(height: 44)
         }
         .buttonStyle(.plain)

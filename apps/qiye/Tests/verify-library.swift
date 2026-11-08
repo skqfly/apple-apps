@@ -225,8 +225,13 @@ private func encoded(_ object: Any) throws -> Data {
 
         let libraryJSON = try encoded(["z-last": ["src": "/z"], "m-middle": ["src": "/m"], "a-first": ["src": "/a"], "kept": ["src": "/k"]])
         let orderedBatch = try PublishingManifest.apply([orderOperation], site: emptySite, photos: libraryJSON)
-        let orderedObject = try JSONSerialization.jsonObject(with: orderedBatch.files["src/data/photo-library.json"]!) as! [String: Any]
-        try check(Array(orderedObject.keys) == ["a-first", "z-last", "m-middle", "kept"], "website JSON did not preserve drag order")
+        let orderedText = String(decoding: orderedBatch.files["src/data/photo-library.json"]!, as: UTF8.self)
+        var lastPosition = -1
+        for key in ["a-first", "z-last", "m-middle", "kept"] {
+            let position = (orderedText as NSString).range(of: "\"\(key)\"").location
+            try check(position > lastPosition, "website JSON did not preserve drag order: \(key)")
+            lastPosition = position
+        }
         let orderReplay = try PublishingManifest.apply([orderOperation], site: emptySite, photos: orderedBatch.files["src/data/photo-library.json"]!)
         try check(orderReplay.files == orderedBatch.files, "photo order changed when retried")
 

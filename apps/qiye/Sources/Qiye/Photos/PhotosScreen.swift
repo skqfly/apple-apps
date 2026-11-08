@@ -89,8 +89,11 @@ struct PhotosScreen: View {
             )
         }
         .safeAreaInset(edge: .bottom) {
-            if isSelecting { batchBar }
+            if isSelecting {
+                batchBar
+            }
         }
+        .animation(.snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
         }
@@ -106,55 +109,86 @@ struct PhotosScreen: View {
     private var topBarToolbar: some ToolbarContent {
         if isSelecting {
             if #available(iOS 26, *) {
+                ToolbarItem(placement: .topBarLeading) { selectAllButton }
+                    .sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) { cancelButton }
                     .sharedBackgroundVisibility(.hidden)
             } else {
+                ToolbarItem(placement: .topBarLeading) { selectAllButton }
                 ToolbarItem(placement: .topBarTrailing) { cancelButton }
             }
         } else {
             if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarTrailing) { HStack(spacing: 4) { selectButton; addButton } }
-                    .sharedBackgroundVisibility(.hidden)
+                ToolbarItem(placement: .topBarTrailing) {
+                    GlassEffectContainer(spacing: 8) {
+                        HStack(spacing: 8) { selectButton; addButton }
+                    }
+                }
+                .sharedBackgroundVisibility(.hidden)
             } else {
-                ToolbarItem(placement: .topBarTrailing) { HStack(spacing: 4) { selectButton; addButton } }
+                ToolbarItem(placement: .topBarTrailing) { HStack(spacing: 8) { selectButton; addButton } }
             }
         }
     }
 
     private var selectButton: some View {
         Button {
-            isSelecting = true
+            withAnimation(.snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
         } label: {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(Color.appAccent)
-                .frame(width: 34, height: 34)
-                .background(.quaternary.opacity(0.55), in: Circle())
+                .liquidGlassCircle()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
     }
 
-    private var cancelButton: some View {
+    private var selectAllButton: some View {
         Button {
-            exitSelection()
+            Haptics.selection()
+            withAnimation(.snappy(duration: 0.2)) {
+                if selectedPhotoIDs.count == visiblePhotos.count {
+                    selectedPhotoIDs.removeAll()
+                } else {
+                    selectedPhotoIDs = Set(visiblePhotos.map(\.id))
+                }
+            }
         } label: {
-            Text("取消")
-                .font(.subheadline.weight(.semibold)).foregroundStyle(Color.appAccent)
-                .frame(height: 44)
+            Text(selectedPhotoIDs.count == visiblePhotos.count ? "取消全选" : "全选")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.appAccent)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .liquidGlassCapsule(interactive: true)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("取消选择")
+        .accessibilityLabel("全选或取消全选照片")
+    }
+
+    private var cancelButton: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) { exitSelection() }
+        } label: {
+            Text("完成")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.appAccent)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .liquidGlassCapsule(interactive: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("完成选择")
     }
 
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.appAccent)
-                .frame(width: 44, height: 44)
-                .modifier(PhotoAddButtonBackground())
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color.appAccent)
+                .liquidGlassCircle()
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
@@ -267,14 +301,17 @@ struct PhotosScreen: View {
             photoTile { photoImage(photo) }
         }
         .buttonStyle(.plain)
+        .opacity(draggingPhotoID == photo.id ? 0.35 : 1)
+        .scaleEffect(draggingPhotoID == photo.id ? 1.04 : 1)
+        .zIndex(draggingPhotoID == photo.id ? 1 : 0)
         .overlay {
             if hoveredPhotoID == photo.id && draggingPhotoID != photo.id {
                 RoundedRectangle(cornerRadius: 12)
                     .strokeBorder(Color.appAccent, lineWidth: 2.5)
             }
         }
-        .animation(.snappy(duration: 0.18), value: draggingPhotoID == photo.id)
-        .animation(.snappy(duration: 0.18), value: hoveredPhotoID == photo.id)
+        .animation(.snappy(duration: 0.20), value: draggingPhotoID == photo.id)
+        .animation(.snappy(duration: 0.20), value: hoveredPhotoID == photo.id)
         .accessibilityLabel(photo.title)
         .accessibilityHint("在 App 内查看大图，长按后拖动可调整顺序")
         .accessibilityIdentifier("photo-tile-\(photo.id)")
@@ -287,7 +324,7 @@ struct PhotosScreen: View {
                 .frame(width: 160, height: 182)
                 .clipped()
                 .clipShape(.rect(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.3), radius: 10, y: 3)
+                .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
         }
         .onDrop(of: [.text], delegate: PhotoReorderDrop(
             destinationID: photo.id, draggingID: $draggingPhotoID,
@@ -297,27 +334,36 @@ struct PhotosScreen: View {
 
     @ViewBuilder
     private var batchBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Text("已选 \(selectedPhotoIDs.count) 张")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer()
             switch status {
             case .unpublished:
-                Button("发表") { publishSelected() }.disabled(!canPublish)
+                Button("发表") { publishSelected() }
+                    .disabled(!canPublish || selectedPhotoIDs.isEmpty)
                 Button("移到已删除") { trashSelected() }
+                    .disabled(selectedPhotoIDs.isEmpty)
             case .published:
-                Button("下架") { unpublishSelected() }.disabled(!canPublish)
+                Button("下架") { unpublishSelected() }
+                    .disabled(!canPublish || selectedPhotoIDs.isEmpty)
                 Button("移到已删除") { trashSelected() }
+                    .disabled(selectedPhotoIDs.isEmpty)
             case .deleted:
                 Button("恢复") { restoreSelected() }
+                    .disabled(selectedPhotoIDs.isEmpty)
                 Button("彻底删除", role: .destructive) { confirmsBatchPurge = true }
+                    .disabled(selectedPhotoIDs.isEmpty)
             }
         }
         .buttonStyle(.bordered)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
+        .liquidGlassCapsule(interactive: true)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     // MARK: - Selection & batch actions
@@ -414,24 +460,6 @@ struct PhotosScreen: View {
         }
         return failures
     }
-}
-
-private struct PhotoAddButtonBackground: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content.glassEffect(.regular.interactive(), in: .circle)
-        } else {
-            content
-                .background(.ultraThinMaterial, in: .circle)
-                .overlay { Circle().strokeBorder(.primary.opacity(0.16), lineWidth: 0.6) }
-        }
-    }
-}
-
-private enum Haptics {
-    static func light() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func medium() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-    static func selection() { UISelectionFeedbackGenerator().selectionChanged() }
 }
 
 /// Reorders published photos while a drag is in flight. `movePhoto` writes both the

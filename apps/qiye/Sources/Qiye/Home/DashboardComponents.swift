@@ -1,30 +1,23 @@
 import SwiftUI
 
-// Home-local colors keep the dashboard neutral in light mode and ink green in dark mode.
-// Other screens continue to use the app's shared palette.
+// Cohesive palette aligned with the app's global design.
 enum DashboardStyle {
     static func background(_ scheme: ColorScheme) -> Color {
-        scheme == .dark
-            ? Color(red: 0.035, green: 0.055, blue: 0.050)
-            : Color(red: 0.950, green: 0.968, blue: 0.963)
+        Color.appBackground
     }
 
     static func surface(_ scheme: ColorScheme) -> Color {
-        scheme == .dark
-            ? Color(red: 0.065, green: 0.090, blue: 0.081)
-            : Color(red: 0.994, green: 1.000, blue: 0.997)
+        Color.appSurface
     }
 
     static func accent(_ scheme: ColorScheme) -> Color {
-        scheme == .dark
-            ? Color(red: 0.48, green: 0.84, blue: 0.70)
-            : Color(red: 0.08, green: 0.39, blue: 0.32)
+        Color.appAccent
     }
 
     static func outline(_ scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color(red: 0.24, green: 0.33, blue: 0.29)
-            : Color(red: 0.77, green: 0.85, blue: 0.81)
+            ? Color.white.opacity(0.12)
+            : Color.black.opacity(0.08)
     }
 }
 
@@ -51,11 +44,7 @@ struct DashboardCard<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(DashboardStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .strokeBorder(DashboardStyle.outline(colorScheme).opacity(0.7), lineWidth: 0.75)
-        }
+        .liquidGlassCard(cornerRadius: 18)
     }
 }
 

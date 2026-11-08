@@ -102,9 +102,9 @@ private struct BlogPostRow: View {
                     .lineLimit(3).multilineTextAlignment(.leading).lineSpacing(3)
             }
         }
-        .padding(20)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 20))
+        .liquidGlassCard(cornerRadius: 18, interactive: true)
         .accessibilityElement(children: .combine)
         .accessibilityHint("打开全文")
     }

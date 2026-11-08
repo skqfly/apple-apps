@@ -38,7 +38,16 @@ struct TalksScreen: View {
             VStack(spacing: 0) {
                 ContentStatusPicker(selection: $status, counts: Dictionary(uniqueKeysWithValues: ContentStatusFilter.allCases.map { ($0, library.talks(in: $0).count) }))
                 .padding(.horizontal, 18).padding(.vertical, 14)
-                if let notice { Text(notice).font(.caption).foregroundStyle(Color.appAccent).padding(.horizontal).padding(.bottom, 12) }
+                if let notice {
+                    Text(notice)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(Color.appAccent)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .liquidGlassCapsule(interactive: false)
+                        .padding(.bottom, 10)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }.padding(.horizontal)
                 }
@@ -59,15 +68,15 @@ struct TalksScreen: View {
             }
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background(Color.appSurface)
+        .background(Color.appBackground)
         .navigationTitle("说说")
         .searchable(text: $store.query, prompt: "搜索说说")
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
-            TalkEditorSheet(post: nil, library: library) { status = .unpublished; notice = "已保存到未发表" }
+            TalkEditorSheet(post: nil, library: library) { status = .unpublished; showNotice("已保存到未发表") }
         }
         .sheet(item: $editing) { post in
-            TalkEditorSheet(post: post, library: library) { notice = "已保存修改；公开内容将在首页推送后更新" }
+            TalkEditorSheet(post: post, library: library) { showNotice("已保存修改；公开内容将在首页推送后更新") }
         }
         .fullScreenCover(item: $viewing) { selection in
             MediaViewer(items: selection.items, initialIndex: selection.index)
@@ -77,7 +86,7 @@ struct TalksScreen: View {
         } message: { Text("内容会保留在回收站，可以恢复到未发表。") }
         .confirmationDialog("彻底删除这条说说？", isPresented: Binding(get: { purging != nil }, set: { if !$0 { purging = nil } }), titleVisibility: .visible) {
             Button("彻底删除", role: .destructive) {
-                if let post = purging { do { try library.purgeTalk(post); notice = "已彻底删除" } catch { notice = error.localizedDescription } }
+                if let post = purging { do { try library.purgeTalk(post); showNotice("已彻底删除") } catch { showNotice(error.localizedDescription) } }
                 purging = nil
             }
         } message: { Text("本机保留的内容将被移除，无法从回收站恢复。") }
@@ -95,21 +104,45 @@ struct TalksScreen: View {
         }
     }
     private var composeButton: some View {
-        Button { composer = true } label: {
-            Image(systemName: "square.and.pencil").font(.system(size: 19, weight: .semibold)).foregroundStyle(Color.appAccent)
-                .frame(width: 44, height: 44).modifier(ProfileGlassRing())
+        Button {
+            Haptics.light()
+            composer = true
+        } label: {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Color.appAccent)
+                .liquidGlassCircle()
         }
-        .buttonStyle(.plain).accessibilityLabel("写说说").accessibilityIdentifier("compose-talk")
+        .buttonStyle(.plain)
+        .accessibilityLabel("写说说")
+        .accessibilityIdentifier("compose-talk")
         .disabled(pending.isCommitting)
     }
 
+    private func showNotice(_ text: String) {
+        withAnimation(.snappy(duration: 0.25)) { notice = text }
+        Task {
+            try? await Task.sleep(nanoseconds: 3_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(.snappy(duration: 0.25)) {
+                if notice == text { notice = nil }
+            }
+        }
+    }
+
     private func change(_ post: TalkPost, to state: ContentStatusFilter) {
-        do { try library.setTalkState(post, to: state); notice = state == .published ? "已加入发表队列，去首页推送即可" : "已移到\(state.title)" }
-        catch { notice = error.localizedDescription }
+        do {
+            try library.setTalkState(post, to: state)
+            showNotice(state == .published ? "已加入发表队列，去首页推送即可" : "已移到\(state.title)")
+        }
+        catch { showNotice(error.localizedDescription) }
     }
     private func restore(_ post: TalkPost) {
-        do { try library.restoreTalk(post); notice = "已恢复到未发表" }
-        catch { notice = error.localizedDescription }
+        do {
+            try library.restoreTalk(post)
+            showNotice("已恢复到未发表")
+        }
+        catch { showNotice(error.localizedDescription) }
     }
 }
 
@@ -162,17 +195,19 @@ private struct TalkTimelineRow: View {
                             Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
                         }
                     } label: {
-                        Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(Color.appAccent)
-                            .frame(width: 42, height: 30).background(Color.appAccent.opacity(0.07), in: .rect(cornerRadius: 7))
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.appAccent)
+                            .liquidGlassCircle(size: 32)
                     }
                     .accessibilityLabel("说说操作").accessibilityIdentifier("talk-actions-\(post.id)")
                 }
                 .padding(.top, 3)
             }
         }
-        .padding(.horizontal, 20).padding(.vertical, 20)
-        .background(Color.appSurface)
-        .overlay(alignment: .bottom) { Divider().padding(.leading, 74) }
+        .padding(.horizontal, 16).padding(.vertical, 16)
+        .liquidGlassCard(cornerRadius: 18)
+        .padding(.horizontal, 14).padding(.vertical, 6)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("talk-row-\(post.id)")
     }

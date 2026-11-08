@@ -59,12 +59,8 @@ struct HomeScreen: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(DashboardStyle.surface(colorScheme), in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(DashboardStyle.outline(colorScheme).opacity(0.7), lineWidth: 0.75)
-        }
+        .padding(.vertical, 8)
+        .liquidGlassCard(cornerRadius: 18)
     }
 
     private var pendingSummary: some View {
@@ -95,23 +91,27 @@ struct HomeScreen: View {
     }
 
     private var pushButton: some View {
-        Button { Task { await push() } } label: {
+        Button {
+            Haptics.medium()
+            Task { await push() }
+        } label: {
             HStack(spacing: 6) {
                 if pending.isCommitting {
-                    ProgressView().controlSize(.small)
+                    ProgressView().controlSize(.small).tint(.white)
                     Text("推送中…")
                 } else {
                     Label("推送", systemImage: "arrow.up")
                 }
             }
             .font(.subheadline.weight(.semibold))
-            .padding(.horizontal, 4)
-            .frame(minHeight: 32)
-            .fixedSize(horizontal: true, vertical: false)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 34)
+            .liquidGlassProminent(tint: Color.appAccent, cornerRadius: 12)
         }
-        .buttonStyle(.borderedProminent)
-        .clipShape(.rect(cornerRadius: 11))
+        .buttonStyle(.plain)
         .disabled(pending.isCommitting || pending.changes.isEmpty || !canPush)
+        .opacity(pending.changes.isEmpty || !canPush ? 0.45 : 1)
         .accessibilityLabel(pending.isCommitting ? "正在推送" : "推送全部 \(pending.changes.count) 项改动")
     }
 
@@ -283,7 +283,8 @@ struct HomeScreen: View {
                 }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(14)
+        .liquidGlassCard(cornerRadius: 18)
     }
 
     private var websiteLink: some View {
@@ -419,7 +420,8 @@ struct HomeScreen: View {
                 DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(14)
+        .liquidGlassCard(cornerRadius: 18)
     }
 
     @ViewBuilder private var contributionsCard: some View {

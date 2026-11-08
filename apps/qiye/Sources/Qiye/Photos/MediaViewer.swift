@@ -124,6 +124,18 @@ struct MediaViewer: View {
     }
 
     private var controls: some View {
+        Group {
+            if #available(iOS 26, *) {
+                GlassEffectContainer(spacing: 14) {
+                    controlsRow
+                }
+            } else {
+                controlsRow
+            }
+        }
+    }
+
+    private var controlsRow: some View {
         HStack(spacing: 14) {
             if let actions { actions.viewerControl() }
             Button(action: prepareShare) {
@@ -328,13 +340,23 @@ private struct MediaViewerImage: View {
 }
 
 private extension View {
+    @ViewBuilder
     func viewerControl() -> some View {
-        self
-            .font(.system(size: 19, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(minWidth: 48, minHeight: 48)
-            .background(.ultraThinMaterial, in: .circle)
-            .contentShape(.circle)
+        if #available(iOS 26, *) {
+            self
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(minWidth: 48, minHeight: 48)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .contentShape(.circle)
+        } else {
+            self
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(minWidth: 48, minHeight: 48)
+                .background(.ultraThinMaterial, in: .circle)
+                .contentShape(.circle)
+        }
     }
 }
 

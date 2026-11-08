@@ -1,6 +1,27 @@
 import SwiftUI
 import ImageIO
 
+final class ImageThumbnailCache: @unchecked Sendable {
+    static let shared = ImageThumbnailCache()
+    private let cache = NSCache<NSURL, CGImage>()
+
+    private init() {
+        cache.countLimit = 240
+    }
+
+    func image(for url: URL) -> CGImage? {
+        cache.object(forKey: url as NSURL)
+    }
+
+    func setImage(_ image: CGImage, for url: URL) {
+        cache.setObject(image, forKey: url as NSURL)
+    }
+
+    func remove(for url: URL) {
+        cache.removeObject(forKey: url as NSURL)
+    }
+}
+
 struct LocalPhotoImage: View {
     let url: URL
     var fallbackURL: URL? = nil
@@ -27,6 +48,17 @@ struct LocalPhotoImage: View {
             }
         }
         .task(id: url) {
+            // Check in-memory thumbnail cache first for instant 0ms render
+            if let cached = ImageThumbnailCache.shared.image(for: url) {
+                image = cached
+                failed = false
+                return
+            }
+            if let fallback = fallbackURL, let cached = ImageThumbnailCache.shared.image(for: fallback) {
+                image = cached
+                failed = false
+                return
+            }
             image = nil
             failed = false
             let sourceURL = url
@@ -37,8 +69,14 @@ struct LocalPhotoImage: View {
                     ?? fallback.flatMap { LocalPhotoImage.decode($0, maximumPixelSize: pixelSize) }
             }.value
             guard !Task.isCancelled else { return }
-            image = decoded
-            failed = decoded == nil
+            if let decoded {
+                ImageThumbnailCache.shared.setImage(decoded, for: sourceURL)
+                image = decoded
+                failed = false
+            } else {
+                image = nil
+                failed = true
+            }
         }
     }
 

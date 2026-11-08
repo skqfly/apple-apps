@@ -142,11 +142,10 @@ enum PublishingManifest {
         let count = object.count
         var index = 0
         for (key, value) in object {
-            let keyJSON = try JSONSerialization.data(withJSONObject: key, options: .withoutEscapingSlashes)
             guard JSONSerialization.isValidJSONObject(value) else { throw PendingChangesStore.StagingFailure.invalidPhotoData }
             let valueJSON = try JSONSerialization.data(withJSONObject: value, options: .withoutEscapingSlashes)
             body += "\n  "
-            body += String(decoding: keyJSON, as: UTF8.self)
+            body += jsonEscaped(key)
             body += ": "
             body += String(decoding: valueJSON, as: UTF8.self)
             index += 1
@@ -154,5 +153,28 @@ enum PublishingManifest {
         }
         body += "\n}\n"
         return Data(body.utf8)
+    }
+
+    /// JSON-escapes a top-level key by hand. `JSONSerialization` rejects a bare
+    /// string as a top-level object, so keys cannot be serialized through it.
+    private static func jsonEscaped(_ string: String) -> String {
+        var out = "\""
+        for character in string {
+            switch character {
+            case "\\": out += "\\\\"
+            case "\"": out += "\\\""
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            default:
+                if character.unicodeScalars.count == 1, character.unicodeScalars.first!.value < 0x20 {
+                    out += String(format: "\\u%04x", character.unicodeScalars.first!.value)
+                } else {
+                    out.append(character)
+                }
+            }
+        }
+        out += "\""
+        return out
     }
 }

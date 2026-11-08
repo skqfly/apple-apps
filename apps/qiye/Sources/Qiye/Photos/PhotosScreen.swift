@@ -264,7 +264,6 @@ struct PhotosScreen: View {
             photoTile { photoImage(photo) }
         }
         .buttonStyle(.plain)
-        .opacity(draggingPhotoID == photo.id ? 0 : 1)
         .overlay {
             if hoveredPhotoID == photo.id && draggingPhotoID != photo.id {
                 RoundedRectangle(cornerRadius: 12)
@@ -281,7 +280,10 @@ struct PhotosScreen: View {
             Haptics.medium()
             return NSItemProvider(object: photo.id as NSString)
         } preview: {
-            photoTile { photoImage(photo) }
+            photoImage(photo)
+                .frame(width: 160, height: 182)
+                .clipped()
+                .clipShape(.rect(cornerRadius: 12))
                 .shadow(color: .black.opacity(0.3), radius: 10, y: 3)
         }
         .onDrop(of: [.text], delegate: PhotoReorderDrop(

@@ -331,19 +331,19 @@ struct PhotosScreen: View {
     }
 
     private func publishSelected() {
-        applyBatch(to: .published) { library.setPhotoState($0, to: .published) }
+        applyBatch(to: .published) { try library.setPhotoState($0, to: .published) }
     }
 
     private func unpublishSelected() {
-        applyBatch(to: .unpublished) { library.setPhotoState($0, to: .unpublished) }
+        applyBatch(to: .unpublished) { try library.setPhotoState($0, to: .unpublished) }
     }
 
     private func trashSelected() {
-        applyBatch(to: .deleted) { library.setPhotoState($0, to: .deleted) }
+        applyBatch(to: .deleted) { try library.setPhotoState($0, to: .deleted) }
     }
 
     private func restoreSelected() {
-        applyBatch(to: .unpublished) { library.restorePhoto($0) }
+        applyBatch(to: .unpublished) { try library.restorePhoto($0) }
     }
 
     private func purgeSelected() {

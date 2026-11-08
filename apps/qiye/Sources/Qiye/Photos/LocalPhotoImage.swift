@@ -44,7 +44,7 @@ struct LocalPhotoImage: View {
 
     /// Prefers a cached thumbnail, then falls back to the full-size image so a
     /// valid photo never shows an error just because thumbnail creation was skipped.
-    private static func decode(_ sourceURL: URL, maximumPixelSize: Int) -> CGImage? {
+    nonisolated private static func decode(_ sourceURL: URL, maximumPixelSize: Int) -> CGImage? {
         guard let source = CGImageSourceCreateWithURL(sourceURL as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,

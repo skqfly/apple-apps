@@ -195,7 +195,8 @@ private func encoded(_ object: Any) throws -> Data {
 
         // Published order follows the drag result and survives reopening.
         let orderBase = base.appendingPathComponent("photo-order")
-        let orderLibrary = ContentLibraryStore(pending: PendingChangesStore(directory: orderBase))
+        let orderPending = PendingChangesStore(directory: orderBase)
+        let orderLibrary = ContentLibraryStore(pending: orderPending)
         func photo(_ id: String) -> WebsitePhoto {
             let url = URL(string: "https://mmddskq.top/photos/\(id).jpg")!
             return WebsitePhoto(id: id, src: url, width: 20, height: 20, alt: id, preview: url, previewLarge: url)

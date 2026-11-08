@@ -434,14 +434,14 @@ struct HomeScreen: View {
                 }
             }
         } else {
-            DashboardCard(title: "贡献", symbol: "chart.dots.scatter", isLoading: store.contributions.isLoading) {
+            DashboardCard(title: "Activity", symbol: "github-mark", isLoading: store.contributions.isLoading) {
                 if store.contributions.isLoading {
-                    loading("正在读取贡献日历…")
+                    loading("Loading GitHub activity…")
                 }
                 if let error = store.contributions.error {
                     DashboardErrorNote(message: error)
                 }
-                Link("在 GitHub 查看 skqfly", destination: DashboardService.profileURL)
+                Link("View skqfly on GitHub", destination: DashboardService.profileURL)
                     .font(.caption)
                     .frame(minHeight: 44, alignment: .leading)
             }

@@ -301,8 +301,7 @@ struct PhotosScreen: View {
             photoTile { photoImage(photo) }
         }
         .buttonStyle(.plain)
-        .opacity(draggingPhotoID == photo.id ? 0.35 : 1)
-        .scaleEffect(draggingPhotoID == photo.id ? 1.04 : 1)
+        .scaleEffect(draggingPhotoID == photo.id ? 1.03 : 1)
         .zIndex(draggingPhotoID == photo.id ? 1 : 0)
         .overlay {
             if hoveredPhotoID == photo.id && draggingPhotoID != photo.id {

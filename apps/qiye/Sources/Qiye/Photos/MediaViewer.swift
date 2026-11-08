@@ -346,16 +346,16 @@ private extension View {
             self
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(minWidth: 48, minHeight: 48)
-                .glassEffect(.regular.interactive(), in: .circle)
-                .contentShape(.circle)
+                .frame(width: 48, height: 48)
+                .glassEffect(.regular, in: .circle)
+                .contentShape(Circle())
         } else {
             self
                 .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(minWidth: 48, minHeight: 48)
-                .background(.ultraThinMaterial, in: .circle)
-                .contentShape(.circle)
+                .frame(width: 48, height: 48)
+                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Circle())
         }
     }
 }

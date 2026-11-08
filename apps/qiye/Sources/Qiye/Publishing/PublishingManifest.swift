@@ -16,6 +16,9 @@ enum PublishingManifest {
         var candidates: Set<String> = []
         var siteChanged = false
         var photosChanged = false
+        // Explicit key order for the photo library, so the website renders in drag
+        // order without relying on Swift Dictionary iteration order.
+        var photoOrder: [String]? = nil
         for change in changes {
             switch change.kind {
             case .addTalk(let id, let text, let date, let images, let reused):
@@ -57,12 +60,18 @@ enum PublishingManifest {
                 photosChanged = true
                 var ordered: [String: Any] = [:]
                 var seen: Set<String> = []
+                var keys: [String] = []
                 for id in orderedIDs {
                     guard seen.insert(id).inserted, let entry = library[id] else { continue }
                     ordered[id] = entry
+                    keys.append(id)
                 }
-                for (id, entry) in library where !seen.contains(id) { ordered[id] = entry }
+                for id in library.keys.sorted() where !seen.contains(id) {
+                    ordered[id] = library[id]
+                    keys.append(id)
+                }
                 library = ordered
+                photoOrder = keys
             }
         }
         page["entries"] = entries
@@ -71,7 +80,7 @@ enum PublishingManifest {
             .union(retainedImageSources.compactMap { PendingChange.Kind.repoDeletionPath(forSource: $0) })
         var files: [String: Data] = [:]
         if siteChanged { files["src/data/site.json"] = try json(root) }
-        if photosChanged { files["src/data/photo-library.json"] = try orderedJSON(library) }
+        if photosChanged { files["src/data/photo-library.json"] = try orderedJSON(library, order: photoOrder) }
         return GitHubRepository.BatchChange(files: files, deletions: candidates.subtracting(references).sorted())
     }
 
@@ -137,19 +146,25 @@ enum PublishingManifest {
     /// photo wall renders `Object.values(photoLibrary)` in this exact order.
     /// `JSONSerialization` may sort or reorder keys, so the top level is emitted
     /// by hand while each value still goes through the standard serializer.
-    private static func orderedJSON(_ object: [String: Any]) throws -> Data {
+    private static func orderedJSON(_ object: [String: Any], order: [String]? = nil) throws -> Data {
+        var seen: Set<String> = []
+        var keys: [String] = []
+        if let order {
+            keys += order.filter { seen.insert($0).inserted && object[$0] != nil }
+        }
+        keys += object.keys.filter { seen.insert($0).inserted }
         var body = "{"
-        let count = object.count
-        var index = 0
-        for (key, value) in object {
-            guard JSONSerialization.isValidJSONObject(value) else { throw PendingChangesStore.StagingFailure.invalidPhotoData }
+        let count = keys.count
+        for (index, key) in keys.enumerated() {
+            guard let value = object[key], JSONSerialization.isValidJSONObject(value) else {
+                throw PendingChangesStore.StagingFailure.invalidPhotoData
+            }
             let valueJSON = try JSONSerialization.data(withJSONObject: value, options: .withoutEscapingSlashes)
             body += "\n  "
             body += jsonEscaped(key)
             body += ": "
             body += String(decoding: valueJSON, as: UTF8.self)
-            index += 1
-            if index < count { body += "," }
+            if index + 1 < count { body += "," }
         }
         body += "\n}\n"
         return Data(body.utf8)

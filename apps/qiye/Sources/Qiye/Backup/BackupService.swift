@@ -34,7 +34,7 @@ struct BackupService {
     }
 
     func webDAVDownload(_ filename: String, from server: WebDAVServer) async throws -> Data {
-        try await WebDAVClient(server: server).download(filename: filename)
+        try await WebDAVClient(server: server).download(filename)
     }
 
     // MARK: - Helpers

@@ -33,7 +33,8 @@ struct LocalPhotoImage: View {
             let fallback = fallbackURL
             let pixelSize = maximumPixelSize
             let decoded = await Task.detached(priority: .userInitiated) {
-                decode(sourceURL, maximumPixelSize: pixelSize) ?? fallback.flatMap { decode($0, maximumPixelSize: pixelSize) }
+                LocalPhotoImage.decode(sourceURL, maximumPixelSize: pixelSize)
+                    ?? fallback.flatMap { LocalPhotoImage.decode($0, maximumPixelSize: pixelSize) }
             }.value
             guard !Task.isCancelled else { return }
             image = decoded

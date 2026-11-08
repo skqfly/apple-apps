@@ -253,9 +253,14 @@ final class PendingChangesStore {
         let ordered = candidate.photos.values.filter { !$0.purged && $0.state == .published }.sorted {
             if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
             return $0.photo.id < $1.photo.id
-        }.map(\.photo.id)
-        let remote = ordered.compactMap { candidate.photos[$0]?.remote }
-        try replace(ordered == remote.map(\.id) ? nil : .reorderPhotos(orderedIDs: ordered), key: "photo-order", in: &candidate)
+        }
+        let remote = candidate.photos.values.filter { $0.remote != nil && $0.state == .published }.sorted {
+            if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+            return $0.photo.id < $1.photo.id
+        }
+        let current = ordered.map(\.photo.id)
+        let published = remote.compactMap(\.remote).map(\.id)
+        try replace(current == published ? nil : .reorderPhotos(orderedIDs: current), key: "photo-order", in: &candidate)
     }
 
     private func publicTalkSource(id: String, image: TalkImage) -> String {

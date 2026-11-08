@@ -131,10 +131,7 @@ final class ContentLibraryStore {
                 document.photos[record.photo.id]?.order = offset
             }
             guard moving.state == .published else { return }
-            let ordered = records.map(\.photo.id)
-            let remote = ordered.compactMap { document.photos[$0]?.remote }
-            try pending.replace(ordered == remote.map(\.id) ? nil : .reorderPhotos(orderedIDs: ordered),
-                                key: "photo-order", in: &document)
+            try pending.reconcilePhotoOrder(in: &document)
         }
     }
 

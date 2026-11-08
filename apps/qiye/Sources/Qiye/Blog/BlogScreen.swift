@@ -38,14 +38,16 @@ struct BlogScreen: View {
                     }
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 96)
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
         .navigationTitle("博客")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $store.query, prompt: "搜索标题、分类或正文")
+        .searchable(text: $store.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索标题、分类或正文")
         .navigationDestination(for: BlogPost.self) { post in BlogDetailScreen(post: post) }
         .refreshable { await store.refresh() }
         .task { await store.loadIfNeeded() }

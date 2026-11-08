@@ -48,16 +48,100 @@ struct PublishingSettingsScreen: View {
 
 struct AppearanceSettingsScreen: View {
     @AppStorage("appearance") private var appearance = "system"
+    @State private var theme = AppTheme.shared
+    @State private var customColor: Color = AppTheme.shared.accentColor
+
     var body: some View {
         Form {
-            Picker("外观", selection: $appearance) {
-                Text("跟随系统").tag("system")
-                Text("浅色").tag("light")
-                Text("深色").tag("dark")
+            Section("模式") {
+                Picker("外观模式", selection: $appearance) {
+                    Text("跟随系统").tag("system")
+                    Text("浅色").tag("light")
+                    Text("深色").tag("dark")
+                }
+                .pickerStyle(.inline)
             }
-            .pickerStyle(.inline)
+
+            Section {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("预设颜色")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 14) {
+                        ForEach(AppTheme.presets) { preset in
+                            Button {
+                                theme.selectPreset(preset)
+                                customColor = preset.color
+                            } label: {
+                                VStack(spacing: 6) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(preset.color)
+                                            .frame(width: 44, height: 44)
+                                            .shadow(color: preset.color.opacity(0.35), radius: 4, y: 2)
+
+                                        if theme.selectedHex.uppercased() == preset.hex.uppercased() {
+                                            Circle()
+                                                .strokeBorder(Color.white, lineWidth: 3)
+                                                .frame(width: 38, height: 38)
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 15, weight: .bold))
+                                                .foregroundStyle(.white)
+                                        }
+                                    }
+
+                                    Text(preset.name)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(preset.name)
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    Divider().padding(.vertical, 4)
+
+                    // Custom Color Picker
+                    ColorPicker(selection: $customColor, supportsOpacity: false) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "paintpalette.fill")
+                                .foregroundStyle(theme.accentColor)
+                                .font(.body)
+                            Text("自定义调色盘")
+                                .font(.subheadline.weight(.medium))
+                        }
+                    }
+                    .onChange(of: customColor) { _, newColor in
+                        theme.selectCustomColor(newColor)
+                    }
+
+                    if theme.selectedHex.uppercased() != AppTheme.presets[0].hex.uppercased() {
+                        Button {
+                            theme.resetToDefault()
+                            customColor = AppTheme.presets[0].color
+                        } label: {
+                            HStack {
+                                Spacer()
+                                Text("恢复默认翡翠绿")
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(Color.secondary)
+                                Spacer()
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(.vertical, 6)
+            } header: {
+                Text("主题强调色")
+            } footer: {
+                Text("所选颜色将实时应用到全 App 的按钮、标签、高亮及卡片装饰中。")
+            }
         }
-        .navigationTitle("外观")
+        .navigationTitle("外观与主题")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

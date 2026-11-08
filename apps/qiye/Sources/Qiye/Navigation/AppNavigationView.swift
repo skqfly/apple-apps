@@ -31,9 +31,9 @@ struct AppNavigationView: View {
                 legacyTabs
             }
         }
-        .tint(.appAccent)
+        .tint(AppTheme.shared.accentColor)
         .sheet(isPresented: $showingAccount) {
-            AccountScreen(store: account)
+            AccountScreen(store: account, library: library)
         }
         .task {
             library.syncPhotos(photos.photos, authoritative: photos.hasRemoteSnapshot)
@@ -87,8 +87,7 @@ struct AppNavigationView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial.opacity(0.75), for: .navigationBar)
             .toolbar {
                 if section == .home {
                     profileToolbar

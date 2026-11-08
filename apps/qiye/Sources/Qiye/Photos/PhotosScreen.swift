@@ -24,7 +24,6 @@ struct PhotosScreen: View {
     @State private var hoveredPhotoID: String?
     @State private var isSelecting = false
     @State private var selectedPhotoIDs: Set<String> = []
-    @State private var confirmsBatchPurge = false
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
@@ -34,23 +33,29 @@ struct PhotosScreen: View {
     private var isBusy: Bool { store.isImporting || store.isDeleting || isMovingDrafts }
     private var usesFixture: Bool { ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") }
     private var counts: [ContentStatusFilter: Int] {
-        Dictionary(uniqueKeysWithValues: ContentStatusFilter.allCases.map { state in
-            (state, library.photos(in: state).count + (state == .unpublished ? store.drafts.count : 0))
-        })
+        [
+            .published: library.photos(in: .published).count,
+            .unpublished: library.photos(in: .unpublished).count + store.drafts.count
+        ]
     }
 
     private var selectedPhotos: [WebsitePhoto] {
         visiblePhotos.filter { selectedPhotoIDs.contains($0.id) }
     }
     private var canBatchPublish: Bool {
-        canPublish && (status == .published || status == .unpublished)
+        canPublish
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                ContentStatusPicker(selection: $status, counts: counts)
-                    .zIndex(1)
+                ContentStatusPicker(
+                    selection: $status,
+                    categories: [.published, .unpublished],
+                    counts: counts,
+                    titleOverrides: [.unpublished: "已下架"]
+                )
+                .zIndex(1)
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(.footnote).foregroundStyle(.secondary)
@@ -60,7 +65,7 @@ struct PhotosScreen: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.bottom, 96)
         }
         .background(Color.appBackground)
         .navigationTitle("照片")
@@ -96,12 +101,6 @@ struct PhotosScreen: View {
         .animation(.snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
-        }
-        .confirmationDialog("彻底删除选中的照片？", isPresented: $confirmsBatchPurge, titleVisibility: .visible) {
-            Button("彻底删除", role: .destructive) { purgeSelected() }
-            Button("取消", role: .cancel) { }
-        } message: {
-            Text("已选 \(selectedPhotoIDs.count) 张，此操作无法撤销。")
         }
     }
 
@@ -338,21 +337,15 @@ struct PhotosScreen: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer()
-            switch status {
-            case .unpublished:
+            if status == .unpublished {
                 Button("发表") { publishSelected() }
                     .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-                Button("移到已删除") { trashSelected() }
+                Button("移到回收站") { trashSelected() }
                     .disabled(selectedPhotoIDs.isEmpty)
-            case .published:
+            } else {
                 Button("下架") { unpublishSelected() }
                     .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-                Button("移到已删除") { trashSelected() }
-                    .disabled(selectedPhotoIDs.isEmpty)
-            case .deleted:
-                Button("恢复") { restoreSelected() }
-                    .disabled(selectedPhotoIDs.isEmpty)
-                Button("彻底删除", role: .destructive) { confirmsBatchPurge = true }
+                Button("移到回收站") { trashSelected() }
                     .disabled(selectedPhotoIDs.isEmpty)
             }
         }
@@ -392,20 +385,9 @@ struct PhotosScreen: View {
     }
 
     private func trashSelected() {
-        applyBatch(to: .deleted) { try library.setPhotoState($0, to: .deleted) }
-    }
-
-    private func restoreSelected() {
-        applyBatch(to: .unpublished) { try library.restorePhoto($0) }
-    }
-
-    private func purgeSelected() {
         let count = selectedPhotoIDs.count
-        for photo in selectedPhotos {
-            try? library.purgePhoto(photo)
-        }
-        exitSelection()
-        report("已彻底删除 \(count) 张照片。")
+        applyBatch(to: .deleted) { try library.setPhotoState($0, to: .deleted) }
+        report("已将 \(count) 张照片移到个人中心回收站，网站变更会在首页推送后生效。")
     }
 
     private func applyBatch(to target: ContentStatusFilter, _ operation: (WebsitePhoto) throws -> Void) {
@@ -415,7 +397,9 @@ struct PhotosScreen: View {
             catch { report(error.localizedDescription); return }
         }
         exitSelection()
-        report("已处理 \(count) 张照片（\(target.title)）。网站变更会在首页推送后生效。")
+        if target != .deleted {
+            report("已处理 \(count) 张照片（\(target == .unpublished ? "已下架" : target.title)）。网站变更会在首页推送后生效。")
+        }
     }
 
     private func open(_ photo: PhotoSelection) {

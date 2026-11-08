@@ -23,7 +23,7 @@ struct HomeScreen: View {
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
-            .padding(.bottom, 24)
+            .padding(.bottom, 96)
         }
         .background(DashboardStyle.background(colorScheme))
         .tint(DashboardStyle.accent(colorScheme))

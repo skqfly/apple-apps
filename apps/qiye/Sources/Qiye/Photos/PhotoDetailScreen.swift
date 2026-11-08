@@ -50,11 +50,11 @@ struct PhotoDetailScreen: View {
             onIndexChange: { currentIndex = $0 }
         )
         .accessibilityIdentifier("photo-detail-screen")
-        .confirmationDialog("移到已删除？", isPresented: $confirmsDelete, titleVisibility: .visible) {
-            Button("移到已删除", role: .destructive) { moveToTrash() }
+        .confirmationDialog("移到回收站？", isPresented: $confirmsDelete, titleVisibility: .visible) {
+            Button("移到回收站", role: .destructive) { moveToTrash() }
             Button("取消", role: .cancel) { deleteTarget = nil }
         } message: {
-            Text("照片将保留在已删除中，可恢复到未发表。网站变更会在首页推送后生效。")
+            Text("照片将存放在个人中心的回收站，可随时找回或彻底清除。网站变更会在首页推送后生效。")
         }
         .confirmationDialog("彻底删除这张照片？", isPresented: $confirmsPurge, titleVisibility: .visible) {
             Button("彻底删除", role: .destructive) { purge() }
@@ -90,7 +90,7 @@ struct PhotoDetailScreen: View {
                             Button("发表", systemImage: "arrow.up.circle") { setState(photo, to: .published) }
                                 .disabled(!canPublish)
                         }
-                        Button("移到已删除", systemImage: "trash", role: .destructive) {
+                        Button("移到回收站", systemImage: "trash", role: .destructive) {
                             deleteTarget = photo
                             confirmsDelete = true
                         }
@@ -141,7 +141,8 @@ struct PhotoDetailScreen: View {
         defer { deleteTarget = nil }
         do {
             try library.setPhotoState(photo, to: .deleted)
-            report("已移到已删除，可随时恢复到未发表。网站变更会在首页推送后生效。")
+            dismissesAfterMessage = true
+            report("已移到回收站，可在个人中心查看与恢复。网站变更会在首页推送后生效。")
         } catch { report(error.localizedDescription) }
     }
 

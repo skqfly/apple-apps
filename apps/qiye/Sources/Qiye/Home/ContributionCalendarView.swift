@@ -5,6 +5,7 @@ struct ContributionCalendarView: View {
     var isLoading = false
     @State private var selectedDayID: String?
     @State private var visibleWeekID: String?
+    @State private var selectedYear: Int?
     @ScaledMetric(relativeTo: .caption) private var scaledTileSize: CGFloat = 16
     @ScaledMetric(relativeTo: .caption) private var monthHeaderHeight: CGFloat = 20
     @ScaledMetric(relativeTo: .caption) private var legendWidth: CGFloat = 32
@@ -17,9 +18,14 @@ struct ContributionCalendarView: View {
         dynamicTypeSize.isAccessibilitySize ? max(40, scaledTileSize) : scaledTileSize
     }
 
-    private var activeYear: String {
-        let year = DashboardDates.calendar.component(.year, from: calendar.endDate)
-        return "\(year)"
+    private var availableYears: [Int] {
+        let years = calendar.days.map { DashboardDates.calendar.component(.year, from: $0.date) }
+        let set = Array(Set(years)).sorted(by: >)
+        return set.isEmpty ? [2026] : set
+    }
+
+    private var displayedYear: Int {
+        selectedYear ?? DashboardDates.calendar.component(.year, from: calendar.endDate)
     }
 
     private var selectedDay: DashboardContributionDay? {
@@ -66,18 +72,42 @@ struct ContributionCalendarView: View {
             Spacer(minLength: 8)
 
             HStack(spacing: 8) {
-                // Year pill
-                HStack(spacing: 4) {
-                    Text(activeYear)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.secondary)
+                // Interactive Year Menu
+                Menu {
+                    ForEach(availableYears, id: \.self) { year in
+                        Button {
+                            Haptics.selection()
+                            scrollTo(year: year)
+                        } label: {
+                            HStack {
+                                Text("\(year) 年")
+                                if displayedYear == year {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                    Divider()
+                    Button("回到最新") {
+                        Haptics.medium()
+                        selectedYear = nil
+                        showRecentWeeks(12)
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("\(displayedYear)")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(Color.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .liquidGlassCapsule(interactive: true)
                 }
-                .foregroundStyle(Color.primary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .liquidGlassCapsule(interactive: false)
+                .buttonStyle(.plain)
+                .accessibilityLabel("选择年份，当前为 \(displayedYear) 年")
 
                 // Menu button
                 Link(destination: DashboardService.profileURL) {
@@ -131,6 +161,20 @@ struct ContributionCalendarView: View {
 
     private func showRecentWeeks(_ count: Int) {
         visibleWeekID = calendar.weeks.dropFirst(max(0, calendar.weeks.count - count)).first?.id
+    }
+
+    private func scrollTo(year: Int) {
+        selectedYear = year
+        if let targetWeek = calendar.weeks.first(where: { week in
+            week.days.contains { day in
+                guard let day else { return false }
+                return DashboardDates.calendar.component(.year, from: day.date) == year
+            }
+        }) {
+            withAnimation(.snappy(duration: 0.3)) {
+                visibleWeekID = targetWeek.id
+            }
+        }
     }
 
     // English month abbreviations: Jan, Feb, Mar, etc.

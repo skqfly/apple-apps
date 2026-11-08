@@ -3,11 +3,16 @@ import SwiftUI
 @MainActor
 struct AccountScreen: View {
     let store: AccountStore
+    let library: ContentLibraryStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = "system"
     #if DEBUG
     @State private var showsLogin = ProcessInfo.processInfo.arguments.contains("--login")
     #endif
+
+    private var deletedCount: Int {
+        library.photos(in: .deleted).count + library.talks(in: .deleted).count
+    }
 
     var body: some View {
         NavigationStack {
@@ -32,29 +37,51 @@ struct AccountScreen: View {
                         }
                     }
                 }
+
                 Section("管理") {
+                    NavigationLink {
+                        TrashScreen(library: library)
+                    } label: {
+                        HStack {
+                            Label("回收站", systemImage: "trash")
+                            Spacer()
+                            if deletedCount > 0 {
+                                Text("\(deletedCount)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.red)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 2)
+                                    .background(Color.red.opacity(0.12), in: Capsule())
+                            }
+                        }
+                    }
+
                     NavigationLink {
                         WebsiteSettingsScreen()
                     } label: {
                         Label("网站与博客", systemImage: "globe")
                     }
+
                     NavigationLink {
                         PublishingSettingsScreen()
                     } label: {
                         Label("发布与同步", systemImage: "arrow.triangle.2.circlepath")
                     }
+
                     NavigationLink {
                         BackupScreen()
                     } label: {
                         Label("备份与恢复", systemImage: "externaldrive.badge.icloud")
                     }
                 }
+
                 Section("偏好") {
                     NavigationLink {
                         AppearanceSettingsScreen()
                     } label: {
-                        Label("外观", systemImage: "circle.lefthalf.filled")
+                        Label("外观与主题色", systemImage: "paintpalette")
                     }
+
                     NavigationLink {
                         AppInformationScreen()
                     } label: {

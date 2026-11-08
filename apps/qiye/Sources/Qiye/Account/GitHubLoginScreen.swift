@@ -6,20 +6,39 @@ struct GitHubLoginScreen: View {
     @State private var confirmsLogout = false
     @State private var loginTask: Task<Void, Never>?
     @FocusState private var tokenFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Form {
             if store.isSignedIn {
-                Section { AccountProfileView(name: store.name, avatarURL: store.avatarURL) }
                 Section {
-                    Button("退出登录", role: .destructive) { confirmsLogout = true }
-                        .confirmationDialog("退出 GitHub 登录？", isPresented: $confirmsLogout, titleVisibility: .visible) {
-                            Button("退出登录", role: .destructive) { store.logout() }
-                        } message: { Text("会删除这台设备钥匙串里的登录凭据。") }
+                    AccountProfileView(name: store.name, avatarURL: store.avatarURL)
+                }
+
+                Section {
+                    Button(role: .destructive) {
+                        Haptics.light()
+                        confirmsLogout = true
+                    } label: {
+                        HStack {
+                            Spacer()
+                            Text("退出登录")
+                                .font(.subheadline.weight(.semibold))
+                            Spacer()
+                        }
+                    }
+                    .confirmationDialog("退出 GitHub 登录？", isPresented: $confirmsLogout, titleVisibility: .visible) {
+                        Button("退出登录", role: .destructive) {
+                            Haptics.medium()
+                            store.logout()
+                        }
+                    } message: {
+                        Text("会删除这台设备钥匙串里的登录凭据。")
+                    }
                 }
             } else {
                 Section {
-                    SecureField("GitHub token", text: $token)
+                    SecureField("GitHub Personal Access Token", text: $token)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.asciiCapable)
@@ -29,45 +48,85 @@ struct GitHubLoginScreen: View {
                         .onSubmit(signIn)
                         .disabled(store.isLoading)
                         .accessibilityIdentifier("github-token-field")
-                    Button("验证并登录", systemImage: "person.crop.circle.badge.checkmark", action: signIn)
-                        .disabled(store.isLoading || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    if store.isLoading { ProgressView("正在验证账户与网站仓库…") }
-                } header: { Text("使用 token 登录") } footer: {
-                    Text("仅登录 skqfly；验证成功后保存在设备钥匙串，不会写入网站或同步到 iCloud。")
+
+                    Button {
+                        signIn()
+                    } label: {
+                        HStack {
+                            Spacer()
+                            if store.isLoading {
+                                ProgressView()
+                                    .tint(.white)
+                                    .padding(.trailing, 6)
+                                Text("正在验证…")
+                                    .font(.subheadline.weight(.semibold))
+                            } else {
+                                Label("验证并登录", systemImage: "arrow.right.circle.fill")
+                                    .font(.subheadline.weight(.semibold))
+                            }
+                            Spacer()
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.vertical, 10)
+                        .liquidGlassProminent(tint: Color.appAccent, cornerRadius: 12)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(store.isLoading || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } header: {
+                    Text("使用 Token 登录")
+                } footer: {
+                    Text("仅登录 skqfly 账号；验证成功后保存在设备钥匙串中，不会上传或同步到云端。")
                 }
-                Section("创建 token") {
-                    Link("创建 Fine-grained token", destination: URL(string: "https://github.com/settings/personal-access-tokens/new")!)
-                    Text("Resource owner 选择 skqfly，只选择 skqfly.github.io 仓库。")
-                    Text("仓库权限：Contents 选 Read and write，Actions 选 Read-only；Metadata 保持默认。设置合适的到期日期。")
+
+                Section("创建 Token 指引") {
+                    Link("前往 GitHub 创建 Fine-grained Token", destination: URL(string: "https://github.com/settings/personal-access-tokens/new")!)
+                        .font(.subheadline.weight(.medium))
+
+                    Text("Resource owner 选择 skqfly，仅勾选 skqfly.github.io 仓库。")
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
-                    DisclosureGroup("也可以使用 classic token") {
-                        Link("创建 classic token", destination: URL(string: "https://github.com/settings/tokens/new?scopes=public_repo&description=Qiye")!)
-                        Text("只需 public_repo；它可访问账号下所有公开仓库，Fine-grained token 的范围更小。")
-                            .font(.footnote).foregroundStyle(.secondary)
+
+                    Text("权限设置：Contents 选 Read and write，Actions 选 Read-only。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    DisclosureGroup("也可以使用 Classic Token") {
+                        Link("创建 Classic Token", destination: URL(string: "https://github.com/settings/tokens/new?scopes=public_repo&description=Qiye")!)
+                            .font(.subheadline)
+                        Text("只需勾选 public_repo 权限范围。")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
+
             if let error = store.error {
-                Section("登录状态") {
-                    Label(error, systemImage: "exclamationmark.triangle")
+                Section("提示") {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.subheadline)
                         .foregroundStyle(.red)
                 }
-            }
-            Section {
-                Text("token 省去了浏览器授权步骤，仍需要手机网络能访问 api.github.com。请在此设备输入，不要发到聊天。")
-                    .foregroundStyle(.secondary)
             }
         }
         .navigationTitle("GitHub 账户")
         .navigationBarTitleDisplayMode(.inline)
-        .onDisappear { token = ""; loginTask?.cancel() }
+        .onDisappear {
+            token = ""
+            loginTask?.cancel()
+        }
     }
 
     private func signIn() {
         guard !store.isLoading else { return }
         tokenFocused = false
+        Haptics.medium()
         loginTask = Task {
-            if await store.signIn(token: token) { token = "" }
+            if await store.signIn(token: token) {
+                token = ""
+                Haptics.success()
+            } else {
+                Haptics.error()
+            }
         }
     }
 }

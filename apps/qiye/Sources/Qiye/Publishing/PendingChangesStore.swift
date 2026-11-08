@@ -274,8 +274,9 @@ final class PendingChangesStore {
     }
 
     private func publicPhoto(_ photo: WebsitePhoto) -> WebsitePhoto {
-        let url = URL(string: photo.sourcePath, relativeTo: GitHubRepository.websiteURL)!.absoluteURL
-        return WebsitePhoto(id: photo.id, sourcePath: photo.sourcePath, src: url, width: photo.width,
+        let source = photo.sourcePath.isEmpty ? photo.src.path : photo.sourcePath
+        let url = URL(string: source, relativeTo: GitHubRepository.websiteURL)!.absoluteURL
+        return WebsitePhoto(id: photo.id, sourcePath: source, src: url, width: photo.width,
                             height: photo.height, alt: photo.alt, preview: url, previewLarge: url)
     }
 

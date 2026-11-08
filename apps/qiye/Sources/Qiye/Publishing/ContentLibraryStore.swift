@@ -120,6 +120,16 @@ final class ContentLibraryStore {
         }.map(\.post)
     }
 
+    /// All unpurged talks regardless of state, sorted with newest on top.
+    func allTalks() -> [TalkPost] {
+        _ = revision
+        return pending.document.talks.values.filter { !$0.purged }.sorted {
+            if $0.post.date != $1.post.date { return $0.post.date > $1.post.date }
+            if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
+            return $0.post.id < $1.post.id
+        }.map(\.post)
+    }
+
     func photos(in state: ContentStatusFilter) -> [WebsitePhoto] {
         _ = revision
         return pending.document.photos.values.filter { !$0.purged && $0.state == state }.sorted {

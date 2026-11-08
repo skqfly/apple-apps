@@ -9,7 +9,6 @@ struct TalksScreen: View {
     let canPublish: Bool
     let authorName: String
     let avatarURL: URL?
-    @State private var status: ContentStatusFilter = .published
     @State private var composer = false
     @State private var editing: TalkPost?
     @State private var viewing: TalkGallerySelection?
@@ -30,14 +29,12 @@ struct TalksScreen: View {
 
     private var posts: [TalkPost] {
         let query = store.query.trimmingCharacters(in: .whitespacesAndNewlines)
-        return library.talks(in: status).filter { query.isEmpty || $0.description.localizedStandardContains(query) }
+        return library.allTalks().filter { query.isEmpty || $0.description.localizedStandardContains(query) }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                ContentStatusPicker(selection: $status, counts: Dictionary(uniqueKeysWithValues: ContentStatusFilter.allCases.map { ($0, library.talks(in: $0).count) }))
-                .padding(.horizontal, 18).padding(.vertical, 14)
                 if let notice {
                     Text(notice)
                         .font(.caption.weight(.medium))
@@ -45,35 +42,54 @@ struct TalksScreen: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .liquidGlassCapsule(interactive: false)
-                        .padding(.bottom, 10)
+                        .padding(.top, 10)
+                        .padding(.bottom, 6)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 if let error = store.error {
-                    ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }.padding(.horizontal)
+                    ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
                 }
                 if posts.isEmpty {
-                    ContentUnavailableView(status == .deleted ? "回收站是空的" : "这里还没有说说", systemImage: status == .deleted ? "trash" : "text.bubble", description: Text(status == .unpublished ? "新建和下架的说说会保存在这里。" : ""))
-                        .padding(.vertical, 40)
+                    ContentUnavailableView(
+                        "这里还没有说说",
+                        systemImage: "text.bubble",
+                        description: Text("点击右上角写说说，记录生活中的点滴。")
+                    )
+                    .padding(.vertical, 60)
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(posts) { post in
-                            TalkTimelineRow(post: post, authorName: authorName, avatarURL: avatarURL, state: status,
-                                canManage: canPublish, edit: { editing = post },
+                            let state = library.stateOfTalk(post.id)
+                            TalkTimelineRow(
+                                post: post,
+                                authorName: authorName,
+                                avatarURL: avatarURL,
+                                state: state,
+                                canManage: canPublish,
+                                edit: { editing = post },
                                 changeState: { newState in change(post, to: newState) },
-                                delete: { deleting = post }, restore: { restore(post) }, purge: { purging = post },
-                                openImage: { index in viewing = TalkGallerySelection(post: post, index: index) })
+                                delete: { deleting = post },
+                                restore: { restore(post) },
+                                purge: { purging = post },
+                                openImage: { index in viewing = TalkGallerySelection(post: post, index: index) }
+                            )
                         }
                     }
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
             }
-            .frame(maxWidth: 760).frame(maxWidth: .infinity)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
         .navigationTitle("说说")
         .searchable(text: $store.query, prompt: "搜索说说")
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
-            TalkEditorSheet(post: nil, library: library) { status = .unpublished; showNotice("已保存到未发表") }
+            TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }
         }
         .sheet(item: $editing) { post in
             TalkEditorSheet(post: post, library: library) { showNotice("已保存修改；公开内容将在首页推送后更新") }
@@ -82,17 +98,39 @@ struct TalksScreen: View {
             MediaViewer(items: selection.items, initialIndex: selection.index)
         }
         .confirmationDialog("移到已删除？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-            Button("移到已删除", role: .destructive) { if let post = deleting { change(post, to: .deleted) }; deleting = nil }
-        } message: { Text("内容会保留在回收站，可以恢复到未发表。") }
+            Button("移到已删除", role: .destructive) {
+                if let post = deleting { change(post, to: .deleted) }
+                deleting = nil
+            }
+        } message: { Text("内容会保留在列表中并标为已删除，可以随时恢复。") }
         .confirmationDialog("彻底删除这条说说？", isPresented: Binding(get: { purging != nil }, set: { if !$0 { purging = nil } }), titleVisibility: .visible) {
             Button("彻底删除", role: .destructive) {
-                if let post = purging { do { try library.purgeTalk(post); showNotice("已彻底删除") } catch { showNotice(error.localizedDescription) } }
+                if let post = purging {
+                    do {
+                        try library.purgeTalk(post)
+                        showNotice("已彻底删除")
+                    } catch {
+                        showNotice(error.localizedDescription)
+                    }
+                }
                 purging = nil
             }
-        } message: { Text("本机保留的内容将被移除，无法从回收站恢复。") }
-        .task { library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot); await store.loadIfNeeded(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
-        .refreshable { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
-        .onChange(of: pending.committedRevision) { Task { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) } }
+        } message: { Text("本机保留的内容将被彻底移除，无法再恢复。") }
+        .task {
+            library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
+            await store.loadIfNeeded()
+            library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
+        }
+        .refreshable {
+            await store.refresh()
+            library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
+        }
+        .onChange(of: pending.committedRevision) {
+            Task {
+                await store.refresh()
+                library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
+            }
+        }
     }
 
     @ToolbarContentBuilder
@@ -103,6 +141,7 @@ struct TalksScreen: View {
             ToolbarItem(placement: .topBarTrailing) { composeButton }
         }
     }
+
     private var composeButton: some View {
         Button {
             Haptics.light()
@@ -133,16 +172,19 @@ struct TalksScreen: View {
     private func change(_ post: TalkPost, to state: ContentStatusFilter) {
         do {
             try library.setTalkState(post, to: state)
-            showNotice(state == .published ? "已加入发表队列，去首页推送即可" : "已移到\(state.title)")
+            showNotice(state == .published ? "已加入发表队列，去首页推送即可" : "已设为\(state.title)")
+        } catch {
+            showNotice(error.localizedDescription)
         }
-        catch { showNotice(error.localizedDescription) }
     }
+
     private func restore(_ post: TalkPost) {
         do {
             try library.restoreTalk(post)
             showNotice("已恢复到未发表")
+        } catch {
+            showNotice(error.localizedDescription)
         }
-        catch { showNotice(error.localizedDescription) }
     }
 }
 
@@ -159,6 +201,7 @@ private struct TalkGallerySelection: Identifiable {
 }
 
 private struct TalkTimelineRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let post: TalkPost
     let authorName: String
     let avatarURL: URL?
@@ -177,39 +220,118 @@ private struct TalkTimelineRow: View {
                 if let image = phase.image { image.resizable().scaledToFill() }
                 else { Image(systemName: "person.fill").resizable().scaledToFit().padding(10).foregroundStyle(Color.appAccent).background(Color.appAccent.opacity(0.10)) }
             }
-            .frame(width: 42, height: 42).clipShape(.rect(cornerRadius: 9)).accessibilityHidden(true)
+            .frame(width: 42, height: 42)
+            .clipShape(.rect(cornerRadius: 9))
+            .accessibilityHidden(true)
+
             VStack(alignment: .leading, spacing: 9) {
-                Text(authorName.isEmpty ? "skqfly" : authorName).font(.subheadline.weight(.semibold)).foregroundStyle(Color.appAccent)
-                if !post.description.isEmpty { Text(post.description).font(.body).foregroundStyle(.primary).textSelection(.enabled).fixedSize(horizontal: false, vertical: true) }
-                TalkImageGrid(images: post.images, open: openImage)
-                HStack {
-                    Text(post.date, format: .dateTime.year().month().day()).font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Menu {
-                        if state == .deleted {
-                            Button("恢复到未发表", systemImage: "arrow.uturn.backward", action: restore)
-                            Button("彻底删除", systemImage: "trash.slash", role: .destructive, action: purge)
-                        } else {
-                            Button("编辑", systemImage: "pencil", action: edit)
-                            Button(state == .published ? "下架到未发表" : "发表", systemImage: state == .published ? "arrow.down.circle" : "arrow.up.circle") { changeState(state == .published ? .unpublished : .published) }
-                            Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.appAccent)
-                            .liquidGlassCircle(size: 32)
-                    }
-                    .accessibilityLabel("说说操作").accessibilityIdentifier("talk-actions-\(post.id)")
+                Text(authorName.isEmpty ? "skqfly" : authorName)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.appAccent)
+
+                if !post.description.isEmpty {
+                    Text(post.description)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.top, 3)
+
+                TalkImageGrid(images: post.images, open: openImage)
+
+                // Bottom row: Status badge + date on the left, action menu on the right
+                HStack(alignment: .center, spacing: 8) {
+                    statusBadge(for: state)
+
+                    Text(post.date, format: .dateTime.year().month().day())
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 4)
+
+                    actionMenu
+                }
+                .padding(.top, 4)
             }
         }
-        .padding(.horizontal, 16).padding(.vertical, 16)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 16)
         .liquidGlassCard(cornerRadius: 18)
-        .padding(.horizontal, 14).padding(.vertical, 6)
+        .opacity(state == .deleted ? 0.75 : 1)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("talk-row-\(post.id)")
+    }
+
+    // MARK: - Status Badge
+
+    @ViewBuilder
+    private func statusBadge(for state: ContentStatusFilter) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(badgeColor(for: state))
+                .frame(width: 5.5, height: 5.5)
+
+            Text(state.title)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(badgeColor(for: state))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 3)
+        .background(
+            badgeColor(for: state).opacity(colorScheme == .dark ? 0.18 : 0.10),
+            in: Capsule()
+        )
+        .overlay {
+            Capsule()
+                .strokeBorder(badgeColor(for: state).opacity(colorScheme == .dark ? 0.35 : 0.22), lineWidth: 0.6)
+        }
+        .accessibilityLabel("状态：\(state.title)")
+        .accessibilityIdentifier("talk-status-badge-\(post.id)")
+    }
+
+    private func badgeColor(for state: ContentStatusFilter) -> Color {
+        switch state {
+        case .published:
+            return colorScheme == .dark
+                ? Color(red: 0.38, green: 0.86, blue: 0.66)
+                : Color(red: 0.12, green: 0.56, blue: 0.40)
+        case .unpublished:
+            return colorScheme == .dark
+                ? Color(red: 0.98, green: 0.68, blue: 0.28)
+                : Color(red: 0.90, green: 0.50, blue: 0.10)
+        case .deleted:
+            return colorScheme == .dark
+                ? Color(red: 0.95, green: 0.45, blue: 0.45)
+                : Color(red: 0.82, green: 0.28, blue: 0.28)
+        }
+    }
+
+    // MARK: - Action Menu
+
+    private var actionMenu: some View {
+        Menu {
+            if state == .deleted {
+                Button("恢复到未发表", systemImage: "arrow.uturn.backward", action: restore)
+                Button("彻底删除", systemImage: "trash.slash", role: .destructive, action: purge)
+            } else {
+                Button("编辑", systemImage: "pencil", action: edit)
+                if state == .published {
+                    Button("下架到未发表", systemImage: "arrow.down.circle") { changeState(.unpublished) }
+                } else {
+                    Button("发表", systemImage: "arrow.up.circle") { changeState(.published) }
+                }
+                Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.appAccent)
+                .liquidGlassCircle(size: 32)
+        }
+        .accessibilityLabel("说说操作")
+        .accessibilityIdentifier("talk-actions-\(post.id)")
     }
 }
 
@@ -231,6 +353,7 @@ struct TalkImageGrid: View {
             .frame(maxWidth: images.count == 4 || images.count == 2 ? 230 : .infinity, alignment: .leading)
         }
     }
+
     private func tile(_ image: TalkImage, index: Int, ratio: Double) -> some View {
         Button { open(index) } label: {
             Color.clear.aspectRatio(ratio, contentMode: .fit)

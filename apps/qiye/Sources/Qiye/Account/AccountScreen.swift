@@ -43,6 +43,11 @@ struct AccountScreen: View {
                     } label: {
                         Label("发布与同步", systemImage: "arrow.triangle.2.circlepath")
                     }
+                    NavigationLink {
+                        BackupScreen()
+                    } label: {
+                        Label("备份与恢复", systemImage: "externaldrive.badge.icloud")
+                    }
                 }
                 Section("偏好") {
                     NavigationLink {

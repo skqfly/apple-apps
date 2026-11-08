@@ -3,17 +3,17 @@ import UniformTypeIdentifiers
 
 @MainActor
 struct BackupScreen: View {
-    @State private var showsExporter = false
+    @State private var showsFolderExporter = false
     @State private var showsImporter = false
-    @State private var exportDocument: BackupDocument?
+    @State private var exportFolderURL: URL?
     @State private var message: String?
     @State private var showsMessage = false
     @State private var isWorking = false
 
     @AppStorage("webdavURL") private var webdavURL = ""
     @AppStorage("webdavUsername") private var webdavUsername = ""
+    @AppStorage("webdavFolderName") private var webdavFolderName = ""
     @State private var webdavPassword = ""
-    @State private var webdavDownloadName = ""
 
     private let keychain = WebDAVKeychain()
     private let service = BackupService()
@@ -36,7 +36,7 @@ struct BackupScreen: View {
             } header: {
                 Text("iCloud Drive / 文件")
             } footer: {
-                Text("备份会打包成单个文件，可存到 iCloud Drive 或任意位置。恢复后请退出并重新打开栖页。")
+                Text("备份是一个文件夹，包含照片与说说等全部数据，可存到 iCloud Drive 或任意位置。恢复后请退出并重新打开栖页。")
             }
 
             Section {
@@ -48,13 +48,13 @@ struct BackupScreen: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 SecureField("密码", text: $webdavPassword)
-                TextField("下载文件名（可选）", text: $webdavDownloadName)
+                TextField("备份文件夹名", text: $webdavFolderName)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } header: {
                 Text("WebDAV")
             } footer: {
-                Text("密码仅保存在设备钥匙串。上传后会自动记录一个默认文件名，下载时留空则使用最近一次备份名。")
+                Text("密码仅保存在设备钥匙串。上传后会记住文件夹名，下载时使用同一个名字。")
             }
 
             Section {
@@ -82,20 +82,17 @@ struct BackupScreen: View {
         .navigationTitle("备份与恢复")
         .navigationBarTitleDisplayMode(.inline)
         .task { webdavPassword = keychain.read() ?? "" }
-        .fileExporter(
-            isPresented: $showsExporter,
-            document: exportDocument,
-            contentType: .data,
-            defaultFilename: defaultFilename()
-        ) { result in
-            exportDocument = nil
-            if case .failure(let error) = result {
-                report(error.localizedDescription)
+        .sheet(isPresented: $showsFolderExporter) {
+            if let exportFolderURL {
+                FolderExporter(folderURL: exportFolderURL, isPresented: $showsFolderExporter) { error in
+                    self.exportFolderURL = nil
+                    if let error { report(error.localizedDescription) }
+                }
             }
         }
         .fileImporter(
             isPresented: $showsImporter,
-            allowedContentTypes: [.data],
+            allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
             Task { await handleImport(result) }
@@ -105,7 +102,6 @@ struct BackupScreen: View {
         } message: {
             Text(message ?? "")
         }
-        .disabled(isWorking)
     }
 
     // MARK: - Files
@@ -114,10 +110,9 @@ struct BackupScreen: View {
         isWorking = true
         defer { isWorking = false }
         do {
-            let archive = try makeTempArchive()
-            let data = try Data(contentsOf: archive)
-            exportDocument = BackupDocument(data: data)
-            showsExporter = true
+            let folder = try makeTempBackupFolder()
+            exportFolderURL = folder
+            showsFolderExporter = true
         } catch {
             report(error.localizedDescription)
         }
@@ -142,19 +137,19 @@ struct BackupScreen: View {
         }
     }
 
-    private func makeTempArchive() throws -> URL {
+    private func makeTempBackupFolder() throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("QiyeBackups", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let url = directory.appendingPathComponent(defaultFilename())
-        try? FileManager.default.removeItem(at: url)
-        try service.makeArchive(to: url)
-        return url
+        let folder = directory.appendingPathComponent(folderName(), isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try service.prepareBackupFolder(to: folder)
+        return folder
     }
 
-    private func defaultFilename() -> String {
+    private func folderName() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "栖页备份-\(formatter.string(from: Date())).qibackup"
+        return "栖页备份-\(formatter.string(from: Date()))"
     }
 
     // MARK: - WebDAV
@@ -176,9 +171,10 @@ struct BackupScreen: View {
         do {
             let server = try currentServer()
             keychain.save(webdavPassword)
-            let archive = try makeTempArchive()
-            try await service.webDAVUpload(archive, to: server)
-            webdavDownloadName = archive.lastPathComponent
+            let folder = try makeTempBackupFolder()
+            let name = folder.lastPathComponent
+            try await service.webDAVUpload(folderURL: folder, folderName: name, to: server)
+            webdavFolderName = name
             report("已上传到 WebDAV。")
         } catch {
             report(error.localizedDescription)
@@ -191,14 +187,10 @@ struct BackupScreen: View {
         do {
             let server = try currentServer()
             keychain.save(webdavPassword)
-            let name = webdavDownloadName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = webdavFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { throw BackupError.noServer }
-            let data = try await service.webDAVDownload(name, from: server)
-            let directory = FileManager.default.temporaryDirectory.appendingPathComponent("QiyeBackups", isDirectory: true)
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let archive = directory.appendingPathComponent(name)
-            try data.write(to: archive, options: .atomic)
-            try service.restore(from: archive)
+            let folder = try await service.webDAVDownload(folderName: name, from: server)
+            try service.restore(from: folder)
             report("已下载并恢复。请退出并重新打开栖页让数据生效。")
         } catch {
             report(error.localizedDescription)
@@ -211,15 +203,57 @@ struct BackupScreen: View {
     }
 }
 
-struct BackupDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data] }
-    var data: Data
+/// Exports a directory via the system document picker so the user can save the
+/// whole backup folder to iCloud Drive or any Files location.
+private struct FolderExporter: UIViewControllerRepresentable {
+    let folderURL: URL
+    @Binding var isPresented: Bool
+    let onCompletion: (Error?) -> Void
 
-    init(data: Data) { self.data = data }
-    init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> PresenterController {
+        PresenterController(folderURL: folderURL, coordinator: context.coordinator)
     }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
+
+    func updateUIViewController(_ controller: PresenterController, context: Context) {
+        controller.folderURL = folderURL
+        controller.coordinator = context.coordinator
+    }
+
+    final class PresenterController: UIViewController {
+        var folderURL: URL
+        weak var coordinator: Coordinator?
+        private var didPresent = false
+
+        init(folderURL: URL, coordinator: Coordinator) {
+            self.folderURL = folderURL
+            self.coordinator = coordinator
+            super.init(nibName: nil, bundle: nil)
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard !didPresent else { return }
+            didPresent = true
+            let picker = UIDocumentPickerViewController(forExporting: [folderURL], asCopy: true)
+            picker.delegate = coordinator
+            present(picker, animated: false)
+        }
+    }
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        private var parent: FolderExporter
+        init(_ parent: FolderExporter) { self.parent = parent }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            parent.isPresented = false
+            parent.onCompletion(nil)
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.isPresented = false
+            parent.onCompletion(nil)
+        }
     }
 }

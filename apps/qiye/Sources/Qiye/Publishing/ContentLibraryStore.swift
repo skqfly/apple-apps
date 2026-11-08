@@ -128,9 +128,26 @@ final class ContentLibraryStore {
         }.map(\.photo)
     }
 
+    /// Returns a local file URL for a photo if its Qiye-uploaded image is still on
+    /// disk. Published photos keep a local copy so they render even when GitHub is
+    /// unreachable, and unpublished photos always live locally.
+    func localPreviewURL(for id: String) -> URL? {
+        guard let record = pending.document.photos[id], !record.purged else { return nil }
+        let name: String
+        if record.photo.src.isFileURL {
+            name = record.photo.src.lastPathComponent
+        } else if let source = record.publishedSource, !source.isEmpty {
+            name = URL(fileURLWithPath: source).lastPathComponent
+        } else {
+            return nil
+        }
+        guard !name.isEmpty else { return nil }
+        let url = pending.imageURL(named: name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     /// Reorder one state locally and, for published photos, stage the website order.
-    func movePhoto(_ id: String, before destinationID: String?) throws {
-        try pending.transaction { document in
+    func movePhoto(_ id: String, before destinationID: String?) throws {        try pending.transaction { document in
             guard let moving = document.photos[id], !moving.purged else { throw PendingChangesStore.StagingFailure.purgedContent }
             var records = document.photos.values.filter { !$0.purged && $0.state == moving.state }.sorted {
                 if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }

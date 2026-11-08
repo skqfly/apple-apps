@@ -475,6 +475,12 @@ final class PendingChangesStore {
         }
         for record in photos {
             if record.photo.src.isFileURL, let name = try? ownedImageName(record.photo.src) { retained.insert(name) }
+            // Keep the Qiye-uploaded image for published photos so they stay visible
+            // locally even when GitHub/raw.githubusercontent is unreachable.
+            if let source = record.publishedSource, !source.isEmpty {
+                let name = URL(fileURLWithPath: source).lastPathComponent
+                if validImageName(name) { retained.insert(name) }
+            }
         }
         guard let files = try? FileManager.default.contentsOfDirectory(at: imageDirectory, includingPropertiesForKeys: nil) else { return }
         for file in files where !retained.contains(file.lastPathComponent) { try? FileManager.default.removeItem(at: file) }

@@ -213,11 +213,14 @@ struct PhotosScreen: View {
     }
 
     private func photoImage(_ photo: WebsitePhoto) -> some View {
+        // Prefer a retained local copy so published photos survive network outages.
+        if let local = library.localPreviewURL(for: photo.id) {
+            return AnyView(LocalPhotoImage(url: local))
+        }
         if photo.preview.isFileURL {
             return AnyView(LocalPhotoImage(url: photo.preview))
-        } else {
-            return AnyView(RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo)))
         }
+        return AnyView(RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo)))
     }
 
     @ViewBuilder

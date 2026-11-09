@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 #endif
 
-// MARK: - Haptic Feedback
+// MARK: - Native Haptic Feedback System
 
 enum Haptics {
     static func light() {
@@ -38,10 +38,10 @@ enum Haptics {
     }
 }
 
-// MARK: - Pure Liquid Glass Navigation Bar ButtonStyles (Referencing Minis Double-Icon Capsule)
+// MARK: - Apple Native Navigation Toolbar Button Styles (Photos & Files Parity)
 
-/// Pure Liquid Glass capsule button (e.g. "选择", "取消", "全选").
-/// High optical clarity, transparent refractive glass, soft rim highlight.
+/// Standard Apple Photos / Files navigation bar capsule text button (e.g. "选择", "取消", "全选").
+/// Features optical transparency, subtle specular rim highlight, and spring press feedback.
 struct AppleNavCapsuleButtonStyle: ButtonStyle {
     var isSelected: Bool = false
     var isAccentText: Bool = false
@@ -52,7 +52,7 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
             .font(.system(size: 15, weight: .semibold, design: .rounded))
             .foregroundStyle(isAccentText ? Color.appAccent : Color.primary)
             .padding(.horizontal, 14)
-            .frame(height: 36)
+            .frame(height: 34)
             .background {
                 if #available(iOS 26, *) {
                     Capsule()
@@ -60,12 +60,19 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
                         .glassEffect(.regular.interactive(), in: .capsule)
                 } else {
                     Capsule()
-                        .fill(.ultraThinMaterial.opacity(0.55))
+                        .fill(
+                            isSelected
+                                ? Color.appAccent
+                                : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
+                        )
                         .overlay {
-                            Capsule().strokeBorder(
-                                colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
-                                lineWidth: 0.75
-                            )
+                            if !isSelected {
+                                Capsule()
+                                    .strokeBorder(
+                                        colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.50),
+                                        lineWidth: 0.6
+                                    )
+                            }
                         }
                 }
             }
@@ -75,10 +82,10 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
     }
 }
 
-/// Pure Liquid Glass circular button (36x36pt).
-/// High-transparency glass lens with delicate edge refraction.
+/// Standard Apple circular navigation bar button (34x34pt).
+/// Pure optical lens with responsive spring touch feel.
 struct AppleNavCircleButtonStyle: ButtonStyle {
-    var size: CGFloat = 36
+    var size: CGFloat = 34
     var isAccent: Bool = false
     @Environment(\.colorScheme) private var colorScheme
 
@@ -93,12 +100,13 @@ struct AppleNavCircleButtonStyle: ButtonStyle {
                         .glassEffect(.regular.interactive(), in: .circle)
                 } else {
                     Circle()
-                        .fill(.ultraThinMaterial.opacity(0.55))
+                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
                         .overlay {
-                            Circle().strokeBorder(
-                                colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
-                                lineWidth: 0.75
-                            )
+                            Circle()
+                                .strokeBorder(
+                                    colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.50),
+                                    lineWidth: 0.6
+                                )
                         }
                 }
             }
@@ -108,10 +116,56 @@ struct AppleNavCircleButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Deep Optical Transparency Liquid Glass Cards & Surfaces
+// MARK: - Native Liquid Glass Component Styles (Inspired by LiquidGlassKit & Apple Guidelines)
 
-/// Pure Liquid Glass card: radically transparent, eliminating milky white fog,
-/// showcasing crystal clarity and crisp content legibility.
+/// Standard iOS 26+ .glass button style with clean Material fallback.
+struct LiquidGlassButtonStyle: ButtonStyle {
+    var isProminent: Bool = false
+    var tintColor: Color = Color.appAccent
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        if #available(iOS 26, *) {
+            if isProminent {
+                configuration.label
+                    .glassEffect(.regular.tint(tintColor).interactive(), in: .capsule)
+                    .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+                    .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            } else {
+                configuration.label
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                    .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+                    .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            }
+        } else {
+            configuration.label
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background {
+                    if isProminent {
+                        Capsule().fill(tintColor)
+                    } else {
+                        Capsule()
+                            .fill(.ultraThinMaterial.opacity(0.60))
+                            .overlay {
+                                Capsule().strokeBorder(
+                                    colorScheme == .dark ? Color.white.opacity(0.15) : Color.white.opacity(0.55),
+                                    lineWidth: 0.6
+                                )
+                            }
+                    }
+                }
+                .foregroundStyle(isProminent ? Color.white : Color.primary)
+                .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+                .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+        }
+    }
+}
+
+// MARK: - Optical Transparency Cards & Floating Capsules (Never Milky White)
+
+/// Standard Liquid Glass card with true optical transparency, eliminating white milkiness.
+/// On iOS 26+ uses native .glassEffect, on fallback uses ultra-thin material with subtle rim refraction.
 struct LiquidGlassCard: ViewModifier {
     var cornerRadius: CGFloat = 20
     var interactive: Bool = false
@@ -130,24 +184,24 @@ struct LiquidGlassCard: ViewModifier {
             content
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.45 : 0.50))
+                        .fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.40 : 0.45))
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.15) : Color.white.opacity(0.65),
+                            colorScheme == .dark ? Color.white.opacity(0.14) : Color.white.opacity(0.65),
                             lineWidth: 0.75
                         )
                 }
                 .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.03),
+                    color: Color.black.opacity(colorScheme == .dark ? 0.20 : 0.03),
                     radius: 12, y: 3
                 )
         }
     }
 }
 
-/// Radical optical transparency floating capsule (for navigation bar groups, docks, batch action bars).
+/// Floating Liquid Glass capsule (for batch operation docks, toolbars, etc.).
 struct LiquidGlassCapsule: ViewModifier {
     var interactive: Bool = true
     @Environment(\.colorScheme) private var colorScheme
@@ -159,23 +213,23 @@ struct LiquidGlassCapsule: ViewModifier {
         } else {
             content
                 .background(
-                    Capsule().fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.50 : 0.55))
+                    Capsule().fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.45 : 0.50))
                 )
                 .overlay {
                     Capsule().strokeBorder(
-                        colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.60),
+                        colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.60),
                         lineWidth: 0.75
                     )
                 }
                 .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04),
-                    radius: 12, y: 3
+                    color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.04),
+                    radius: 14, y: 4
                 )
         }
     }
 }
 
-/// Standardized circular treatment.
+/// Standard circular glass modifier.
 struct LiquidGlassCircle: ViewModifier {
     var size: CGFloat = 44
     @Environment(\.colorScheme) private var colorScheme
@@ -190,12 +244,12 @@ struct LiquidGlassCircle: ViewModifier {
             content
                 .frame(width: size, height: size)
                 .background(
-                    Circle().fill(.ultraThinMaterial.opacity(0.55))
+                    Circle().fill(.ultraThinMaterial.opacity(0.50))
                 )
                 .overlay {
                     Circle()
                         .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
+                            colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.55),
                             lineWidth: 0.75
                         )
                 }
@@ -204,7 +258,7 @@ struct LiquidGlassCircle: ViewModifier {
     }
 }
 
-/// Prominent tinted glass action button.
+/// Prominent tinted glass action modifier.
 struct LiquidGlassProminentButton: ViewModifier {
     var tintColor: Color = Color.appAccent
     var cornerRadius: CGFloat = 12
@@ -221,7 +275,7 @@ struct LiquidGlassProminentButton: ViewModifier {
     }
 }
 
-// MARK: - View Extensions
+// MARK: - Convenient View Extensions
 
 extension View {
     func liquidGlassCircle(size: CGFloat = 44) -> some View {

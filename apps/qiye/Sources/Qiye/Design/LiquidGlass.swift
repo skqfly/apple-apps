@@ -38,10 +38,87 @@ enum Haptics {
     }
 }
 
+// MARK: - Apple Native Navigation Bar ButtonStyles (Photos & Files Reference)
+
+/// Standard Apple Photos / Files navigation bar capsule text button (e.g. "选择", "编辑", "取消", "全选").
+/// 34pt height, translucent material background, semi-bold text, smooth spring press feedback.
+struct AppleNavCapsuleButtonStyle: ButtonStyle {
+    var isSelected: Bool = false
+    var isAccentText: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundStyle(isAccentText ? Color.appAccent : Color.primary)
+            .padding(.horizontal, 14)
+            .frame(height: 34)
+            .background {
+                if #available(iOS 26, *) {
+                    Capsule()
+                        .fill(isSelected ? Color.appAccent : Color.clear)
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                } else {
+                    Capsule()
+                        .fill(
+                            isSelected
+                                ? Color.appAccent
+                                : (colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06))
+                        )
+                }
+            }
+            .overlay {
+                if !isSelected {
+                    Capsule()
+                        .strokeBorder(
+                            colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05),
+                            lineWidth: 0.5
+                        )
+                }
+            }
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// Standard Apple Photos / Files navigation bar circular button (e.g. "+", "...", "filter").
+/// 34x34pt circle, translucent material background, centered icon.
+struct AppleNavCircleButtonStyle: ButtonStyle {
+    var size: CGFloat = 34
+    var isAccent: Bool = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(isAccent ? Color.appAccent : Color.primary)
+            .frame(width: size, height: size)
+            .background {
+                if #available(iOS 26, *) {
+                    Circle()
+                        .glassEffect(.regular.interactive(), in: .circle)
+                } else {
+                    Circle()
+                        .fill(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06))
+                }
+            }
+            .overlay {
+                Circle()
+                    .strokeBorder(
+                        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05),
+                        lineWidth: 0.5
+                    )
+            }
+            .contentShape(Circle())
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Liquid Glass Modifiers
 
-/// A standardized 44x44 circular button treatment. Uses interactive Liquid Glass
-/// on iOS 26+ and falls back to a delicate ultra-thin material ring on earlier iOS.
+/// A standardized 44x44 circular button treatment for prominent standalone actions.
 struct LiquidGlassCircle: ViewModifier {
     var size: CGFloat = 44
     @Environment(\.colorScheme) private var colorScheme

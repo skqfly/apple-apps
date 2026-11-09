@@ -135,11 +135,7 @@ struct TalksScreen: View {
 
     @ToolbarContentBuilder
     private var composeToolbar: some ToolbarContent {
-        if #available(iOS 26, *) {
-            ToolbarItem(placement: .topBarTrailing) { composeButton }.sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarTrailing) { composeButton }
-        }
+        ToolbarItem(placement: .topBarTrailing) { composeButton }
     }
 
     private var composeButton: some View {
@@ -148,11 +144,8 @@ struct TalksScreen: View {
             composer = true
         } label: {
             Image(systemName: "square.and.pencil")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(Color.appAccent)
-                .liquidGlassCircle()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: true))
         .accessibilityLabel("写说说")
         .accessibilityIdentifier("compose-talk")
         .disabled(pending.isCommitting)

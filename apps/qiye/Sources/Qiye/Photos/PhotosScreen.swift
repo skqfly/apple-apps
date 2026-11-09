@@ -113,34 +113,28 @@ struct PhotosScreen: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .toolbar(isSelecting ? .hidden : .visible, for: .tabBar)
         .animation(.snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
         }
     }
 
-    // MARK: - Navigation Bar Toolbar (Referencing Image 3 GitHub Multi-select)
+    // MARK: - Navigation Bar Toolbar (Apple Native Photos / Files Style)
 
     @ToolbarContentBuilder
     private var topBarToolbar: some ToolbarContent {
         if isSelecting {
             ToolbarItem(placement: .topBarLeading) {
-                Button {
+                Button("取消") {
                     withAnimation(.snappy(duration: 0.22)) { exitSelection() }
-                } label: {
-                    Text("取消")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                        .padding(.horizontal, 14)
-                        .frame(height: 32)
-                        .liquidGlassCapsule(interactive: true)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleNavCapsuleButtonStyle())
                 .accessibilityLabel("取消选择")
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
+                Button(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选") {
                     Haptics.selection()
                     withAnimation(.snappy(duration: 0.2)) {
                         if selectedPhotoIDs.count == visiblePhotos.count {
@@ -149,15 +143,8 @@ struct PhotosScreen: View {
                             selectedPhotoIDs = Set(visiblePhotos.map(\.id))
                         }
                     }
-                } label: {
-                    Text(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.appAccent)
-                        .padding(.horizontal, 14)
-                        .frame(height: 32)
-                        .liquidGlassCapsule(interactive: true)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(AppleNavCapsuleButtonStyle(isAccentText: true))
                 .accessibilityLabel(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
             }
         } else {
@@ -171,16 +158,11 @@ struct PhotosScreen: View {
     }
 
     private var selectButton: some View {
-        Button {
+        Button("选择") {
             withAnimation(.snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
-        } label: {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.primary)
-                .liquidGlassCircle(size: 38)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppleNavCapsuleButtonStyle())
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
     }
@@ -188,11 +170,8 @@ struct PhotosScreen: View {
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
             Image(systemName: "plus")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.appAccent)
-                .liquidGlassCircle(size: 38)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: true))
         .disabled(isBusy)
         .accessibilityLabel("添加照片")
         .accessibilityIdentifier("photo-add-button")

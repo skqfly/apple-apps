@@ -58,7 +58,7 @@ struct HomeScreen: View {
         } message: { Text(pushMessage ?? "") }
     }
 
-    // MARK: - Navigation Bar Right Actions (Referencing GitHub Top Right Group)
+    // MARK: - Navigation Bar Right Actions (Apple Native Style)
 
     private var headerActionButtons: some View {
         HStack(spacing: 8) {
@@ -69,19 +69,14 @@ struct HomeScreen: View {
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "globe")
-                        .font(.system(size: 15, weight: .semibold))
                     if let health = store.website.value {
                         Circle()
                             .fill(health.isReachable ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.orange)
-                            .frame(width: 6, height: 6)
+                            .frame(width: 5.5, height: 5.5)
                     }
                 }
-                .foregroundStyle(Color.primary)
-                .frame(height: 36)
-                .padding(.horizontal, 10)
-                .liquidGlassCapsule(interactive: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppleNavCircleButtonStyle(size: 34))
             .accessibilityLabel("网站状态与仓库")
 
             // Staging & Push button
@@ -90,23 +85,16 @@ struct HomeScreen: View {
                 showsPendingDetails = true
             } label: {
                 ZStack(alignment: .topTrailing) {
-                    HStack(spacing: 5) {
-                        Image(systemName: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(pending.changes.isEmpty ? Color.secondary : Color.appAccent)
-
-                        if !pending.changes.isEmpty {
-                            Text("\(pending.changes.count)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.appAccent)
-                        }
+                    Image(systemName: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up.fill")
+                    if !pending.changes.isEmpty {
+                        Circle()
+                            .fill(Color.appAccent)
+                            .frame(width: 7, height: 7)
+                            .offset(x: 2, y: -2)
                     }
-                    .frame(height: 36)
-                    .padding(.horizontal, 11)
-                    .liquidGlassCapsule(interactive: true)
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: !pending.changes.isEmpty))
             .accessibilityLabel("待推送改动，\(pending.changes.count) 项")
         }
     }

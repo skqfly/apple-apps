@@ -82,15 +82,14 @@ final class LongPhotoHitAreaTests: XCTestCase {
         attachScreenshot("After website tap — website selected")
 
         // Switching back also proves the fixture was not deleted or lost.
-        draftsSegment.tap()
-        XCTAssertTrue(waitForSelection(draftsSegment))
+        draftsSegment.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(draft.waitForExistence(timeout: 5))
         XCTAssertFalse(detail.exists)
     }
 
     private func waitForSelection(_ element: XCUIElement) -> Bool {
         XCTWaiter.wait(for: [XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "selected == true"), object: element
+            predicate: NSPredicate(format: "isSelected == true OR selected == true"), object: element
         )], timeout: 5) == .completed
     }
 

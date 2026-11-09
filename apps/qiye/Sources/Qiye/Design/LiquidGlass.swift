@@ -38,10 +38,10 @@ enum Haptics {
     }
 }
 
-// MARK: - Apple Native Navigation Bar ButtonStyles (Photos & Files Reference)
+// MARK: - Pure Liquid Glass Navigation Bar ButtonStyles (Referencing Minis Double-Icon Capsule)
 
-/// Standard Apple Photos / Files navigation bar capsule text button (e.g. "选择", "编辑", "取消", "全选").
-/// 34pt height, translucent material background, semi-bold text, smooth spring press feedback.
+/// Pure Liquid Glass capsule button (e.g. "选择", "取消", "全选").
+/// High optical clarity, transparent refractive glass, soft rim highlight.
 struct AppleNavCapsuleButtonStyle: ButtonStyle {
     var isSelected: Bool = false
     var isAccentText: Bool = false
@@ -52,7 +52,7 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
             .font(.system(size: 15, weight: .semibold, design: .rounded))
             .foregroundStyle(isAccentText ? Color.appAccent : Color.primary)
             .padding(.horizontal, 14)
-            .frame(height: 34)
+            .frame(height: 36)
             .background {
                 if #available(iOS 26, *) {
                     Capsule()
@@ -60,20 +60,13 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
                         .glassEffect(.regular.interactive(), in: .capsule)
                 } else {
                     Capsule()
-                        .fill(
-                            isSelected
-                                ? Color.appAccent
-                                : (colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06))
-                        )
-                }
-            }
-            .overlay {
-                if !isSelected {
-                    Capsule()
-                        .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05),
-                            lineWidth: 0.5
-                        )
+                        .fill(.ultraThinMaterial.opacity(0.55))
+                        .overlay {
+                            Capsule().strokeBorder(
+                                colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
+                                lineWidth: 0.75
+                            )
+                        }
                 }
             }
             .contentShape(Capsule())
@@ -82,10 +75,10 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
     }
 }
 
-/// Standard Apple Photos / Files navigation bar circular button (e.g. "+", "...", "filter").
-/// 34x34pt circle, translucent material background, centered icon.
+/// Pure Liquid Glass circular button (36x36pt).
+/// High-transparency glass lens with delicate edge refraction.
 struct AppleNavCircleButtonStyle: ButtonStyle {
-    var size: CGFloat = 34
+    var size: CGFloat = 36
     var isAccent: Bool = false
     @Environment(\.colorScheme) private var colorScheme
 
@@ -100,15 +93,14 @@ struct AppleNavCircleButtonStyle: ButtonStyle {
                         .glassEffect(.regular.interactive(), in: .circle)
                 } else {
                     Circle()
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.06))
+                        .fill(.ultraThinMaterial.opacity(0.55))
+                        .overlay {
+                            Circle().strokeBorder(
+                                colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
+                                lineWidth: 0.75
+                            )
+                        }
                 }
-            }
-            .overlay {
-                Circle()
-                    .strokeBorder(
-                        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05),
-                        lineWidth: 0.5
-                    )
             }
             .contentShape(Circle())
             .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
@@ -116,38 +108,12 @@ struct AppleNavCircleButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Liquid Glass Modifiers
+// MARK: - Deep Optical Transparency Liquid Glass Cards & Surfaces
 
-/// A standardized 44x44 circular button treatment for prominent standalone actions.
-struct LiquidGlassCircle: ViewModifier {
-    var size: CGFloat = 44
-    @Environment(\.colorScheme) private var colorScheme
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .frame(width: size, height: size)
-                .glassEffect(.regular.interactive(), in: .circle)
-                .contentShape(Circle())
-        } else {
-            content
-                .frame(width: size, height: size)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay {
-                    Circle()
-                        .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.10),
-                            lineWidth: 0.6
-                        )
-                }
-                .contentShape(Circle())
-        }
-    }
-}
-
-/// A card surface with Liquid Glass on iOS 26+ and refined material fallback.
+/// Pure Liquid Glass card: radically transparent, eliminating milky white fog,
+/// showcasing crystal clarity and crisp content legibility.
 struct LiquidGlassCard: ViewModifier {
-    var cornerRadius: CGFloat = 18
+    var cornerRadius: CGFloat = 20
     var interactive: Bool = false
     @Environment(\.colorScheme) private var colorScheme
 
@@ -164,24 +130,24 @@ struct LiquidGlassCard: ViewModifier {
             content
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(Color.appSurface)
+                        .fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.45 : 0.50))
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.06),
+                            colorScheme == .dark ? Color.white.opacity(0.15) : Color.white.opacity(0.65),
                             lineWidth: 0.75
                         )
                 }
                 .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.28 : 0.05),
-                    radius: 12, y: 4
+                    color: Color.black.opacity(colorScheme == .dark ? 0.22 : 0.03),
+                    radius: 12, y: 3
                 )
         }
     }
 }
 
-/// A floating capsule container, perfect for toolbars, docks, and batch action bars.
+/// Radical optical transparency floating capsule (for navigation bar groups, docks, batch action bars).
 struct LiquidGlassCapsule: ViewModifier {
     var interactive: Bool = true
     @Environment(\.colorScheme) private var colorScheme
@@ -192,23 +158,53 @@ struct LiquidGlassCapsule: ViewModifier {
                 .glassEffect(.regular.interactive(interactive), in: .capsule)
         } else {
             content
-                .background(.ultraThinMaterial, in: Capsule())
+                .background(
+                    Capsule().fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.50 : 0.55))
+                )
                 .overlay {
-                    Capsule()
-                        .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.08),
-                            lineWidth: 0.6
-                        )
+                    Capsule().strokeBorder(
+                        colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.60),
+                        lineWidth: 0.75
+                    )
                 }
                 .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
-                    radius: 16, y: 5
+                    color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.04),
+                    radius: 12, y: 3
                 )
         }
     }
 }
 
-/// An interactive prominent action button (tinted glass on iOS 26+, prominent bordered on earlier).
+/// Standardized circular treatment.
+struct LiquidGlassCircle: ViewModifier {
+    var size: CGFloat = 44
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .frame(width: size, height: size)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .contentShape(Circle())
+        } else {
+            content
+                .frame(width: size, height: size)
+                .background(
+                    Circle().fill(.ultraThinMaterial.opacity(0.55))
+                )
+                .overlay {
+                    Circle()
+                        .strokeBorder(
+                            colorScheme == .dark ? Color.white.opacity(0.18) : Color.white.opacity(0.55),
+                            lineWidth: 0.75
+                        )
+                }
+                .contentShape(Circle())
+        }
+    }
+}
+
+/// Prominent tinted glass action button.
 struct LiquidGlassProminentButton: ViewModifier {
     var tintColor: Color = Color.appAccent
     var cornerRadius: CGFloat = 12
@@ -232,7 +228,7 @@ extension View {
         modifier(LiquidGlassCircle(size: size))
     }
 
-    func liquidGlassCard(cornerRadius: CGFloat = 18, interactive: Bool = false) -> some View {
+    func liquidGlassCard(cornerRadius: CGFloat = 20, interactive: Bool = false) -> some View {
         modifier(LiquidGlassCard(cornerRadius: cornerRadius, interactive: interactive))
     }
 

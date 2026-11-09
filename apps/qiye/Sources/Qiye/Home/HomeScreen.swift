@@ -58,10 +58,10 @@ struct HomeScreen: View {
         } message: { Text(pushMessage ?? "") }
     }
 
-    // MARK: - Navigation Bar Right Actions (Referencing Minis Double-Icon Capsule Button)
+    // MARK: - Navigation Bar Right Actions (Two Independent Liquid Glass Circles, Pure and Un-nested)
 
     private var headerActionButtons: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             // Website button
             Button {
                 Haptics.light()
@@ -69,17 +69,15 @@ struct HomeScreen: View {
             } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "globe")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 16, weight: .semibold))
                     if let health = store.website.value {
                         Circle()
                             .fill(health.isReachable ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.orange)
                             .frame(width: 5, height: 5)
                     }
                 }
-                .frame(width: 40, height: 36)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppleNavCircleButtonStyle(size: 34))
             .accessibilityLabel("网站状态与仓库")
 
             // Staging & Push button
@@ -89,7 +87,7 @@ struct HomeScreen: View {
             } label: {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up.fill")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(pending.changes.isEmpty ? Color.primary : Color.appAccent)
                     if !pending.changes.isEmpty {
                         Circle()
@@ -98,13 +96,10 @@ struct HomeScreen: View {
                             .offset(x: 3, y: -2)
                     }
                 }
-                .frame(width: 40, height: 36)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: !pending.changes.isEmpty))
             .accessibilityLabel("待推送改动，\(pending.changes.count) 项")
         }
-        .liquidGlassCapsule(interactive: true)
     }
 
     // MARK: - Refined Status Summary Bar (Un-tinted, Elegant)

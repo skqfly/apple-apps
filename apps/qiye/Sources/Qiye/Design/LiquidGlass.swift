@@ -83,7 +83,7 @@ struct AppleNavCapsuleButtonStyle: ButtonStyle {
 }
 
 /// Standard Apple circular navigation bar button (34x34pt).
-/// Pure optical lens with responsive spring touch feel.
+/// Pure optical lens with responsive spring touch feel and high-contrast dark foreground.
 struct AppleNavCircleButtonStyle: ButtonStyle {
     var size: CGFloat = 34
     var isAccent: Bool = false
@@ -104,7 +104,7 @@ struct AppleNavCircleButtonStyle: ButtonStyle {
                         .overlay {
                             Circle()
                                 .strokeBorder(
-                                    colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.50),
+                                    colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08),
                                     lineWidth: 0.6
                                 )
                         }

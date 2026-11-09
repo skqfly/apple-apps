@@ -87,7 +87,7 @@ struct AppNavigationView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial.opacity(0.75), for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial.opacity(0.60), for: .navigationBar)
             .toolbar {
                 if section == .home {
                     profileToolbar

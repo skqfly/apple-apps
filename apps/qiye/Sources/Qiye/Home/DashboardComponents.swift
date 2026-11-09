@@ -16,8 +16,8 @@ enum DashboardStyle {
 
     static func outline(_ scheme: ColorScheme) -> Color {
         scheme == .dark
-            ? Color.white.opacity(0.12)
-            : Color.black.opacity(0.08)
+            ? Color.white.opacity(0.10)
+            : Color.black.opacity(0.06)
     }
 }
 
@@ -90,8 +90,8 @@ struct DashboardWorkflowRow: View {
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.right")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                     .accessibilityHidden(true)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -114,10 +114,10 @@ struct DashboardWorkflowRow: View {
 extension DashboardRunState {
     var color: Color {
         switch self {
-        case .success: return .green
-        case .failure, .timedOut: return .red
-        case .running: return .appAccent
-        case .queued, .waiting, .actionRequired: return .orange
+        case .success: return Color(red: 0.16, green: 0.65, blue: 0.45)
+        case .failure, .timedOut: return Color(red: 0.88, green: 0.28, blue: 0.28)
+        case .running: return Color.appAccent
+        case .queued, .waiting, .actionRequired: return Color.orange
         default: return .secondary
         }
     }

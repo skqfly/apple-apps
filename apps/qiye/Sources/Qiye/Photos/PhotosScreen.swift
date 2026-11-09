@@ -12,6 +12,7 @@ struct PhotosScreen: View {
     let library: ContentLibraryStore
     let canPublish: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @State private var status: ContentStatusFilter = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") ? .unpublished : .published
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var selection: PhotoSelection?
@@ -24,6 +25,8 @@ struct PhotosScreen: View {
     @State private var hoveredPhotoID: String?
     @State private var isSelecting = false
     @State private var selectedPhotoIDs: Set<String> = []
+    @State private var photoFrames: [String: CGRect] = [:]
+    @State private var swipedPhotoIDs: Set<String> = []
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
@@ -49,26 +52,33 @@ struct PhotosScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
-                ContentStatusPicker(
-                    selection: $status,
-                    categories: [.published, .unpublished],
-                    counts: counts,
-                    titleOverrides: [.unpublished: "已下架"]
-                )
-                .zIndex(1)
+                if !isSelecting {
+                    ContentStatusPicker(
+                        selection: $status,
+                        categories: [.published, .unpublished],
+                        counts: counts,
+                        titleOverrides: [.unpublished: "已下架"]
+                    )
+                    .zIndex(1)
+                }
+
                 if let error = store.error {
                     Label(error, systemImage: "wifi.exclamationmark")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+
                 if isBusy { ProgressView("正在保存照片…") }
+
                 photoGrid
+                    .coordinateSpace(name: "PhotoGridSpace")
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 96)
         }
         .background(Color.appBackground)
-        .navigationTitle("照片")
+        .navigationTitle(isSelecting ? "已选择 “\(selectedPhotoIDs.count)”" : "照片")
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar { topBarToolbar }
         .refreshable { await refresh() }
         .task {
@@ -95,7 +105,12 @@ struct PhotosScreen: View {
         }
         .safeAreaInset(edge: .bottom) {
             if isSelecting {
-                batchBar
+                HStack {
+                    Spacer()
+                    batchBar
+                    Spacer()
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.snappy(duration: 0.28), value: isSelecting)
@@ -104,28 +119,53 @@ struct PhotosScreen: View {
         }
     }
 
+    // MARK: - Navigation Bar Toolbar (Referencing Image 3 GitHub Multi-select)
+
     @ToolbarContentBuilder
     private var topBarToolbar: some ToolbarContent {
         if isSelecting {
-            if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarLeading) { selectAllButton }
-                    .sharedBackgroundVisibility(.hidden)
-                ToolbarItem(placement: .topBarTrailing) { cancelButton }
-                    .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .topBarLeading) { selectAllButton }
-                ToolbarItem(placement: .topBarTrailing) { cancelButton }
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    withAnimation(.snappy(duration: 0.22)) { exitSelection() }
+                } label: {
+                    Text("取消")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.primary)
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .liquidGlassCapsule(interactive: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消选择")
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Haptics.selection()
+                    withAnimation(.snappy(duration: 0.2)) {
+                        if selectedPhotoIDs.count == visiblePhotos.count {
+                            selectedPhotoIDs.removeAll()
+                        } else {
+                            selectedPhotoIDs = Set(visiblePhotos.map(\.id))
+                        }
+                    }
+                } label: {
+                    Text(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.appAccent)
+                        .padding(.horizontal, 14)
+                        .frame(height: 32)
+                        .liquidGlassCapsule(interactive: true)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
             }
         } else {
-            if #available(iOS 26, *) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    GlassEffectContainer(spacing: 8) {
-                        HStack(spacing: 8) { selectButton; addButton }
-                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 8) {
+                    selectButton
+                    addButton
                 }
-                .sharedBackgroundVisibility(.hidden)
-            } else {
-                ToolbarItem(placement: .topBarTrailing) { HStack(spacing: 8) { selectButton; addButton } }
             }
         }
     }
@@ -136,58 +176,21 @@ struct PhotosScreen: View {
             Haptics.medium()
         } label: {
             Image(systemName: "checkmark.circle")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(Color.appAccent)
-                .liquidGlassCircle()
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Color.primary)
+                .liquidGlassCircle(size: 38)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
     }
 
-    private var selectAllButton: some View {
-        Button {
-            Haptics.selection()
-            withAnimation(.snappy(duration: 0.2)) {
-                if selectedPhotoIDs.count == visiblePhotos.count {
-                    selectedPhotoIDs.removeAll()
-                } else {
-                    selectedPhotoIDs = Set(visiblePhotos.map(\.id))
-                }
-            }
-        } label: {
-            Text(selectedPhotoIDs.count == visiblePhotos.count ? "取消全选" : "全选")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.appAccent)
-                .padding(.horizontal, 14)
-                .frame(height: 36)
-                .liquidGlassCapsule(interactive: true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("全选或取消全选照片")
-    }
-
-    private var cancelButton: some View {
-        Button {
-            withAnimation(.snappy(duration: 0.25)) { exitSelection() }
-        } label: {
-            Text("完成")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.appAccent)
-                .padding(.horizontal, 14)
-                .frame(height: 36)
-                .liquidGlassCapsule(interactive: true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("完成选择")
-    }
-
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
             Image(systemName: "plus")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(Color.appAccent)
-                .liquidGlassCircle()
+                .liquidGlassCircle(size: 38)
         }
         .buttonStyle(.plain)
         .disabled(isBusy)
@@ -196,6 +199,8 @@ struct PhotosScreen: View {
         .accessibilityHint("保存到未发表，预览后可发表")
     }
 
+    // MARK: - Photo Grid with Swipe to Select
+
     @ViewBuilder
     private var photoGrid: some View {
         if store.isLoading && visiblePhotos.isEmpty && status == .published {
@@ -203,12 +208,21 @@ struct PhotosScreen: View {
         } else if visiblePhotos.isEmpty && (status != .unpublished || store.drafts.isEmpty) {
             ContentUnavailableView(
                 "暂无\(status.title)照片", systemImage: status == .deleted ? "trash" : "photo.on.rectangle",
-                description: Text(status == .deleted ? "删除的照片会保留在这里，可恢复到未发表。" : "点右上角添加照片，或下拉刷新。")
+                description: Text(status == .deleted ? "删除的照片会保留在回收站中。" : "点右上角添加照片，或下拉刷新。")
             )
         } else {
             LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(visiblePhotos) { photo in
                     photoCell(photo)
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear
+                                    .preference(
+                                        key: PhotoFramePreferenceKey.self,
+                                        value: [photo.id: geo.frame(in: .named("PhotoGridSpace"))]
+                                    )
+                            }
+                        )
                 }
                 if status == .unpublished {
                     ForEach(store.drafts) { draft in
@@ -222,12 +236,42 @@ struct PhotosScreen: View {
                     }
                 }
             }
+            .onPreferenceChange(PhotoFramePreferenceKey.self) { frames in
+                photoFrames = frames
+            }
+            .gesture(
+                isSelecting ? swipeSelectGesture : nil
+            )
             .onDrop(of: [.text], delegate: PhotoReorderDrop(
                 destinationID: nil, draggingID: $draggingPhotoID,
                 hoveredID: $hoveredPhotoID, library: library
             ))
             .animation(.snappy(duration: 0.25), value: visiblePhotos.map(\.id))
         }
+    }
+
+    // Swipe to select gesture (Apple Photos official experience)
+    private var swipeSelectGesture: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                let point = value.location
+                for (id, frame) in photoFrames {
+                    if frame.contains(point) && !swipedPhotoIDs.contains(id) {
+                        swipedPhotoIDs.insert(id)
+                        Haptics.selection()
+                        withAnimation(.snappy(duration: 0.12)) {
+                            if selectedPhotoIDs.contains(id) {
+                                selectedPhotoIDs.remove(id)
+                            } else {
+                                selectedPhotoIDs.insert(id)
+                            }
+                        }
+                    }
+                }
+            }
+            .onEnded { _ in
+                swipedPhotoIDs.removeAll()
+            }
     }
 
     /// Bound both drawing and hit testing to the tile, including very tall images.
@@ -249,7 +293,6 @@ struct PhotosScreen: View {
     }
 
     private func photoImage(_ photo: WebsitePhoto) -> some View {
-        // Prefer a retained local copy so published photos survive network outages.
         if let local = library.localPreviewURL(for: photo.id) {
             return AnyView(LocalPhotoImage(url: local))
         }
@@ -268,30 +311,42 @@ struct PhotosScreen: View {
         }
     }
 
+    // Official Apple Photos Style Checkmark Selection (Right-Bottom Checkmark, No Heavy Border)
     private func selectableCell(_ photo: WebsitePhoto) -> some View {
-        Button {
+        let isSelected = selectedPhotoIDs.contains(photo.id)
+        return Button {
             toggleSelection(photo)
         } label: {
             photoTile { photoImage(photo) }
+                .scaleEffect(isSelected ? 0.95 : 1.0)
+                .opacity(isSelected ? 0.92 : 1.0)
         }
         .buttonStyle(.plain)
-        .overlay(alignment: .topTrailing) {
-            if selectedPhotoIDs.contains(photo.id) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(.white, Color.appAccent)
-                    .padding(6)
+        .overlay(alignment: .bottomTrailing) {
+            ZStack {
+                if isSelected {
+                    Circle()
+                        .fill(Color.appAccent)
+                        .frame(width: 24, height: 24)
+                        .overlay {
+                            Circle().strokeBorder(Color.white, lineWidth: 1.6)
+                        }
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                } else {
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.85), lineWidth: 1.4)
+                        .background(Circle().fill(Color.black.opacity(0.25)))
+                        .frame(width: 24, height: 24)
+                }
             }
+            .padding(8)
+            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
         }
-        .overlay {
-            if selectedPhotoIDs.contains(photo.id) {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.appAccent, lineWidth: 2.5)
-            }
-        }
-        .animation(.snappy(duration: 0.15), value: selectedPhotoIDs.contains(photo.id))
+        .animation(.snappy(duration: 0.16), value: isSelected)
         .accessibilityLabel(photo.title)
-        .accessibilityValue(selectedPhotoIDs.contains(photo.id) ? "已选择" : "未选择")
+        .accessibilityValue(isSelected ? "已选择" : "未选择")
         .accessibilityIdentifier("photo-tile-\(photo.id)")
     }
 
@@ -330,35 +385,83 @@ struct PhotosScreen: View {
         ))
     }
 
+    // MARK: - Harmonized, Well-proportioned Floating Batch Bar (Balancing with Tab Bar)
+
     @ViewBuilder
     private var batchBar: some View {
         HStack(spacing: 12) {
-            Text("已选 \(selectedPhotoIDs.count) 张")
-                .font(.subheadline.weight(.semibold))
+            Text("已选 \(selectedPhotoIDs.count)")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
-            Spacer()
+                .padding(.leading, 6)
+
+            Spacer(minLength: 4)
+
             if status == .unpublished {
-                Button("发表") { publishSelected() }
-                    .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-                Button("移到回收站") { trashSelected() }
-                    .disabled(selectedPhotoIDs.isEmpty)
+                Button {
+                    publishSelected()
+                } label: {
+                    Text("发表")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(
+                            selectedPhotoIDs.isEmpty ? Color.secondary.opacity(0.15) : Color.appAccent,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(!canPublish || selectedPhotoIDs.isEmpty)
+
+                Button {
+                    trashSelected()
+                } label: {
+                    Text("移到回收站")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.red.opacity(selectedPhotoIDs.isEmpty ? 0.05 : 0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedPhotoIDs.isEmpty)
             } else {
-                Button("下架") { unpublishSelected() }
-                    .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-                Button("移到回收站") { trashSelected() }
-                    .disabled(selectedPhotoIDs.isEmpty)
+                Button {
+                    unpublishSelected()
+                } label: {
+                    Text("下架")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(Color.secondary.opacity(0.15), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canPublish || selectedPhotoIDs.isEmpty)
+
+                Button {
+                    trashSelected()
+                } label: {
+                    Text("移到回收站")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.red.opacity(selectedPhotoIDs.isEmpty ? 0.05 : 0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedPhotoIDs.isEmpty)
             }
         }
-        .buttonStyle(.bordered)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: 320)
         .liquidGlassCapsule(interactive: true)
-        .padding(.horizontal, 16)
-        .padding(.bottom, 8)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .padding(.bottom, 12)
     }
 
-    // MARK: - Selection & batch actions
+    // MARK: - Selection & Batch Actions
 
     private func toggleSelection(_ photo: WebsitePhoto) {
         if selectedPhotoIDs.contains(photo.id) {
@@ -373,6 +476,7 @@ struct PhotosScreen: View {
     private func exitSelection() {
         isSelecting = false
         selectedPhotoIDs.removeAll()
+        swipedPhotoIDs.removeAll()
         Haptics.light()
     }
 
@@ -445,8 +549,16 @@ struct PhotosScreen: View {
     }
 }
 
-/// Reorders published photos while a drag is in flight. `movePhoto` writes both the
-/// local wall order and the staged website order in one atomic transaction.
+// MARK: - PreferenceKey for Swipe to Select
+
+private struct PhotoFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGRect] = [:]
+    static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+/// Reorders published photos while a drag is in flight.
 private struct PhotoReorderDrop: DropDelegate {
     let destinationID: String?
     @Binding var draggingID: String?

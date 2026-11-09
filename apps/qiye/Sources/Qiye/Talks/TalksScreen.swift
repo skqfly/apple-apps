@@ -86,7 +86,7 @@ struct TalksScreen: View {
         }
         .background(Color.appBackground)
         .navigationTitle("说说")
-        .searchable(text: $store.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索说说")
+        .searchable(text: $store.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索说说")
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
             TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }

@@ -80,7 +80,7 @@ struct ContributionCalendarView: View {
                             scrollTo(year: year)
                         } label: {
                             HStack {
-                                Text("\(year) 年")
+                                Text(verbatim: "\(year) 年")
                                 if displayedYear == year {
                                     Image(systemName: "checkmark")
                                 }
@@ -95,7 +95,7 @@ struct ContributionCalendarView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Text("\(displayedYear)")
+                        Text(verbatim: "\(displayedYear)")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                         Image(systemName: "chevron.down")
                             .font(.system(size: 10, weight: .bold))

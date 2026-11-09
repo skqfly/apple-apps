@@ -9,29 +9,46 @@ struct HomeScreen: View {
     @State private var showsPushResult = false
     @State private var showsPendingPushResult = false
     @State private var showsPendingDetails = false
+    @State private var showsWebsiteDetails = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    private var canClickPush: Bool {
+        !pending.isCommitting && !pending.changes.isEmpty && canPush
+    }
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                pendingCard
-                websiteCard
+            VStack(alignment: .leading, spacing: 18) {
+                // Top status chip (Refined, un-tinted, concise)
+                statusSummaryBar
+
+                // Activity (English GitHub Calendar card matching reference)
                 contributionsCard
+
+                // Actions (Workflow runs)
                 workflowsCard
+
                 refreshStatus
             }
             .padding(.horizontal, 16)
-            .padding(.top, 8)
+            .padding(.top, 12)
             .padding(.bottom, 96)
         }
-        .background(DashboardStyle.background(colorScheme))
-        .tint(DashboardStyle.accent(colorScheme))
+        .background(Color.appBackground)
+        .navigationTitle("主页")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                headerActionButtons
+            }
+        }
         .sheet(isPresented: $showsPendingDetails) {
             pendingDetails
-                .tint(DashboardStyle.accent(colorScheme))
         }
-        .navigationTitle("首页")
+        .sheet(isPresented: $showsWebsiteDetails) {
+            websiteDetailsSheet
+        }
         .task {
             if store.lastRefreshedAt == nil { await store.refresh() }
         }
@@ -41,79 +58,208 @@ struct HomeScreen: View {
         } message: { Text(pushMessage ?? "") }
     }
 
-    private var pendingCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    pendingSummary
-                    Spacer(minLength: 0)
-                    pushButton
+    // MARK: - Navigation Bar Right Actions (Referencing GitHub Top Right Group)
+
+    private var headerActionButtons: some View {
+        HStack(spacing: 8) {
+            // Website button
+            Button {
+                Haptics.light()
+                showsWebsiteDetails = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "globe")
+                        .font(.system(size: 15, weight: .semibold))
+                    if let health = store.website.value {
+                        Circle()
+                            .fill(health.isReachable ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.orange)
+                            .frame(width: 6, height: 6)
+                    }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    pendingSummary
-                    pushButton
+                .foregroundStyle(Color.primary)
+                .frame(height: 36)
+                .padding(.horizontal, 10)
+                .liquidGlassCapsule(interactive: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("网站状态与仓库")
+
+            // Staging & Push button
+            Button {
+                Haptics.light()
+                showsPendingDetails = true
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    HStack(spacing: 5) {
+                        Image(systemName: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(pending.changes.isEmpty ? Color.secondary : Color.appAccent)
+
+                        if !pending.changes.isEmpty {
+                            Text("\(pending.changes.count)")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(Color.appAccent)
+                        }
+                    }
+                    .frame(height: 36)
+                    .padding(.horizontal, 11)
+                    .liquidGlassCapsule(interactive: true)
                 }
             }
-            if let error = pending.error {
-                DashboardErrorNote(message: error)
+            .buttonStyle(.plain)
+            .accessibilityLabel("待推送改动，\(pending.changes.count) 项")
+        }
+    }
+
+    // MARK: - Refined Status Summary Bar (Un-tinted, Elegant)
+
+    private var statusSummaryBar: some View {
+        HStack(spacing: 8) {
+            // Website indicator
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(websiteStatusColor)
+                    .frame(width: 7, height: 7)
+
+                Link("mmddskq.top", destination: DashboardService.websiteURL)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.primary)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer()
+
+            // Response time or state
+            if let health = store.website.value {
+                Text("\(Int(health.duration * 1_000)) ms")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            } else if store.website.isLoading {
+                Text("检测中…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Deployment status tag
+            if let pages = store.pages.value {
+                Text(pages.statusLabel)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2.5)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .liquidGlassCard(cornerRadius: 14)
+    }
+
+    private var websiteStatusColor: Color {
+        if let health = store.website.value {
+            return health.isReachable ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.orange
+        }
+        return Color.secondary
+    }
+
+    // MARK: - Contributions Card
+
+    @ViewBuilder
+    private var contributionsCard: some View {
+        if let calendar = store.contributions.value {
+            ContributionCalendarView(calendar: calendar, isLoading: store.contributions.isLoading)
+        } else {
+            DashboardCard(title: "Activity", symbol: "github-mark", isLoading: store.contributions.isLoading) {
+                if store.contributions.isLoading {
+                    loading("Loading GitHub activity…")
+                }
+                if let error = store.contributions.error {
+                    DashboardErrorNote(message: error)
+                }
+                Link("View skqfly on GitHub", destination: DashboardService.profileURL)
+                    .font(.caption)
+                    .frame(minHeight: 44, alignment: .leading)
+            }
+        }
+    }
+
+    // MARK: - Actions Card
+
+    private var workflowsCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label("Actions", systemImage: "play.circle")
+                    .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
+                if store.workflows.isLoading {
+                    ProgressView().controlSize(.small)
+                        .accessibilityLabel("正在更新 Actions")
+                }
+                Spacer(minLength: 0)
+                Link("全部运行", destination: DashboardService.actionsURL)
+                    .font(.caption)
+                    .foregroundStyle(Color.appAccent)
+                    .frame(minHeight: 44)
+            }
+            if !store.isConnected {
+                Label("登录 GitHub，查看工作流实时状态。", systemImage: "person.crop.circle")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            }
+            if let runs = store.workflows.value {
+                if runs.isEmpty {
+                    Label("暂无工作流运行记录", systemImage: "tray")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .padding(.vertical, 8)
+                } else {
+                    ForEach(runs) { run in
+                        if run.id != runs.first?.id { Divider() }
+                        DashboardWorkflowRow(run: run)
+                    }
+                }
+            } else if store.workflows.isLoading {
+                loading("正在读取最近的运行记录…")
+            }
+            if let error = store.workflows.error {
+                DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
+            }
+        }
+        .padding(14)
         .liquidGlassCard(cornerRadius: 18)
     }
 
-    private var pendingSummary: some View {
-        Button { showsPendingDetails = true } label: {
-            HStack(spacing: 10) {
-                Image(systemName: pending.changes.isEmpty ? "checkmark.circle" : "tray.and.arrow.up")
-                    .foregroundStyle(DashboardStyle.accent(colorScheme))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(pending.changes.isEmpty ? "暂无待推送" : "\(pending.changes.count) 项待推送")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                    Text(canPush ? "查看暂存详情" : "登录 GitHub 后推送")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
+    // MARK: - Refresh Status
+
+    private var refreshStatus: some View {
+        HStack(spacing: 8) {
+            if store.isRefreshing {
+                Text("正在更新状态…")
+            } else if let date = store.lastRefreshedAt {
+                Text("最近检查")
+                Text(date, style: .relative)
+            } else {
+                Text("下拉刷新网站与 GitHub 状态")
             }
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(minHeight: 44, alignment: .leading)
-            .contentShape(.rect)
+            Spacer(minLength: 4)
+            Button {
+                Haptics.light()
+                Task { await store.refresh() }
+            } label: {
+                Label("刷新状态", systemImage: "arrow.clockwise")
+                    .labelStyle(.iconOnly)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .disabled(store.isRefreshing)
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("打开详情，查看或逐项撤销待推送操作")
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
-    private var pushButton: some View {
-        Button {
-            Haptics.medium()
-            Task { await push() }
-        } label: {
-            HStack(spacing: 6) {
-                if pending.isCommitting {
-                    ProgressView().controlSize(.small).tint(.white)
-                    Text("推送中…")
-                } else {
-                    Label("推送", systemImage: "arrow.up")
-                }
-            }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 34)
-            .liquidGlassProminent(tint: Color.appAccent, cornerRadius: 12)
-        }
-        .buttonStyle(.plain)
-        .disabled(pending.isCommitting || pending.changes.isEmpty || !canPush)
-        .opacity(pending.changes.isEmpty || !canPush ? 0.45 : 1)
-        .accessibilityLabel(pending.isCommitting ? "正在推送" : "推送全部 \(pending.changes.count) 项改动")
-    }
+    // MARK: - Pending Details Sheet
 
     private var pendingDetails: some View {
         NavigationStack {
@@ -124,37 +270,15 @@ struct HomeScreen: View {
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(pending.changes) { change in
-                            let layout = dynamicTypeSize.isAccessibilitySize
-                                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-                                : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-                            layout {
-                                Image(systemName: changeSymbol(change))
-                                    .foregroundStyle(DashboardStyle.accent(colorScheme))
-                                    .frame(minHeight: 44)
-                                    .accessibilityHidden(true)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(change.kind.label).font(.subheadline.weight(.semibold))
-                                    Text(changeSummary(change))
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                .padding(.vertical, 8)
-                                if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
-                                Button("撤销") { pending.remove(change) }
-                                    .font(.subheadline)
-                                    .frame(minWidth: 44, minHeight: 44)
-                                    .buttonStyle(.borderless)
-                                    .disabled(pending.isCommitting)
-                                    .accessibilityLabel("撤销\(change.kind.label)，\(changeSummary(change))")
-                            }
+                            pendingRow(change)
                         }
                     }
                 } header: {
                     Text("\(pending.changes.count) 项暂存操作")
                 } footer: {
-                    Text("改动暂存在本机，推送后才会提交到 GitHub。")
+                    Text("改动暂存在本机，点击下方推送即可提交到 GitHub。")
                 }
+
                 Section {
                     pushButton
                     if let error = pending.error { DashboardErrorNote(message: error) }
@@ -166,12 +290,126 @@ struct HomeScreen: View {
             }
             .navigationTitle("待推送变更")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showsPendingDetails = false }
+                }
+            }
         }
         .presentationDragIndicator(.visible)
         .alert("推送结果", isPresented: $showsPendingPushResult) {
             Button("好", role: .cancel) { }
         } message: { Text(pushMessage ?? "") }
     }
+
+    private func pendingRow(_ change: PendingChange) -> some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        return layout {
+            Image(systemName: changeSymbol(change))
+                .foregroundStyle(Color.appAccent)
+                .frame(minHeight: 44)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(change.kind.label).font(.subheadline.weight(.semibold))
+                Text(changeSummary(change))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 8)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            Button("撤销") { pending.remove(change) }
+                .font(.subheadline)
+                .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.borderless)
+                .disabled(pending.isCommitting)
+                .accessibilityLabel("撤销\(change.kind.label)，\(changeSummary(change))")
+        }
+    }
+
+    // High-contrast, clear Push Button
+    private var pushButton: some View {
+        Button {
+            Haptics.medium()
+            Task { await push() }
+        } label: {
+            HStack {
+                Spacer()
+                if pending.isCommitting {
+                    ProgressView().controlSize(.small).tint(.white)
+                    Text("正在推送…")
+                } else {
+                    Label("推送全部更改", systemImage: "arrow.up.circle.fill")
+                }
+                Spacer()
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(canClickPush ? Color.white : Color.primary.opacity(0.35))
+            .padding(.vertical, 12)
+            .background(
+                canClickPush
+                    ? Color.appAccent
+                    : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)),
+                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!canClickPush)
+        .accessibilityLabel(pending.isCommitting ? "正在推送" : "推送全部 \(pending.changes.count) 项改动")
+    }
+
+    // MARK: - Website Details Sheet
+
+    private var websiteDetailsSheet: some View {
+        NavigationStack {
+            List {
+                Section("网站与访问") {
+                    Link(destination: DashboardService.websiteURL) {
+                        HStack {
+                            Label("mmddskq.top", systemImage: "globe")
+                            Spacer()
+                            Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    if let health = store.website.value {
+                        LabeledContent("状态", value: health.isReachable ? "正常可访问" : "响应异常")
+                        LabeledContent("HTTP 响应码", value: "\(health.statusCode)")
+                        LabeledContent("响应耗时", value: "\(Int(health.duration * 1000)) ms")
+                        LabeledContent("上次检测", value: health.checkedAt.formatted(date: .abbreviated, time: .shortened))
+                    }
+                }
+
+                if store.isConnected {
+                    Section("仓库与部署") {
+                        if let repo = store.repository.value {
+                            Link(destination: repo.htmlURL) {
+                                LabeledContent("仓库分支", value: "\(repo.defaultBranch)")
+                            }
+                            LabeledContent("最近推送", value: repo.pushedAt?.formatted(date: .abbreviated, time: .shortened) ?? "未知")
+                        }
+                        if let pages = store.pages.value {
+                            LabeledContent("Pages 状态", value: pages.statusLabel)
+                            if let branch = pages.source?.branch {
+                                LabeledContent("来源分支", value: branch)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("站点详情")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { showsWebsiteDetails = false }
+                }
+            }
+        }
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - Helpers
 
     private func changeSummary(_ change: PendingChange) -> String {
         switch change.kind {
@@ -210,241 +448,6 @@ struct HomeScreen: View {
             showsPendingPushResult = true
         } else {
             showsPushResult = true
-        }
-    }
-
-    private var refreshStatus: some View {
-        HStack(spacing: 8) {
-            if store.isRefreshing {
-                Text("正在更新状态…")
-            } else if let date = store.lastRefreshedAt {
-                Text("最近检查")
-                Text(date, style: .relative)
-            } else {
-                Text("下拉刷新网站与 GitHub 状态")
-            }
-            Spacer(minLength: 4)
-            Button {
-                Task { await store.refresh() }
-            } label: {
-                Label("刷新状态", systemImage: "arrow.clockwise")
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-            .disabled(store.isRefreshing)
-        }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-
-    private var websiteCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    websiteLink
-                    Spacer(minLength: 0)
-                    websiteSummary
-                }
-                VStack(alignment: .leading, spacing: 4) {
-                    websiteLink
-                    websiteSummary
-                }
-            }
-            if let error = store.website.error {
-                DashboardErrorNote(message: error, showsPrevious: store.website.value != nil)
-                if let health = store.website.value {
-                    Text("上次检测：\(health.checkedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            if store.isConnected {
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 12) {
-                        repositoryDetails
-                        pagesDetails
-                    }
-                    .padding(.vertical, 8)
-                } label: {
-                    HStack(spacing: 6) {
-                        Text("仓库与部署")
-                        if let pages = store.pages.value {
-                            Text("· \(pages.statusLabel)").foregroundStyle(.secondary)
-                        }
-                        if store.repository.isLoading || store.pages.isLoading {
-                            ProgressView().controlSize(.mini)
-                        } else if store.repository.error != nil || store.pages.error != nil {
-                            Image(systemName: "exclamationmark.circle")
-                                .foregroundStyle(.orange)
-                                .accessibilityLabel("仓库或部署状态读取失败，展开查看")
-                        }
-                    }
-                    .font(.caption)
-                    .frame(minHeight: 44, alignment: .leading)
-                }
-            }
-        }
-        .padding(14)
-        .liquidGlassCard(cornerRadius: 18)
-    }
-
-    private var websiteLink: some View {
-        Link(destination: DashboardService.websiteURL) {
-            HStack(spacing: 8) {
-                Image(systemName: "globe")
-                    .foregroundStyle(DashboardStyle.accent(colorScheme))
-                Text("mmddskq.top").font(.subheadline.weight(.semibold))
-                Image(systemName: "arrow.up.right").font(.caption)
-            }
-            .frame(minHeight: 44, alignment: .leading)
-        }
-        .accessibilityLabel("网站状态，打开 mmddskq.top")
-    }
-
-    @ViewBuilder private var websiteSummary: some View {
-        if let health = store.website.value {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 8) { healthSummary(health) }
-                VStack(alignment: .leading, spacing: 4) { healthSummary(health) }
-            }
-        } else if store.website.isLoading {
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("检测中…").font(.caption).foregroundStyle(.secondary)
-            }
-        } else {
-            Label("状态未确认", systemImage: "questionmark.circle")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    @ViewBuilder private func healthSummary(_ health: WebsiteHealth) -> some View {
-        Label(health.isReachable ? "可访问" : "响应异常", systemImage: health.isReachable ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-            .font(.caption.weight(.medium))
-            .foregroundStyle(health.isReachable ? DashboardStyle.accent(colorScheme) : Color.orange)
-        Text("HTTP \(health.statusCode) · \((health.duration * 1_000).formatted(.number.precision(.fractionLength(0)))) ms")
-            .font(.caption.monospacedDigit())
-            .foregroundStyle(.secondary)
-    }
-
-    private var repositoryDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let repo = store.repository.value {
-                Link(destination: repo.htmlURL) {
-                    Label("\(repo.defaultBranch) · 仓库", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
-                        .font(.subheadline)
-                        .frame(minHeight: 32, alignment: .leading)
-                }
-                HStack(alignment: .firstTextBaseline) {
-                    Text("仓库更新")
-                    Spacer()
-                    Text(repo.updatedAt, style: .relative)
-                }
-                .font(.caption).foregroundStyle(.secondary)
-                if let pushed = repo.pushedAt {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("最近推送")
-                        Spacer()
-                        Text(pushed, style: .relative)
-                    }
-                    .font(.caption).foregroundStyle(.secondary)
-                }
-            } else if store.repository.isLoading {
-                loading("正在读取仓库信息…")
-            }
-            if let error = store.repository.error {
-                DashboardErrorNote(message: error, showsPrevious: store.repository.value != nil)
-            }
-        }
-    }
-
-    private var pagesDetails: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let pages = store.pages.value {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("GitHub Pages")
-                    Spacer()
-                    Text(pages.statusLabel)
-                }
-                .font(.caption).foregroundStyle(.secondary)
-                if let branch = pages.source?.branch {
-                    Text("Pages 来源分支：\(branch)").font(.caption).foregroundStyle(.secondary)
-                }
-                if let url = pages.htmlURL {
-                    Link("查看 Pages 网站", destination: url).font(.caption)
-                }
-            } else if store.pages.isLoading {
-                loading("正在读取 Pages 构建信息…")
-            }
-            if let error = store.pages.error {
-                DashboardErrorNote(message: error, showsPrevious: store.pages.value != nil)
-            }
-        }
-    }
-
-    private var workflowsCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Label("Actions", systemImage: "play.circle")
-                    .font(.headline)
-                    .accessibilityAddTraits(.isHeader)
-                if store.workflows.isLoading {
-                    ProgressView().controlSize(.small)
-                        .accessibilityLabel("正在更新 Actions")
-                }
-                Spacer(minLength: 0)
-                Link("全部运行", destination: DashboardService.actionsURL)
-                    .font(.caption)
-                    .frame(minHeight: 44)
-            }
-            if !store.isConnected {
-                Label("登录 GitHub，查看工作流实时状态。", systemImage: "person.crop.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            }
-            if let runs = store.workflows.value {
-                if runs.isEmpty {
-                    Label("暂无工作流运行记录", systemImage: "tray")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
-                } else {
-                    ForEach(runs) { run in
-                        if run.id != runs.first?.id { Divider() }
-                        DashboardWorkflowRow(run: run)
-                    }
-                }
-            } else if store.workflows.isLoading {
-                loading("正在读取最近的运行记录…")
-            }
-            if let error = store.workflows.error {
-                DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
-            }
-        }
-        .padding(14)
-        .liquidGlassCard(cornerRadius: 18)
-    }
-
-    @ViewBuilder private var contributionsCard: some View {
-        if let calendar = store.contributions.value {
-            VStack(alignment: .leading, spacing: 8) {
-                ContributionCalendarView(calendar: calendar, isLoading: store.contributions.isLoading)
-                if let error = store.contributions.error {
-                    DashboardErrorNote(message: error, showsPrevious: true)
-                        .padding(.horizontal, 4)
-                }
-            }
-        } else {
-            DashboardCard(title: "Activity", symbol: "github-mark", isLoading: store.contributions.isLoading) {
-                if store.contributions.isLoading {
-                    loading("Loading GitHub activity…")
-                }
-                if let error = store.contributions.error {
-                    DashboardErrorNote(message: error)
-                }
-                Link("View skqfly on GitHub", destination: DashboardService.profileURL)
-                    .font(.caption)
-                    .frame(minHeight: 44, alignment: .leading)
-            }
         }
     }
 

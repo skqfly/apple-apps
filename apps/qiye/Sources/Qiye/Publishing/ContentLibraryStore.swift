@@ -238,7 +238,7 @@ final class ContentLibraryStore {
         pending.collectUnusedImages()
     }
 
-    func saveTalk(text: String, date: Date, kept: [TalkImage], newImages: [(jpeg: Data, width: Int, height: Int)], editing: TalkPost?) throws {
+    func saveTalk(text: String, date: Date, kept: [TalkImage], newImages: [(jpeg: Data, width: Int, height: Int)], editing: TalkPost?, targetState: ContentStatusFilter? = nil) throws {
         let id = editing?.id ?? "qiye-\(UUID().uuidString.lowercased())"
         let kept = try kept.map { image -> TalkImage in
             guard let url = image.originalURL, url.isFileURL else { return image }
@@ -262,7 +262,8 @@ final class ContentLibraryStore {
                     document.rememberTalkUndo(original)
                 }
                 let post = TalkPost(id: id, date: date, description: text, images: kept + localImages)
-                document.talks[id] = .init(post: post, state: original?.state ?? .unpublished,
+                let resolvedState = targetState ?? (original?.state ?? .unpublished)
+                document.talks[id] = .init(post: post, state: resolvedState,
                                            remote: original?.remote, publishedSources: original?.publishedSources,
                                            order: original?.order ?? ((document.talks.values.compactMap(\.order).min() ?? 0) - 1))
                 try pending.reconcileTalk(id, in: &document)

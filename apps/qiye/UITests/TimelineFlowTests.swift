@@ -108,9 +108,13 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
         capture("Photo collection")
         photo.tap()
-        XCTAssertTrue(app.buttons["media-viewer-close"].waitForExistence(timeout: 5))
+        let close = app.buttons["关闭"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let thumbnails = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "转到第"))
+        XCTAssertGreaterThan(thumbnails.count, 1, "The first photo must open with the complete collection for browsing")
+        thumbnails.element(boundBy: 1).tap()
         capture("Photo filmstrip")
-        app.buttons["media-viewer-close"].tap()
+        close.tap()
 
         app.buttons["tab-home"].tap()
         let projects = app.buttons["collection-projects"]

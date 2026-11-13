@@ -15,9 +15,7 @@ struct PhotosScreen: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var status: ContentStatusFilter = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") ? .unpublished : .published
     @State private var pickerItems: [PhotosPickerItem] = []
-    @State private var selection: PhotoSelection?
-    @State private var viewingPhotos: [WebsitePhoto] = []
-    @State private var viewingDrafts: [PhotoDraft] = []
+    @State private var gallery: PhotoGallery?
     @State private var importMessage: String?
     @State private var showsImportResult = false
     @State private var isMovingDrafts = false
@@ -96,11 +94,11 @@ struct PhotosScreen: View {
         .alert("照片", isPresented: $showsImportResult) {
             Button("好", role: .cancel) { }
         } message: { Text(importMessage ?? "") }
-        .fullScreenCover(item: $selection) { selected in
+        .fullScreenCover(item: $gallery) { gallery in
             PhotoDetailScreen(
-                selection: selected, store: store, repository: repository, pending: pending,
+                selection: gallery.selection, store: store, repository: repository, pending: pending,
                 library: library, canPublish: canPublish,
-                photos: viewingPhotos, drafts: viewingDrafts
+                photos: gallery.photos, drafts: gallery.drafts
             )
         }
         .safeAreaInset(edge: .bottom) {
@@ -485,9 +483,8 @@ struct PhotosScreen: View {
     }
 
     private func open(_ photo: PhotoSelection) {
-        viewingPhotos = visiblePhotos
-        viewingDrafts = status == .unpublished ? store.drafts : []
-        selection = photo
+        gallery = PhotoGallery(selection: photo, photos: visiblePhotos,
+                               drafts: status == .unpublished ? store.drafts : [])
     }
 
     private func refresh() async {
@@ -569,4 +566,12 @@ private struct PhotoReorderDrop: DropDelegate {
         Haptics.medium()
         return true
     }
+}
+
+/// Capture the selected item and its browsing context in one presentation value.
+private struct PhotoGallery: Identifiable {
+    let selection: PhotoSelection
+    let photos: [WebsitePhoto]
+    let drafts: [PhotoDraft]
+    var id: String { selection.id }
 }

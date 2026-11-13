@@ -138,7 +138,7 @@ struct AppearanceSettingsScreen: View {
             } header: {
                 Text("主题强调色")
             } footer: {
-                Text("所选颜色将实时应用到全 App 的按钮、标签、高亮及卡片装饰中。")
+                Text("所选颜色用于发布操作与内容状态提示，导航和内容卡片使用中性色。")
             }
         }
         .navigationTitle("外观与主题")

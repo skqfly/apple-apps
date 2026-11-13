@@ -23,9 +23,9 @@ for mode in light dark; do
     for count in six nine; do
         xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
         if [ "$count" = nine ]; then
-            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content --nine-first
+            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content --nine-first -appearance "$mode"
         else
-            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content
+            xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab talks --uitest-content -appearance "$mode"
         fi
         sleep 3
         xcrun simctl io "$simulator_id" screenshot "$output_dir/talks-$count-$mode.png"
@@ -35,7 +35,7 @@ for mode in light dark; do
     xcrun simctl ui "$simulator_id" appearance "$mode"
     for tab in home blog talks photos; do
         xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
-        xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab "$tab"
+        xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab "$tab" -appearance "$mode"
         sleep 8
         xcrun simctl io "$simulator_id" screenshot "$output_dir/$tab-$mode.png"
     done

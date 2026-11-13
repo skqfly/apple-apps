@@ -54,7 +54,7 @@ struct PhotoDetailScreen: View {
             Button("移到回收站", role: .destructive) { moveToTrash() }
             Button("取消", role: .cancel) { deleteTarget = nil }
         } message: {
-            Text("照片将存放在个人中心的回收站，可随时找回或彻底清除。网站变更会在首页推送后生效。")
+            Text("照片将存放在个人中心的回收站，可随时找回或彻底清除。网站变更会在“发布与同步”中推送后生效。")
         }
         .confirmationDialog("彻底删除这张照片？", isPresented: $confirmsPurge, titleVisibility: .visible) {
             Button("彻底删除", role: .destructive) { purge() }
@@ -132,7 +132,7 @@ struct PhotoDetailScreen: View {
     private func setState(_ photo: WebsitePhoto, to state: ContentStatusFilter) {
         do {
             try library.setPhotoState(photo, to: state)
-            report("照片已设为\(state.title)。网站变更会在首页推送后生效。")
+            report("照片已设为\(state.title)。网站变更会在“发布与同步”中推送后生效。")
         } catch { report(error.localizedDescription) }
     }
 
@@ -142,7 +142,7 @@ struct PhotoDetailScreen: View {
         do {
             try library.setPhotoState(photo, to: .deleted)
             dismissesAfterMessage = true
-            report("已移到回收站，可在个人中心查看与恢复。网站变更会在首页推送后生效。")
+            report("已移到回收站，可在个人中心查看与恢复。网站变更会在“发布与同步”中推送后生效。")
         } catch { report(error.localizedDescription) }
     }
 
@@ -159,7 +159,7 @@ struct PhotoDetailScreen: View {
         do {
             try library.purgePhoto(photo)
             dismissesAfterMessage = true
-            report("照片已彻底删除。网站变更会在首页推送后生效。")
+            report("照片已彻底删除。网站变更会在“发布与同步”中推送后生效。")
         } catch { report(error.localizedDescription) }
     }
 

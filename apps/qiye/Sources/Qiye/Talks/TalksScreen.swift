@@ -94,7 +94,7 @@ struct TalksScreen: View {
             TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }
         }
         .sheet(item: $editing) { post in
-            TalkEditorSheet(post: post, library: library) { showNotice("已保存修改；公开内容将在首页推送后更新") }
+            TalkEditorSheet(post: post, library: library) { showNotice("已保存修改；公开内容将在“发布与同步”中推送后更新") }
         }
         .fullScreenCover(item: $viewing) { selection in
             MediaViewer(items: selection.items, initialIndex: selection.index)
@@ -167,7 +167,7 @@ struct TalksScreen: View {
     private func change(_ post: TalkPost, to state: ContentStatusFilter) {
         do {
             try library.setTalkState(post, to: state)
-            showNotice(state == .published ? "已加入发表队列，去首页推送即可" : "已设为\(state.title)")
+            showNotice(state == .published ? "已加入发表队列，去收藏页右上角推送即可" : "已设为\(state.title)")
         } catch {
             showNotice(error.localizedDescription)
         }

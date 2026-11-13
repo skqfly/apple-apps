@@ -40,79 +40,38 @@ enum Haptics {
 
 // MARK: - Apple Native Navigation Toolbar Button Styles (Photos & Files Parity)
 
-/// Standard Apple Photos / Files navigation bar capsule text button (e.g. "选择", "取消", "全选").
-/// Features optical transparency, subtle specular rim highlight, and spring press feedback.
+/// Compact controls share the neutral collection palette.
 struct AppleNavCapsuleButtonStyle: ButtonStyle {
     var isSelected: Bool = false
     var isAccentText: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
-            .foregroundStyle(isAccentText ? Color.appAccent : Color.primary)
-            .padding(.horizontal, 14)
-            .frame(height: 34)
-            .background {
-                if #available(iOS 26, *) {
-                    Capsule()
-                        .fill(isSelected ? Color.appAccent : Color.clear)
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                } else {
-                    Capsule()
-                        .fill(
-                            isSelected
-                                ? Color.appAccent
-                                : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
-                        )
-                        .overlay {
-                            if !isSelected {
-                                Capsule()
-                                    .strokeBorder(
-                                        colorScheme == .dark ? Color.white.opacity(0.12) : Color.white.opacity(0.50),
-                                        lineWidth: 0.6
-                                    )
-                            }
-                        }
-                }
-            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
+            .padding(.horizontal, 14).frame(minHeight: 36)
+            .background(isSelected ? Color.primary : Color.primary.opacity(0.08), in: Capsule())
             .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1)
+            .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
     }
 }
 
-/// Standard Apple circular navigation bar button (34x34pt).
-/// Pure optical lens with responsive spring touch feel and high-contrast dark foreground.
 struct AppleNavCircleButtonStyle: ButtonStyle {
     var size: CGFloat = 34
     var isAccent: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(isAccent ? Color.appAccent : Color.primary)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(Color.primary)
             .frame(width: size, height: size)
-            .background {
-                if #available(iOS 26, *) {
-                    Circle()
-                        .glassEffect(.regular.interactive(), in: .circle)
-                } else {
-                    Circle()
-                        .fill(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.05))
-                        .overlay {
-                            Circle()
-                                .strokeBorder(
-                                    colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08),
-                                    lineWidth: 0.6
-                                )
-                        }
-                }
-            }
+            .background(Color.primary.opacity(isAccent ? 0.14 : 0.08), in: Circle())
             .contentShape(Circle())
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.snappy(duration: 0.15), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.9 : 1)
+            .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
     }
 }
 

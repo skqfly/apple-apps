@@ -343,7 +343,7 @@ struct TalkImageGrid: View {
 
     private func tile(_ image: TalkImage, index: Int, ratio: Double) -> some View {
         Button { open(index) } label: {
-            Color.clear.aspectRatio(ratio, contentMode: .fit)
+            Color.appSurface.aspectRatio(ratio, contentMode: .fit)
                 .overlay {
                     if let url = image.url {
                         Group {
@@ -359,7 +359,7 @@ struct TalkImageGrid: View {
                 }
                 .clipped().clipShape(.rect(cornerRadius: 9)).contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CollectionPressStyle())
         .accessibilityLabel("查看第\(index + 1)张图片")
         .accessibilityIdentifier("talk-image-\(index)")
     }

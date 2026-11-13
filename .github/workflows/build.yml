@@ -84,6 +84,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/apps/qiye/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png" "$GITHUB_WORKSPACE/dist/"
 
       - name: Build simulator app
+        id: simulator
         run: |
           xcodebuild -quiet \
             -project Qiye.xcodeproj -scheme Qiye -configuration Debug \
@@ -95,6 +96,7 @@ jobs:
         run: bash ../../scripts/test-long-photo.sh
 
       - name: Capture actual app in light and dark
+        if: always() && steps.simulator.outcome == 'success'
         run: bash ../../scripts/capture-simulator.sh "$RUNNER_TEMP/SimulatorBuild/Build/Products/Debug-iphonesimulator/Qiye.app" "$GITHUB_WORKSPACE/dist"
 
       - uses: actions/upload-artifact@v4

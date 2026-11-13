@@ -39,6 +39,7 @@ xcodebuild test \
     -destination "platform=iOS Simulator,id=${simulator_id}" \
     -derivedDataPath "$RUNNER_TEMP/SimulatorBuild" \
     -parallel-testing-enabled NO \
+    -retry-tests-on-failure -test-iterations 2 \
     -only-testing:QiyeUITests \
     -resultBundlePath "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" \
     CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES

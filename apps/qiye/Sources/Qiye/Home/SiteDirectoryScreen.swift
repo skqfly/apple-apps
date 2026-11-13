@@ -87,15 +87,8 @@ struct SiteDirectoryScreen: View {
                 ForEach(entries) { entry in
                     Button { selected = entry; Haptics.light() } label: {
                         VStack(alignment: .leading, spacing: 0) {
-                            ZStack {
-                                CollectionArtwork(name: kind == .projects ? "glassCabinet" : "sunlitWalk")
-                                if let imageURL = entry.imageURL {
-                                    AsyncImage(url: imageURL) { phase in
-                                        if let image = phase.image { image.resizable().scaledToFill() }
-                                    }
-                                }
-                            }
-                            .frame(height: kind == .projects ? 190 : 140).clipped()
+                            DirectoryArtwork(entry: entry, kind: kind)
+                                .frame(height: kind == .projects ? 190 : 140)
                             HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(entry.title).font(.title3.weight(.semibold))
@@ -134,7 +127,7 @@ private struct DirectoryEntrySheet: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                CollectionArtwork(name: kind == .projects ? "glassCabinet" : "sunlitWalk")
+                DirectoryArtwork(entry: entry, kind: kind)
                     .frame(height: 220).clipShape(.rect(cornerRadius: 22))
                 Text(entry.title).font(.largeTitle.bold())
                 Text(entry.description).font(.body).foregroundStyle(.secondary).lineSpacing(6)
@@ -164,5 +157,29 @@ private struct DirectoryEntrySheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(30)
+    }
+}
+
+private struct DirectoryArtwork: View {
+    let entry: SiteDirectoryEntry
+    let kind: DirectoryKind
+
+    var body: some View {
+        ZStack {
+            Color.primary.opacity(0.04)
+            Image(systemName: kind == .projects ? "cube.transparent" : "person.crop.circle")
+                .font(.system(size: 64, weight: .ultraLight)).foregroundStyle(.tertiary)
+            if let url = entry.imageURL {
+                GeometryReader { geometry in
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image.resizable().scaledToFill()
+                                .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                        }
+                    }
+                }
+            }
+        }
+        .clipped().accessibilityHidden(true)
     }
 }

@@ -94,7 +94,7 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["collection-photos"].waitForExistence(timeout: 15))
         capture("Collections home")
 
-        app.buttons["tab-blog"].tap()
+        app.tabBars.buttons["文章"].tap()
         let article = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "article-")).firstMatch
         XCTAssertTrue(article.waitForExistence(timeout: 10))
         capture("Article collection")
@@ -103,7 +103,7 @@ final class TimelineFlowTests: XCTestCase {
         capture("Article reader")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
-        app.buttons["tab-photos"].tap()
+        app.tabBars.buttons["图片"].tap()
         let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "photo-tile-")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
         capture("Photo collection")
@@ -116,7 +116,7 @@ final class TimelineFlowTests: XCTestCase {
         capture("Photo filmstrip")
         close.tap()
 
-        app.buttons["tab-home"].tap()
+        app.tabBars.buttons["收藏"].tap()
         let projects = app.buttons["collection-projects"]
         if !projects.isHittable { app.swipeUp() }
         XCTAssertTrue(projects.waitForExistence(timeout: 5))

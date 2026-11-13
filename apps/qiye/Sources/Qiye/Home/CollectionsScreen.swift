@@ -93,7 +93,7 @@ struct CollectionsScreen: View {
                     Button("个人中心", systemImage: "person.crop.circle", action: showAccount)
                 }
                 .labelStyle(.iconOnly)
-                .buttonStyle(AppleNavCircleButtonStyle(size: 36))
+
             }
         }
         .task {

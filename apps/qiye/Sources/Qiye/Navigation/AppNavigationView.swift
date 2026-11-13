@@ -15,7 +15,6 @@ struct AppNavigationView: View {
     @State private var library: ContentLibraryStore
     @State private var blog: BlogStore
     @State private var showingStudio = false
-    @Namespace private var tabHighlight
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
@@ -31,13 +30,10 @@ struct AppNavigationView: View {
     @State private var showingAccount = ProcessInfo.processInfo.arguments.contains("--account")
 
     var body: some View {
-        TabView(selection: $selectedSection) {
-            ForEach(SiteSection.allCases) { section in
-                sectionContent(section).tag(section)
-            }
+        Group {
+            if #available(iOS 18, *) { modernTabs }
+            else { legacyTabs }
         }
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) { floatingNavigation }
         .background(Color.appBackground)
         .tint(.primary)
         .sheet(isPresented: $showingAccount) {
@@ -72,39 +68,25 @@ struct AppNavigationView: View {
         }
     }
 
-    private var floatingNavigation: some View {
-        HStack(spacing: 4) {
+    @available(iOS 18, *)
+    private var modernTabs: some View {
+        TabView(selection: $selectedSection) {
             ForEach(SiteSection.allCases) { section in
-                Button {
-                    Haptics.selection()
-                    withAnimation(reduceMotion ? nil : CollectionStyle.spring) { selectedSection = section }
-                } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: section == selectedSection ? section.selectedSymbol : section.symbolName)
-                            .font(.system(size: 19, weight: .medium))
-                        Text(section.title).font(.system(size: 10, weight: .semibold))
-                    }
-                    .frame(maxWidth: .infinity).frame(height: 52)
-                    .foregroundStyle(section == selectedSection ? Color.primary : Color.secondary)
-                    .background {
-                        if section == selectedSection {
-                            Capsule().fill(Color.primary.opacity(0.10))
-                                .matchedGeometryEffect(id: "tab", in: tabHighlight)
-                        }
-                    }
-                    .contentShape(Capsule())
+                Tab(section.title, systemImage: section.symbolName, value: section) {
+                    sectionContent(section)
                 }
-                .buttonStyle(CollectionPressStyle())
-                .accessibilityIdentifier("tab-\(section.rawValue)")
-                .accessibilityAddTraits(section == selectedSection ? [.isSelected] : [])
             }
         }
-        .padding(6)
-        .background(.regularMaterial, in: Capsule())
-        .overlay { Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5) }
-        .shadow(color: .black.opacity(0.24), radius: 20, y: 8)
-        .frame(maxWidth: 400)
-        .padding(.horizontal, 28).padding(.bottom, 8).padding(.top, 8)
+    }
+
+    private var legacyTabs: some View {
+        TabView(selection: $selectedSection) {
+            ForEach(SiteSection.allCases) { section in
+                sectionContent(section)
+                    .tabItem { Label(section.title, systemImage: section.symbolName) }
+                    .tag(section)
+            }
+        }
     }
 
     private func sectionContent(_ section: SiteSection) -> some View {
@@ -125,7 +107,6 @@ struct AppNavigationView: View {
                 }
             }
             .toolbarBackground(Color.appBackground, for: .navigationBar)
-            .toolbar(.hidden, for: .tabBar)
         }
     }
 

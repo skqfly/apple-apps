@@ -78,11 +78,11 @@ struct BlogScreen: View {
                     Haptics.selection()
                 } label: {
                     Label(newestFirst ? "最新" : "最早", systemImage: newestFirst ? "arrow.down" : "arrow.up")
-                        .font(.caption.weight(.medium)).padding(.horizontal, 13).padding(.vertical, 10)
-                        .background(Color.appSurface, in: Capsule())
+                        .font(.caption.weight(.medium)).padding(.horizontal, 4).padding(.vertical, 3)
                 }
-                .buttonStyle(CollectionPressStyle())
+                .nativeGlassButton()
             }
+            .padding(.vertical, 6)
         }
     }
 
@@ -92,11 +92,10 @@ struct BlogScreen: View {
             Haptics.selection()
         } label: {
             Text(title).font(.caption.weight(.semibold))
-                .padding(.horizontal, 15).padding(.vertical, 10)
+                .padding(.horizontal, 5).padding(.vertical, 3)
                 .foregroundStyle(category == value ? Color.appBackground : Color.primary)
-                .background(category == value ? Color.primary : Color.appSurface, in: Capsule())
         }
-        .buttonStyle(CollectionPressStyle())
+        .nativeGlassButton(prominent: category == value)
         .accessibilityAddTraits(category == value ? [.isSelected] : [])
     }
 }

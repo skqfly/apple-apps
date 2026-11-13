@@ -77,7 +77,7 @@ struct HomeScreen: View {
                     }
                 }
             }
-            .buttonStyle(AppleNavCircleButtonStyle(size: 34))
+
             .accessibilityLabel("网站状态与仓库")
 
             // Staging & Push button
@@ -97,7 +97,7 @@ struct HomeScreen: View {
                     }
                 }
             }
-            .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: !pending.changes.isEmpty))
+
             .accessibilityLabel("待推送改动，\(pending.changes.count) 项")
         }
     }
@@ -337,16 +337,9 @@ struct HomeScreen: View {
                 Spacer()
             }
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(canClickPush ? Color.white : Color.primary.opacity(0.35))
-            .padding(.vertical, 12)
-            .background(
-                canClickPush
-                    ? Color.appAccent
-                    : (colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
+            .padding(.vertical, 8)
         }
-        .buttonStyle(.plain)
+        .nativeGlassButton(prominent: true)
         .disabled(!canClickPush)
         .accessibilityLabel(pending.isCommitting ? "正在推送" : "推送全部 \(pending.changes.count) 项改动")
     }

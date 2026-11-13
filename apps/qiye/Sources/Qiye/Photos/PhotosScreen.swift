@@ -111,6 +111,7 @@ struct PhotosScreen: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .toolbar(isSelecting ? .hidden : .visible, for: .tabBar)
         .animation(.snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
@@ -126,7 +127,7 @@ struct PhotosScreen: View {
                 Button("取消") {
                     withAnimation(.snappy(duration: 0.22)) { exitSelection() }
                 }
-                .buttonStyle(AppleNavCapsuleButtonStyle())
+
                 .accessibilityLabel("取消选择")
             }
 
@@ -141,7 +142,7 @@ struct PhotosScreen: View {
                         }
                     }
                 }
-                .buttonStyle(AppleNavCapsuleButtonStyle(isAccentText: true))
+
                 .accessibilityLabel(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
             }
         } else {
@@ -159,7 +160,7 @@ struct PhotosScreen: View {
             withAnimation(.snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
         }
-        .buttonStyle(AppleNavCapsuleButtonStyle())
+
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
     }
@@ -168,7 +169,7 @@ struct PhotosScreen: View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
             Image(systemName: "plus")
         }
-        .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: true))
+
         .disabled(isBusy)
         .accessibilityLabel("添加照片")
         .accessibilityIdentifier("photo-add-button")

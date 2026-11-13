@@ -147,7 +147,7 @@ struct TalksScreen: View {
         } label: {
             Image(systemName: "square.and.pencil")
         }
-        .buttonStyle(AppleNavCircleButtonStyle(size: 34, isAccent: true))
+
         .accessibilityLabel("写说说")
         .accessibilityIdentifier("compose-talk")
         .disabled(pending.isCommitting)
@@ -313,10 +313,9 @@ private struct TalkTimelineRow: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.secondary)
-                .frame(width: 36, height: 36)
-                .background(Color.primary.opacity(0.06), in: Circle())
+                .foregroundStyle(.primary)
         }
+        .nativeGlassCircleButton()
         .accessibilityLabel("说说操作")
         .accessibilityIdentifier("talk-actions-\(post.id)")
     }

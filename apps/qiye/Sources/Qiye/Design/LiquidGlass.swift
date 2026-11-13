@@ -38,40 +38,25 @@ enum Haptics {
     }
 }
 
-// MARK: - Apple Native Navigation Toolbar Button Styles (Photos & Files Parity)
-
-/// Compact controls share the neutral collection palette.
-struct AppleNavCapsuleButtonStyle: ButtonStyle {
-    var isSelected: Bool = false
-    var isAccentText: Bool = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(isSelected ? Color.appBackground : Color.primary)
-            .padding(.horizontal, 14).frame(minHeight: 36)
-            .background(isSelected ? Color.primary : Color.primary.opacity(0.08), in: Capsule())
-            .contentShape(Capsule())
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.94 : 1)
-            .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
+extension View {
+    @ViewBuilder
+    func nativeGlassButton(prominent: Bool = false) -> some View {
+        if #available(iOS 26, *) {
+            if prominent { buttonStyle(.glassProminent) }
+            else { buttonStyle(.glass) }
+        } else {
+            if prominent { buttonStyle(.borderedProminent) }
+            else { buttonStyle(.bordered) }
+        }
     }
-}
 
-struct AppleNavCircleButtonStyle: ButtonStyle {
-    var size: CGFloat = 34
-    var isAccent: Bool = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(Color.primary)
-            .frame(width: size, height: size)
-            .background(Color.primary.opacity(isAccent ? 0.14 : 0.08), in: Circle())
-            .contentShape(Circle())
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.9 : 1)
-            .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
+    @ViewBuilder
+    func nativeGlassCircleButton() -> some View {
+        if #available(iOS 26, *) {
+            buttonStyle(.glass).buttonBorderShape(.circle).controlSize(.large)
+        } else {
+            buttonStyle(.bordered).buttonBorderShape(.capsule)
+        }
     }
 }
 

@@ -141,10 +141,9 @@ private struct DirectoryEntrySheet: View {
                             Spacer()
                             Image(systemName: "arrow.up.right")
                         }
-                        .font(.headline).padding(18)
-                        .foregroundStyle(Color.appBackground)
-                        .background(Color.primary, in: Capsule())
+                        .font(.headline).padding(12)
                     }
+                    .nativeGlassButton(prominent: true)
                 }
             }
             .padding(24).padding(.top, 24)
@@ -152,7 +151,7 @@ private struct DirectoryEntrySheet: View {
         .background(Color.appBackground)
         .overlay(alignment: .topTrailing) {
             Button("关闭", systemImage: "xmark") { dismiss() }
-                .labelStyle(.iconOnly).buttonStyle(AppleNavCircleButtonStyle(size: 36)).padding(16)
+                .labelStyle(.iconOnly).nativeGlassCircleButton().padding(16)
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)

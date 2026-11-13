@@ -151,7 +151,7 @@ struct MediaViewer: View {
                         }.padding(8)
                     }
                     .frame(maxWidth: 190).frame(height: 60)
-                    .background(.regularMaterial, in: Capsule())
+                    .liquidGlassCapsule(interactive: false)
                     .onChange(of: index) { _, value in
                         guard items.indices.contains(value) else { return }
                         withAnimation(reduceMotion ? nil : CollectionStyle.spring) { proxy.scrollTo(items[value].id, anchor: .center) }
@@ -396,21 +396,10 @@ private struct MediaViewerImage: View {
 private extension View {
     @ViewBuilder
     func viewerControl() -> some View {
-        if #available(iOS 26, *) {
-            self
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 48, height: 48)
-                .glassEffect(.regular, in: .circle)
-                .contentShape(Circle())
-        } else {
-            self
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 48, height: 48)
-                .background(.ultraThinMaterial, in: Circle())
-                .contentShape(Circle())
-        }
+        self
+            .font(.system(size: 19, weight: .semibold))
+            .foregroundStyle(.white)
+            .nativeGlassCircleButton()
     }
 }
 

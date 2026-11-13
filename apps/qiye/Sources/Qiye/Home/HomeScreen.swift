@@ -10,7 +10,6 @@ struct HomeScreen: View {
     @State private var showsPendingPushResult = false
     @State private var showsPendingDetails = false
     @State private var showsWebsiteDetails = false
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var canClickPush: Bool {

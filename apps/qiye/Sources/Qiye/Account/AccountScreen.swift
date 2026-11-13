@@ -5,7 +5,7 @@ struct AccountScreen: View {
     let store: AccountStore
     let library: ContentLibraryStore
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("appearance") private var appearance = "dark"
     #if DEBUG
     @State private var showsLogin = ProcessInfo.processInfo.arguments.contains("--login")
     #endif
@@ -89,6 +89,8 @@ struct AccountScreen: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.appBackground)
             .navigationTitle("个人中心")
             .navigationBarTitleDisplayMode(.inline)
             #if DEBUG
@@ -102,7 +104,9 @@ struct AccountScreen: View {
                 }
             }
         }
-        .tint(.appAccent)
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(30)
+        .tint(.primary)
         .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
         .task { await store.restore() }
     }

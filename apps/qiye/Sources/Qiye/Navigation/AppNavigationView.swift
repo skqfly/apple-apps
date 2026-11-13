@@ -13,9 +13,16 @@ struct AppNavigationView: View {
     @State private var repository = GitHubRepository()
     @State private var pending: PendingChangesStore
     @State private var library: ContentLibraryStore
+    @State private var blog: BlogStore
+    @State private var showingStudio = false
+    @Namespace private var tabHighlight
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let pending = PendingChangesStore()
+        let repository = GitHubRepository()
+        _repository = State(initialValue: repository)
+        _blog = State(initialValue: BlogStore(repository: repository))
         _pending = State(initialValue: pending)
         _library = State(initialValue: ContentLibraryStore(pending: pending))
     }
@@ -24,19 +31,33 @@ struct AppNavigationView: View {
     @State private var showingAccount = ProcessInfo.processInfo.arguments.contains("--account")
 
     var body: some View {
-        Group {
-            if #available(iOS 18, *) {
-                modernTabs
-            } else {
-                legacyTabs
+        TabView(selection: $selectedSection) {
+            ForEach(SiteSection.allCases) { section in
+                sectionContent(section).tag(section)
             }
         }
-        .tint(AppTheme.shared.accentColor)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) { floatingNavigation }
+        .background(Color.appBackground)
+        .tint(.primary)
         .sheet(isPresented: $showingAccount) {
             AccountScreen(store: account, library: library)
         }
+        .sheet(isPresented: $showingStudio) {
+            NavigationStack {
+                HomeScreen(store: dashboard, pending: pending, repository: repository, canPush: account.isSignedIn)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("关闭") { showingStudio = false }
+                        }
+                    }
+            }
+            .presentationDragIndicator(.visible)
+            .presentationCornerRadius(30)
+        }
         .task {
             library.syncPhotos(photos.photos, authoritative: photos.hasRemoteSnapshot)
+            library.syncTalks(TalksStore(repository: repository).posts, authoritative: false)
             await account.restore()
         }
         .task(id: account.credentialRevision) {
@@ -51,25 +72,39 @@ struct AppNavigationView: View {
         }
     }
 
-    @available(iOS 18, *)
-    private var modernTabs: some View {
-        TabView(selection: $selectedSection) {
+    private var floatingNavigation: some View {
+        HStack(spacing: 4) {
             ForEach(SiteSection.allCases) { section in
-                Tab(section.title, systemImage: section.symbolName, value: section) {
-                    sectionContent(section)
+                Button {
+                    Haptics.selection()
+                    withAnimation(reduceMotion ? nil : CollectionStyle.spring) { selectedSection = section }
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: section == selectedSection ? section.selectedSymbol : section.symbolName)
+                            .font(.system(size: 19, weight: .medium))
+                        Text(section.title).font(.system(size: 10, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 52)
+                    .foregroundStyle(section == selectedSection ? Color.primary : Color.secondary)
+                    .background {
+                        if section == selectedSection {
+                            Capsule().fill(Color.primary.opacity(0.10))
+                                .matchedGeometryEffect(id: "tab", in: tabHighlight)
+                        }
+                    }
+                    .contentShape(Capsule())
                 }
+                .buttonStyle(CollectionPressStyle())
+                .accessibilityIdentifier("tab-\(section.rawValue)")
+                .accessibilityAddTraits(section == selectedSection ? [.isSelected] : [])
             }
         }
-    }
-
-    private var legacyTabs: some View {
-        TabView(selection: $selectedSection) {
-            ForEach(SiteSection.allCases) { section in
-                sectionContent(section)
-                    .tabItem { Label(section.title, systemImage: section.symbolName) }
-                    .tag(section)
-            }
-        }
+        .padding(6)
+        .background(.regularMaterial, in: Capsule())
+        .overlay { Capsule().strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5) }
+        .shadow(color: .black.opacity(0.24), radius: 20, y: 8)
+        .frame(maxWidth: 400)
+        .padding(.horizontal, 28).padding(.bottom, 8).padding(.top, 8)
     }
 
     private func sectionContent(_ section: SiteSection) -> some View {
@@ -77,53 +112,21 @@ struct AppNavigationView: View {
             Group {
                 switch section {
                 case .home:
-                    HomeScreen(store: dashboard, pending: pending, repository: repository, canPush: account.isSignedIn)
+                    CollectionsScreen(blog: blog, photos: photos, library: library, repository: repository,
+                                      open: { section in
+                                          withAnimation(reduceMotion ? nil : CollectionStyle.spring) { selectedSection = section }
+                                      }, showAccount: { showingAccount = true }, showStudio: { showingStudio = true })
                 case .photos:
                     PhotosScreen(store: photos, repository: repository, pending: pending, library: library, canPublish: account.isSignedIn)
                 case .blog:
-                    BlogScreen(repository: repository)
+                    BlogScreen(store: blog)
                 case .talks:
                     TalksScreen(repository: repository, pending: pending, photos: photos, library: library, canPublish: account.isSignedIn, authorName: account.name, avatarURL: account.avatarURL)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(.ultraThinMaterial.opacity(0.60), for: .navigationBar)
-            .toolbar {
-                if section == .home {
-                    profileToolbar
-                }
-            }
+            .toolbarBackground(Color.appBackground, for: .navigationBar)
+            .toolbar(.hidden, for: .tabBar)
         }
     }
 
-    @ToolbarContentBuilder
-    private var profileToolbar: some ToolbarContent {
-        if #available(iOS 26, *) {
-            ToolbarItem(placement: .topBarLeading) { profileButton }
-                .sharedBackgroundVisibility(.hidden)
-        } else {
-            ToolbarItem(placement: .topBarLeading) { profileButton }
-        }
-    }
-
-    private var profileButton: some View {
-        Button {
-            showingAccount = true
-        } label: {
-            ProfileAvatar(isSignedIn: account.isSignedIn, avatarURL: account.avatarURL)
-                .frame(width: 44, height: 44)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(account.isSignedIn ? "个人中心，\(account.name)" : "个人中心，未登录")
-        .accessibilityHint("登录、外观和博客设置")
-    }
-}
-
-/// Keeps the avatar's glass treatment and gives older systems a small press response.
-private struct ProfileGlassButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : 1)
-            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
-    }
 }

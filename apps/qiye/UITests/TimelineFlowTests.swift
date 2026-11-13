@@ -86,4 +86,51 @@ final class TimelineFlowTests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+
+    func testCollectionNavigationWalkthrough() {
+        app.terminate()
+        app.launchArguments = ["--tab", "home", "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+        app.launch()
+        XCTAssertTrue(app.buttons["collection-photos"].waitForExistence(timeout: 15))
+        capture("Collections home")
+
+        app.buttons["tab-blog"].tap()
+        let article = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "article-")).firstMatch
+        XCTAssertTrue(article.waitForExistence(timeout: 10))
+        capture("Article collection")
+        article.tap()
+        XCTAssertTrue(app.navigationBars["文章"].waitForExistence(timeout: 5))
+        capture("Article reader")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+
+        app.buttons["tab-photos"].tap()
+        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "photo-tile-")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 10))
+        capture("Photo collection")
+        photo.tap()
+        XCTAssertTrue(app.buttons["media-viewer-close"].waitForExistence(timeout: 5))
+        capture("Photo filmstrip")
+        app.buttons["media-viewer-close"].tap()
+
+        app.buttons["tab-home"].tap()
+        let projects = app.buttons["collection-projects"]
+        if !projects.isHittable { app.swipeUp() }
+        XCTAssertTrue(projects.waitForExistence(timeout: 5))
+        projects.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["directory-projects"].firstMatch.waitForExistence(timeout: 5))
+        capture("Projects")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let friends = app.buttons["collection-friends"]
+        if !friends.isHittable { app.swipeUp() }
+        friends.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["directory-friends"].firstMatch.waitForExistence(timeout: 5))
+        capture("Friends")
+    }
+
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
 }

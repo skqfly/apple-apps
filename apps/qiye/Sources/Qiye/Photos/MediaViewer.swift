@@ -90,7 +90,7 @@ struct MediaViewer: View {
                         .allowsHitTesting(false)
                 }
             }
-            .overlay(alignment: .bottomTrailing) { controls.padding(20) }
+            .overlay(alignment: .bottom) { viewerDock.padding(18) }
         }
         .background(.black)
         .accessibilityIdentifier("media-viewer")
@@ -121,6 +121,60 @@ struct MediaViewer: View {
         .frame(width: size.width, height: size.height)
         .contentShape(.rect)
         .clipped()
+    }
+
+    private var viewerDock: some View {
+        HStack(spacing: 10) {
+            if items.count > 1 {
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(Array(items.enumerated()), id: \.element.id) { position, item in
+                                Button {
+                                    Haptics.selection()
+                                    turnPage(by: position - index)
+                                } label: {
+                                    thumbnail(item)
+                                        .frame(width: position == index ? 40 : 30, height: 44)
+                                        .clipShape(.rect(cornerRadius: 6))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .strokeBorder(.white.opacity(position == index ? 0.9 : 0), lineWidth: 2)
+                                        }
+                                        .opacity(position == index ? 1 : 0.6)
+                                }
+                                .buttonStyle(CollectionPressStyle())
+                                .id(item.id)
+                                .accessibilityLabel("转到第 \(position + 1) 张照片")
+                                .accessibilityAddTraits(position == index ? [.isSelected] : [])
+                            }
+                        }.padding(8)
+                    }
+                    .frame(maxWidth: 190).frame(height: 60)
+                    .background(.regularMaterial, in: Capsule())
+                    .onChange(of: index) { _, value in
+                        guard items.indices.contains(value) else { return }
+                        withAnimation(reduceMotion ? nil : CollectionStyle.spring) { proxy.scrollTo(items[value].id, anchor: .center) }
+                    }
+                    .onAppear {
+                        if let current { proxy.scrollTo(current.id, anchor: .center) }
+                    }
+                }
+            }
+            controls
+        }
+    }
+
+    @ViewBuilder
+    private func thumbnail(_ item: MediaViewerItem) -> some View {
+        let url = item.previewURL ?? item.url
+        if url.isFileURL { LocalPhotoImage(url: url) }
+        else {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image { image.resizable().scaledToFill() }
+                else { Color.white.opacity(0.1) }
+            }
+        }
     }
 
     private var controls: some View {
@@ -237,7 +291,7 @@ struct MediaViewer: View {
     }
 
     private func animate(_ changes: () -> Void) {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22), changes)
+        withAnimation(reduceMotion ? nil : CollectionStyle.spring, changes)
     }
 
     private func report(_ message: String) {

@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 struct QiyeApp: App {
-    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("appearance") private var appearance = "dark"
 
     private var colorScheme: ColorScheme? {
         switch appearance {

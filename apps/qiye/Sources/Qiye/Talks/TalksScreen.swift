@@ -35,6 +35,8 @@ struct TalksScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
+                CollectionSearchField(text: $store.query, prompt: "搜索说说")
+                    .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 14)
                 if let notice {
                     Text(notice)
                         .font(.caption.weight(.medium))
@@ -86,7 +88,7 @@ struct TalksScreen: View {
         }
         .background(Color.appBackground)
         .navigationTitle("说说")
-        .searchable(text: $store.query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "搜索说说")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
             TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }
@@ -208,51 +210,42 @@ private struct TalkTimelineRow: View {
     let openImage: (Int) -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            AsyncImage(url: avatarURL) { phase in
-                if let image = phase.image { image.resizable().scaledToFill() }
-                else { Image(systemName: "person.fill").resizable().scaledToFit().padding(10).foregroundStyle(Color.appAccent).background(Color.appAccent.opacity(0.10)) }
-            }
-            .frame(width: 42, height: 42)
-            .clipShape(.rect(cornerRadius: 9))
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text(authorName.isEmpty ? "skqfly" : authorName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.appAccent)
-
-                if !post.description.isEmpty {
-                    Text(post.description)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                AsyncImage(url: avatarURL) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else { Image(systemName: "person.fill").resizable().scaledToFit().padding(8).foregroundStyle(.secondary) }
                 }
-
-                TalkImageGrid(images: post.images, open: openImage)
-
-                // Bottom row: Status badge + date on the left, action menu on the right
-                HStack(alignment: .center, spacing: 8) {
-                    statusBadge(for: state)
-
+                .frame(width: 32, height: 32)
+                .background(Color.primary.opacity(0.06), in: Circle()).clipShape(Circle())
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(authorName.isEmpty ? "skqfly" : authorName).font(.subheadline.weight(.semibold))
                     Text(post.date, format: .dateTime.year().month().day())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer(minLength: 4)
-
-                    actionMenu
+                        .font(.caption2).foregroundStyle(.secondary)
                 }
-                .padding(.top, 4)
+                Spacer()
+                actionMenu
+            }
+            if !post.description.isEmpty {
+                Text(post.description).font(.body).foregroundStyle(.primary)
+                    .lineSpacing(5).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            TalkImageGrid(images: post.images, open: openImage)
+            HStack {
+                statusBadge(for: state)
+                Spacer()
+                if !post.images.isEmpty {
+                    Label("\(post.images.count)", systemImage: "square.on.square")
+                        .font(.caption).foregroundStyle(.tertiary)
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 16)
-        .liquidGlassCard(cornerRadius: 18)
-        .opacity(state == .deleted ? 0.75 : 1)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(18)
+        .collectionSurface(radius: 22)
+        .opacity(state == .deleted ? 0.65 : 1)
+        .padding(.horizontal, 18).padding(.vertical, 7)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("talk-row-\(post.id)")
     }
@@ -320,8 +313,9 @@ private struct TalkTimelineRow: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.appAccent)
-                .liquidGlassCircle(size: 32)
+                .foregroundStyle(.secondary)
+                .frame(width: 36, height: 36)
+                .background(Color.primary.opacity(0.06), in: Circle())
         }
         .accessibilityLabel("说说操作")
         .accessibilityIdentifier("talk-actions-\(post.id)")
@@ -336,14 +330,14 @@ struct TalkImageGrid: View {
     var body: some View {
         if images.count == 1, let image = images.first {
             tile(image, index: 0, ratio: min(1.5, max(0.75, image.aspectRatio)))
-                .frame(maxWidth: 250, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else if !images.isEmpty {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 5), count: columnCount), alignment: .leading, spacing: 5) {
                 ForEach(Array(images.prefix(9).enumerated()), id: \.offset) { index, image in
                     tile(image, index: index, ratio: 1)
                 }
             }
-            .frame(maxWidth: images.count == 4 || images.count == 2 ? 230 : .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -363,7 +357,7 @@ struct TalkImageGrid: View {
                         }.allowsHitTesting(false)
                     }
                 }
-                .clipped().clipShape(.rect(cornerRadius: 3)).contentShape(.rect)
+                .clipped().clipShape(.rect(cornerRadius: 9)).contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("查看第\(index + 1)张图片")

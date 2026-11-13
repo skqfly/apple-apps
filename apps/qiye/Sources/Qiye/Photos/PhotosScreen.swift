@@ -29,7 +29,7 @@ struct PhotosScreen: View {
     @State private var swipedPhotoIDs: Set<String> = []
 
     private var columns: [GridItem] {
-        [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 8)]
+        [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 12)]
     }
 
     private var visiblePhotos: [WebsitePhoto] { library.photos(in: status) }
@@ -72,13 +72,13 @@ struct PhotosScreen: View {
                 photoGrid
                     .coordinateSpace(name: "PhotoGridSpace")
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 96)
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
         .background(Color.appBackground)
-        .navigationTitle(isSelecting ? "已选择 “\(selectedPhotoIDs.count)”" : "照片")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle(isSelecting ? "已选择 “\(selectedPhotoIDs.count)”" : "图片")
+        .navigationBarTitleDisplayMode(.large)
         .toolbar { topBarToolbar }
         .refreshable { await refresh() }
         .task {
@@ -113,7 +113,6 @@ struct PhotosScreen: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .toolbar(isSelecting ? .hidden : .visible, for: .tabBar)
         .animation(.snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
@@ -190,7 +189,7 @@ struct PhotosScreen: View {
                 description: Text(status == .deleted ? "删除的照片会保留在回收站中。" : "点右上角添加照片，或下拉刷新。")
             )
         } else {
-            LazyVGrid(columns: columns, spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(visiblePhotos) { photo in
                     photoCell(photo)
                         .background(
@@ -256,7 +255,7 @@ struct PhotosScreen: View {
     /// Bound both drawing and hit testing to the tile, including very tall images.
     private func photoTile<Content: View>(@ViewBuilder image: @escaping () -> Content) -> some View {
         Color.clear
-            .aspectRatio(0.88, contentMode: .fit)
+            .aspectRatio(0.76, contentMode: .fit)
             .overlay {
                 GeometryReader { geometry in
                     image()
@@ -267,7 +266,7 @@ struct PhotosScreen: View {
                 .allowsHitTesting(false)
             }
             .background(.quaternary)
-            .clipShape(.rect(cornerRadius: 12))
+            .clipShape(.rect(cornerRadius: 16))
             .contentShape(.rect)
     }
 
@@ -333,7 +332,7 @@ struct PhotosScreen: View {
         Button { open(.website(photo)) } label: {
             photoTile { photoImage(photo) }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CollectionPressStyle())
         .scaleEffect(draggingPhotoID == photo.id ? 1.03 : 1)
         .zIndex(draggingPhotoID == photo.id ? 1 : 0)
         .overlay {

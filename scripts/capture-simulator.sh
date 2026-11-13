@@ -53,3 +53,11 @@ xcrun simctl launch "$simulator_id" top.mmddskq.qiye --account --login
 sleep 4
 xcrun simctl io "$simulator_id" screenshot "$output_dir/login-dark.png"
 xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
+
+# Native project and friend directories use the same bundled data as the website.
+for section in projects friends; do
+    xcrun simctl terminate "$simulator_id" top.mmddskq.qiye || true
+    xcrun simctl launch "$simulator_id" top.mmddskq.qiye --tab home --"$section"
+    sleep 5
+    xcrun simctl io "$simulator_id" screenshot "$output_dir/$section-dark.png"
+done

@@ -47,7 +47,7 @@ struct PublishingSettingsScreen: View {
 }
 
 struct AppearanceSettingsScreen: View {
-    @AppStorage("appearance") private var appearance = "system"
+    @AppStorage("appearance") private var appearance = "dark"
     @State private var theme = AppTheme.shared
     @State private var customColor: Color = AppTheme.shared.accentColor
 

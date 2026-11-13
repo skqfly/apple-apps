@@ -36,7 +36,7 @@ struct HomeScreen: View {
             .padding(.bottom, 96)
         }
         .background(Color.appBackground)
-        .navigationTitle("主页")
+        .navigationTitle("发布与同步")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

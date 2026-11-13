@@ -19,7 +19,20 @@ collect_results() {
         xcrun xcresulttool export attachments --path "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult" --output-path "$GITHUB_WORKSPACE/dist/interaction-attachments" || true
     fi
 }
-trap collect_results EXIT
+recording_pid=""
+finish() {
+    if [ -n "$recording_pid" ]; then
+        kill -INT "$recording_pid" 2>/dev/null || true
+        wait "$recording_pid" || true
+    fi
+    collect_results
+}
+trap finish EXIT
+mkdir -p "$GITHUB_WORKSPACE/dist"
+xcrun simctl boot "$simulator_id" || true
+xcrun simctl bootstatus "$simulator_id" -b
+xcrun simctl io "$simulator_id" recordVideo --codec h264 "$GITHUB_WORKSPACE/dist/interaction-preview.mov" &
+recording_pid=$!
 rm -rf "$RUNNER_TEMP/QiyeLongPhotoHitArea.xcresult"
 xcodebuild test \
     -project Qiye.xcodeproj -scheme Qiye -configuration Debug \

@@ -164,40 +164,13 @@ struct LiquidGlassButtonStyle: ButtonStyle {
 
 // MARK: - Optical Transparency Cards & Floating Capsules (Never Milky White)
 
-/// Standard Liquid Glass card with true optical transparency, eliminating white milkiness.
-/// On iOS 26+ uses native .glassEffect, on fallback uses ultra-thin material with subtle rim refraction.
+/// Compatibility wrapper for existing content cards in the collection palette.
 struct LiquidGlassCard: ViewModifier {
     var cornerRadius: CGFloat = 20
     var interactive: Bool = false
-    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            if interactive {
-                content
-                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: cornerRadius))
-            } else {
-                content
-                    .glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-            }
-        } else {
-            content
-                .background(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial.opacity(colorScheme == .dark ? 0.40 : 0.45))
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(
-                            colorScheme == .dark ? Color.white.opacity(0.14) : Color.white.opacity(0.65),
-                            lineWidth: 0.75
-                        )
-                }
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.20 : 0.03),
-                    radius: 12, y: 3
-                )
-        }
+        content.collectionSurface(radius: cornerRadius)
     }
 }
 

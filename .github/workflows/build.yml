@@ -3,7 +3,7 @@ name: Build Apple apps
 
 on:
   push:
-    branches: [main]
+    branches: [main, qiye-ipa-e45403f]
   workflow_dispatch:
 
 permissions:

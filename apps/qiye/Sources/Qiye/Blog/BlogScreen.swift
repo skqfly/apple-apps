@@ -6,7 +6,6 @@ struct BlogScreen: View {
     @State private var category: String?
     @State private var newestFirst = true
     @Namespace private var articleTransition
-    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if DEBUG
     @State private var screenshotPost: BlogPost?
@@ -23,15 +22,19 @@ struct BlogScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                CollectionSearchField(text: Binding(get: { store.query }, set: { store.query = $0 }), prompt: "搜索文章")
                 filters
                 if let error = store.error { ContentStatus(message: error) { await store.refresh() } }
                 if store.isLoading && store.posts.isEmpty {
-                    ProgressView("正在读取文章…").frame(maxWidth: .infinity).padding(40)
+                    ProgressView("正在读取博客…").frame(maxWidth: .infinity).padding(40)
                 } else if posts.isEmpty {
-                    ContentUnavailableView("未找到文章", systemImage: "doc.text.magnifyingglass")
+                    if !store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        ContentUnavailableView.search(text: store.query)
+                    } else {
+                        ContentUnavailableView(category == nil ? "暂无博客" : "这个分类暂无博客",
+                                               systemImage: "doc.text")
+                    }
                 } else {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 16) {
+                    LazyVStack(spacing: 12) {
                         ForEach(posts) { post in
                             NavigationLink(value: post) {
                                 ArticleCollectionCard(post: post)
@@ -47,10 +50,28 @@ struct BlogScreen: View {
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
-        .navigationTitle("文章").navigationBarTitleDisplayMode(.large)
+        .navigationTitle("博客").navigationBarTitleDisplayMode(.large)
+        .searchable(text: Binding(get: { store.query }, set: { store.query = $0 }),
+                    placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索博客")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("排序", selection: $newestFirst) {
+                        Text("最新优先").tag(true)
+                        Text("最早优先").tag(false)
+                    }
+                } label: {
+                    Label("排序", systemImage: "arrow.up.arrow.down")
+                }
+            }
+        }
         .navigationDestination(for: BlogPost.self) { post in
-            BlogDetailScreen(post: post)
-                .collectionZoomDestination(id: post.id, namespace: articleTransition)
+            if reduceMotion {
+                BlogDetailScreen(post: post)
+            } else {
+                BlogDetailScreen(post: post)
+                    .collectionZoomDestination(id: post.id, namespace: articleTransition)
+            }
         }
         .refreshable { await store.refresh() }
         .task { await store.loadIfNeeded() }
@@ -73,14 +94,6 @@ struct BlogScreen: View {
             HStack(spacing: 8) {
                 categoryButton("全部", value: nil)
                 ForEach(categories, id: \.self) { value in categoryButton(value, value: value) }
-                Button {
-                    withAnimation(reduceMotion ? nil : CollectionStyle.spring) { newestFirst.toggle() }
-                    Haptics.selection()
-                } label: {
-                    Label(newestFirst ? "最新" : "最早", systemImage: newestFirst ? "arrow.down" : "arrow.up")
-                        .font(.caption.weight(.medium)).padding(.horizontal, 4).padding(.vertical, 3)
-                }
-                .nativeGlassButton()
             }
             .padding(.vertical, 6)
         }
@@ -92,7 +105,7 @@ struct BlogScreen: View {
             Haptics.selection()
         } label: {
             Text(title).font(.caption.weight(.semibold))
-                .padding(.horizontal, 5).padding(.vertical, 3)
+                .padding(.horizontal, 8).frame(minHeight: 36)
                 .foregroundStyle(category == value ? Color.appBackground : Color.primary)
         }
         .nativeGlassButton(prominent: category == value)
@@ -104,45 +117,37 @@ struct ArticleCollectionCard: View {
     let post: BlogPost
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                Color.primary.opacity(0.035)
-                VStack(alignment: .leading, spacing: 14) {
-                    Image(systemName: "doc.text").font(.system(size: 28, weight: .ultraLight))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(post.title).font(.system(.title3, design: .serif).weight(.medium))
-                        .lineLimit(4).minimumScaleFactor(0.85)
-                }
-                .padding(18)
-                if let url = post.imageURL {
-                    GeometryReader { geometry in
-                        AsyncImage(url: url) { phase in
-                            if let image = phase.image {
-                                image.resizable().scaledToFill()
-                                    .frame(width: geometry.size.width, height: geometry.size.height).clipped()
-                            }
-                        }
-                    }
-                }
+        VStack(alignment: .leading, spacing: 8) {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { metadata }
+                VStack(alignment: .leading, spacing: 4) { metadata }
             }
-            .frame(height: 202).clipped()
-            VStack(alignment: .leading, spacing: 7) {
-                Text(post.title).font(.subheadline.weight(.semibold)).lineLimit(2)
-                    .frame(minHeight: 40, alignment: .topLeading)
-                HStack(spacing: 4) {
-                    Text(post.category ?? "随笔").lineLimit(1)
-                    Spacer(minLength: 2)
-                    Text(post.date, format: .dateTime.month().day())
-                }
-                .font(.system(size: 10)).foregroundStyle(.secondary)
+            .font(.subheadline)
+            Text(post.title)
+                .font(.system(.title3, design: .serif).weight(.semibold))
+            if !post.description.isEmpty {
+                Text(post.description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
-            .padding(13)
         }
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .collectionSurface(radius: 16).clipShape(.rect(cornerRadius: 16))
+        .collectionSurface(radius: 18)
+        .contentShape(.rect(cornerRadius: 18))
         .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
         .accessibilityHint("打开全文")
+    }
+
+    @ViewBuilder private var metadata: some View {
+        if let category = post.category, !category.isEmpty {
+            Text(category).foregroundStyle(Color.appAccent)
+        }
+        if post.date != .distantPast {
+            Text(post.date, format: .dateTime.year().month().day())
+                .foregroundStyle(.secondary)
+        }
     }
 }

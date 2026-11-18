@@ -11,6 +11,7 @@ struct PhotosScreen: View {
     let pending: PendingChangesStore
     let library: ContentLibraryStore
     let canPublish: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
     @State private var status: ContentStatusFilter = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") ? .unpublished : .published
@@ -108,11 +109,11 @@ struct PhotosScreen: View {
                     batchBar
                     Spacer()
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
         .toolbar(isSelecting ? .hidden : .visible, for: .tabBar)
-        .animation(.snappy(duration: 0.28), value: isSelecting)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
         }
@@ -125,7 +126,7 @@ struct PhotosScreen: View {
         if isSelecting {
             ToolbarItem(placement: .topBarLeading) {
                 Button("取消") {
-                    withAnimation(.snappy(duration: 0.22)) { exitSelection() }
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) { exitSelection() }
                 }
 
                 .accessibilityLabel("取消选择")
@@ -134,7 +135,7 @@ struct PhotosScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选") {
                     Haptics.selection()
-                    withAnimation(.snappy(duration: 0.2)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                         if selectedPhotoIDs.count == visiblePhotos.count {
                             selectedPhotoIDs.removeAll()
                         } else {
@@ -147,20 +148,21 @@ struct PhotosScreen: View {
             }
         } else {
             ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 8) {
-                    selectButton
-                    addButton
-                }
+                selectButton
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                addButton
             }
         }
     }
 
     private var selectButton: some View {
         Button("选择") {
-            withAnimation(.snappy(duration: 0.25)) { isSelecting = true }
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
         }
 
+        .disabled(visiblePhotos.isEmpty || isBusy)
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
     }
@@ -223,7 +225,7 @@ struct PhotosScreen: View {
                 destinationID: nil, draggingID: $draggingPhotoID,
                 hoveredID: $hoveredPhotoID, library: library
             ))
-            .animation(.snappy(duration: 0.25), value: visiblePhotos.map(\.id))
+            .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: visiblePhotos.map(\.id))
         }
     }
 
@@ -236,7 +238,7 @@ struct PhotosScreen: View {
                     if frame.contains(point) && !swipedPhotoIDs.contains(id) {
                         swipedPhotoIDs.insert(id)
                         Haptics.selection()
-                        withAnimation(.snappy(duration: 0.12)) {
+                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.12)) {
                             if selectedPhotoIDs.contains(id) {
                                 selectedPhotoIDs.remove(id)
                             } else {
@@ -321,7 +323,7 @@ struct PhotosScreen: View {
             .padding(8)
             .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
         }
-        .animation(.snappy(duration: 0.16), value: isSelected)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: isSelected)
         .accessibilityLabel(photo.title)
         .accessibilityValue(isSelected ? "已选择" : "未选择")
         .accessibilityIdentifier("photo-tile-\(photo.id)")
@@ -340,8 +342,8 @@ struct PhotosScreen: View {
                     .strokeBorder(Color.appAccent, lineWidth: 2.5)
             }
         }
-        .animation(.snappy(duration: 0.20), value: draggingPhotoID == photo.id)
-        .animation(.snappy(duration: 0.20), value: hoveredPhotoID == photo.id)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.20), value: draggingPhotoID == photo.id)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.20), value: hoveredPhotoID == photo.id)
         .accessibilityLabel(photo.title)
         .accessibilityHint("在 App 内查看大图，长按后拖动可调整顺序")
         .accessibilityIdentifier("photo-tile-\(photo.id)")

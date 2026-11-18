@@ -92,14 +92,16 @@ final class TimelineFlowTests: XCTestCase {
         app.launchArguments = ["--tab", "home", "-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
         app.launch()
         XCTAssertTrue(app.buttons["collection-photos"].waitForExistence(timeout: 15))
-        capture("Collections home")
+        capture("Home")
+        app.buttons["collection-photos"].tap()
+        XCTAssertTrue(app.navigationBars["图片"].waitForExistence(timeout: 5))
 
-        app.tabBars.buttons["文章"].tap()
+        app.tabBars.buttons["博客"].tap()
         let article = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "article-")).firstMatch
         XCTAssertTrue(article.waitForExistence(timeout: 10))
         capture("Article collection")
         article.tap()
-        XCTAssertTrue(app.navigationBars["文章"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["博客"].waitForExistence(timeout: 5))
         capture("Article reader")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
@@ -116,7 +118,7 @@ final class TimelineFlowTests: XCTestCase {
         capture("Photo filmstrip")
         close.tap()
 
-        app.tabBars.buttons["收藏"].tap()
+        app.tabBars.buttons["首页"].tap()
         let projects = app.buttons["collection-projects"]
         if !projects.isHittable { app.swipeUp() }
         XCTAssertTrue(projects.waitForExistence(timeout: 5))

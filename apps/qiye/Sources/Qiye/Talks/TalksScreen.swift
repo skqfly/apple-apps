@@ -9,6 +9,7 @@ struct TalksScreen: View {
     let canPublish: Bool
     let authorName: String
     let avatarURL: URL?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var composer = false
     @State private var editing: TalkPost?
     @State private var viewing: TalkGallerySelection?
@@ -27,8 +28,10 @@ struct TalksScreen: View {
         self.avatarURL = avatarURL
     }
 
+    private var searchTerm: String { store.query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var posts: [TalkPost] {
-        let query = store.query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = searchTerm
         return library.allTalks().filter { query.isEmpty || $0.description.localizedStandardContains(query) }
     }
 
@@ -46,14 +49,17 @@ struct TalksScreen: View {
                         .liquidGlassCapsule(interactive: false)
                         .padding(.top, 10)
                         .padding(.bottom, 6)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
                 }
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh(); library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot) }
                         .padding(.horizontal)
                         .padding(.top, 8)
                 }
-                if posts.isEmpty {
+                if posts.isEmpty && !searchTerm.isEmpty {
+                    ContentUnavailableView.search(text: searchTerm)
+                        .padding(.vertical, 24)
+                } else if posts.isEmpty {
                     ContentUnavailableView(
                         "这里还没有说说",
                         systemImage: "text.bubble",
@@ -167,7 +173,7 @@ struct TalksScreen: View {
     private func change(_ post: TalkPost, to state: ContentStatusFilter) {
         do {
             try library.setTalkState(post, to: state)
-            showNotice(state == .published ? "已加入发表队列，去收藏页右上角推送即可" : "已设为\(state.title)")
+            showNotice(state == .published ? "已加入发表队列，可从首页右上角的「更多」进入「发布与同步」" : "已设为\(state.title)")
         } catch {
             showNotice(error.localizedDescription)
         }

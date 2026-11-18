@@ -35,12 +35,19 @@ struct BlogDetailScreen: View {
             .frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
-        .navigationTitle("文章")
+        .navigationTitle("博客")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: post.websiteURL) {
-                    Label("分享文章", systemImage: "square.and.arrow.up")
+                Menu {
+                    Link(destination: post.websiteURL) {
+                        Label("在浏览器打开", systemImage: "safari")
+                    }
+                    ShareLink(item: post.websiteURL) {
+                        Label("分享", systemImage: "square.and.arrow.up")
+                    }
+                } label: {
+                    Label("更多", systemImage: "ellipsis")
                 }
             }
         }

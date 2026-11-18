@@ -15,7 +15,6 @@ struct AppNavigationView: View {
     @State private var library: ContentLibraryStore
     @State private var blog: BlogStore
     @State private var showingStudio = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let pending = PendingChangesStore()
@@ -96,7 +95,7 @@ struct AppNavigationView: View {
                 case .home:
                     CollectionsScreen(blog: blog, photos: photos, library: library, repository: repository,
                                       open: { section in
-                                          withAnimation(reduceMotion ? nil : CollectionStyle.spring) { selectedSection = section }
+                                          selectedSection = section
                                       }, showAccount: { showingAccount = true }, showStudio: { showingStudio = true })
                 case .photos:
                     PhotosScreen(store: photos, repository: repository, pending: pending, library: library, canPublish: account.isSignedIn)
@@ -106,7 +105,6 @@ struct AppNavigationView: View {
                     TalksScreen(repository: repository, pending: pending, photos: photos, library: library, canPublish: account.isSignedIn, authorName: account.name, avatarURL: account.avatarURL)
                 }
             }
-            .toolbarBackground(Color.appBackground, for: .navigationBar)
         }
     }
 

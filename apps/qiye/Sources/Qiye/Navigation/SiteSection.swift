@@ -6,8 +6,8 @@ enum SiteSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .home: "收藏"
-        case .blog: "文章"
+        case .home: "首页"
+        case .blog: "博客"
         case .talks: "说说"
         case .photos: "图片"
         }
@@ -15,7 +15,7 @@ enum SiteSection: String, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
-        case .home: "square.stack"
+        case .home: "house"
         case .blog: "doc.text"
         case .talks: "text.bubble"
         case .photos: "photo.on.rectangle.angled"

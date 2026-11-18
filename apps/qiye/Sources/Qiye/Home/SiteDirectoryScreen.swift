@@ -69,9 +69,11 @@ struct SiteDirectoryScreen: View {
     @State private var query = ""
     @State private var selected: SiteDirectoryEntry?
 
+    private var searchTerm: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var entries: [SiteDirectoryEntry] {
         let all = kind == .projects ? store.projects : store.friends
-        return all.filter { query.isEmpty || $0.title.localizedStandardContains(query) || $0.description.localizedStandardContains(query) }
+        return all.filter { searchTerm.isEmpty || $0.title.localizedStandardContains(searchTerm) || $0.description.localizedStandardContains(searchTerm) }
     }
 
     var body: some View {
@@ -81,7 +83,9 @@ struct SiteDirectoryScreen: View {
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh() }
                 }
-                if entries.isEmpty {
+                if entries.isEmpty && !searchTerm.isEmpty {
+                    ContentUnavailableView.search(text: searchTerm)
+                } else if entries.isEmpty {
                     ContentUnavailableView("暂无\(kind.title)", systemImage: kind == .projects ? "square.stack.3d.up" : "person.2")
                 }
                 ForEach(entries) { entry in

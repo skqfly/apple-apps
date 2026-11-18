@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum CollectionStyle {
-    static let spring = Animation.spring(response: 0.42, dampingFraction: 0.84)
+    static let spring = Animation.snappy(duration: 0.22)
 }
 
 struct CollectionPressStyle: ButtonStyle {
@@ -9,23 +9,9 @@ struct CollectionPressStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
-    }
-}
-
-struct CollectionHeading: View {
-    let title: String
-    var detail: String = ""
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
-                .accessibilityAddTraits(.isHeader)
-            Spacer()
-            if !detail.isEmpty { Text(detail).font(.caption).foregroundStyle(.tertiary) }
-        }
     }
 }
 
@@ -55,16 +41,26 @@ struct CollectionSearchField: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
             TextField(prompt, text: $text).textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             if !text.isEmpty {
-                Button("清除搜索", systemImage: "xmark.circle.fill") { text = "" }
-                    .labelStyle(.iconOnly).foregroundStyle(.secondary)
+                Button {
+                    text = ""
+                } label: {
+                    Label("清除搜索", systemImage: "xmark.circle.fill")
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(CollectionPressStyle())
             }
         }
         .font(.subheadline)
-        .padding(13)
+        .frame(minHeight: 44)
+        .padding(.leading, 14)
+        .padding(.trailing, text.isEmpty ? 14 : 0)
         .background(Color.appSurface, in: .rect(cornerRadius: 16))
     }
 }
@@ -89,6 +85,7 @@ extension View {
             .overlay {
                 RoundedRectangle(cornerRadius: radius)
                     .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
     }
 }

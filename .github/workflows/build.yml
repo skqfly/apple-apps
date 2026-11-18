@@ -83,6 +83,13 @@ jobs:
           zip -qry "$GITHUB_WORKSPACE/dist/Qiye-unsigned.ipa" Payload
           cp "$GITHUB_WORKSPACE/apps/qiye/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png" "$GITHUB_WORKSPACE/dist/"
 
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: qiye-unsigned-ipa
+          path: dist/Qiye-unsigned.ipa
+          if-no-files-found: error
+
       - name: Build simulator app
         id: simulator
         run: |

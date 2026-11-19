@@ -3,7 +3,7 @@ name: Build Apple apps
 
 on:
   push:
-    branches: [main, ui/home-dashboard]
+    branches: [main]
   workflow_dispatch:
 
 permissions:

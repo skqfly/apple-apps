@@ -43,7 +43,9 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         XCTAssertEqual(close.frame.width, 48, accuracy: 0.5)
         XCTAssertEqual(close.frame.height, 48, accuracy: 0.5)
-        viewer.swipeDown()
+        let dragStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55))
+        let dragEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+        dragStart.press(forDuration: 0.05, thenDragTo: dragEnd)
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: viewer)], timeout: 5) == .completed)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
     }

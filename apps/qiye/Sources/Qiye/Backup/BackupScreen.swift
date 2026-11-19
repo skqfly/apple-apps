@@ -79,8 +79,9 @@ struct BackupScreen: View {
                 }
             }
         }
-        .navigationTitle("备份与恢复")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("备份与恢复")
         .task { webdavPassword = keychain.read() ?? "" }
         .sheet(isPresented: $showsFolderExporter) {
             if let exportFolderURL {

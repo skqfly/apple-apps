@@ -39,6 +39,10 @@ final class TimelineFlowTests: XCTestCase {
         let viewer = app.descendants(matching: .any)["media-viewer"].firstMatch
         XCTAssertTrue(viewer.waitForExistence(timeout: 5), "An image must open inside the app")
         XCTAssertEqual(app.state, .runningForeground)
+        let close = app.buttons["media-viewer-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertEqual(close.frame.width, 48, accuracy: 0.5)
+        XCTAssertEqual(close.frame.height, 48, accuracy: 0.5)
         viewer.swipeDown()
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: viewer)], timeout: 5) == .completed)
         XCTAssertTrue(row.waitForExistence(timeout: 5))

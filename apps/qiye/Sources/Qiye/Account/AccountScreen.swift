@@ -90,9 +90,8 @@ struct AccountScreen: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.appBackground)
-            .navigationTitle("个人中心")
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageBackground()
+            .appNavigationTitle("个人中心")
             #if DEBUG
             .navigationDestination(isPresented: $showsLogin) {
                 GitHubLoginScreen(store: store)
@@ -103,7 +102,7 @@ struct AccountScreen: View {
                     Button {
                         dismiss()
                     } label: {
-                        ActionIcon("完成", systemImage: "checkmark")
+                        ToolbarActionIcon("完成", systemImage: "checkmark")
                     }
                 }
             }

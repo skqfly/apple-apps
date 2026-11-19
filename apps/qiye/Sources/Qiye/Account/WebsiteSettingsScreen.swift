@@ -20,8 +20,9 @@ struct WebsiteSettingsScreen: View {
                 Link("朋友与友链", destination: URL(string: "https://mmddskq.top/friends")!)
             }
         }
-        .navigationTitle("网站与博客")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("网站与博客")
     }
 }
 
@@ -41,8 +42,9 @@ struct PublishingSettingsScreen: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("发布与同步")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("发布与同步")
     }
 }
 
@@ -141,8 +143,9 @@ struct AppearanceSettingsScreen: View {
                 Text("所选颜色用于发布操作与内容状态提示，导航和内容卡片使用中性色。")
             }
         }
-        .navigationTitle("外观与主题")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("外观与主题")
     }
 }
 
@@ -157,7 +160,8 @@ struct AppInformationScreen: View {
                 Link("应用源码", destination: URL(string: "https://github.com/skqfly/apple-apps")!)
             }
         }
-        .navigationTitle("关于栖页")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("关于栖页")
     }
 }

@@ -29,24 +29,12 @@ struct HomeScreen: View {
 
                 refreshStatus
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
             .padding(.bottom, 96)
         }
-        .background {
-            ZStack(alignment: .topLeading) {
-                Color.appBackground
-                LinearGradient(
-                    colors: [Color.indigo.opacity(colorScheme == .dark ? 0.13 : 0.08), .clear],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .frame(height: 420)
-            }
-            .ignoresSafeArea()
-        }
-        .navigationTitle("发布与同步")
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageBackground()
+        .appNavigationTitle("发布与同步")
         .toolbar { headerActions }
         .sheet(isPresented: $showsPendingDetails) {
             pendingDetails
@@ -69,33 +57,14 @@ struct HomeScreen: View {
                 Haptics.light()
                 showsWebsiteDetails = true
             } label: {
-                ActionIcon("网站状态与仓库", systemImage: "globe")
-                    .overlay(alignment: .topTrailing) {
-                        if store.website.value != nil {
-                            Circle()
-                                .fill(websiteStatusColor)
-                                .frame(width: 5, height: 5)
-                                .padding(8)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
-                    }
+                ToolbarActionIcon("网站状态与仓库", systemImage: "globe")
             }
             Button {
                 Haptics.light()
                 showsPendingDetails = true
             } label: {
-                ActionIcon("待推送改动，\(pending.changes.count) 项", systemImage: "tray.and.arrow.up")
-                    .overlay(alignment: .topTrailing) {
-                        if !pending.changes.isEmpty {
-                            Circle()
-                                .fill(Color.appAccent)
-                                .frame(width: 5, height: 5)
-                                .padding(8)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
-                    }
+                ToolbarActionIcon("待推送改动，\(pending.changes.count) 项",
+                                  systemImage: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up")
             }
         }
     }
@@ -113,7 +82,7 @@ struct HomeScreen: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("栖野")
-                            .font(.title2.weight(.bold))
+                            .font(.headline)
                             .foregroundStyle(Color.primary)
                         Label("mmddskq.top", systemImage: "arrow.up.right")
                             .font(.subheadline.weight(.medium))
@@ -151,6 +120,11 @@ struct HomeScreen: View {
             }
         } else {
             Text(store.website.isLoading ? "正在检测站点" : "暂无站点状态")
+        }
+
+        if !pending.changes.isEmpty {
+            Text("待推送 \(pending.changes.count) 项")
+                .foregroundStyle(activityAccent)
         }
 
         if let pages = store.pages.value {
@@ -209,11 +183,8 @@ struct HomeScreen: View {
                 Spacer(minLength: 0)
                 Link(destination: DashboardService.actionsURL) {
                     Label("全部运行", systemImage: "arrow.up.right")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
                 }
+                .contentActionStyle(.borderless)
             }
             .padding(.horizontal, 4)
 
@@ -267,10 +238,10 @@ struct HomeScreen: View {
                 Haptics.light()
                 Task { await store.refresh() }
             } label: {
-                Label("刷新状态", systemImage: "arrow.clockwise")
-                    .labelStyle(.iconOnly)
-                    .frame(minWidth: 44, minHeight: 44)
+                ActionIcon("刷新状态", systemImage: "arrow.clockwise")
+                    .liquidGlassCircle()
             }
+            .buttonStyle(CollectionPressStyle())
             .disabled(store.isRefreshing)
         }
         .font(.caption)
@@ -306,14 +277,15 @@ struct HomeScreen: View {
                     }
                 }
             }
-            .navigationTitle("待推送变更")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .appPageBackground()
+            .appNavigationTitle("待推送变更")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         showsPendingDetails = false
                     } label: {
-                        ActionIcon("完成", systemImage: "checkmark")
+                        ToolbarActionIcon("完成", systemImage: "checkmark")
                     }
                 }
             }
@@ -344,8 +316,7 @@ struct HomeScreen: View {
             if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
             Button("撤销") { pending.remove(change) }
                 .font(.subheadline)
-                .frame(minWidth: 44, minHeight: 44)
-                .buttonStyle(.borderless)
+                .contentActionStyle(.borderless)
                 .disabled(pending.isCommitting)
                 .accessibilityLabel("撤销\(change.kind.label)，\(changeSummary(change))")
         }
@@ -360,17 +331,15 @@ struct HomeScreen: View {
             HStack {
                 Spacer()
                 if pending.isCommitting {
-                    ProgressView().controlSize(.small).tint(.white)
+                    ProgressView().controlSize(.small).tint(.secondary)
                     Text("正在推送…")
                 } else {
                     Label("推送全部更改", systemImage: "arrow.up.circle.fill")
                 }
                 Spacer()
             }
-            .font(.subheadline.weight(.semibold))
-            .padding(.vertical, 8)
         }
-        .nativeGlassButton(prominent: true)
+        .contentActionStyle(.prominent, size: .large)
         .disabled(!canClickPush)
         .accessibilityLabel(pending.isCommitting ? "正在推送" : "推送全部 \(pending.changes.count) 项改动")
     }
@@ -413,14 +382,15 @@ struct HomeScreen: View {
                     }
                 }
             }
-            .navigationTitle("站点详情")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .appPageBackground()
+            .appNavigationTitle("站点详情")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         showsWebsiteDetails = false
                     } label: {
-                        ActionIcon("完成", systemImage: "checkmark")
+                        ToolbarActionIcon("完成", systemImage: "checkmark")
                     }
                 }
             }

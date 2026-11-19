@@ -33,7 +33,7 @@ struct AppNavigationView: View {
             if #available(iOS 18, *) { modernTabs }
             else { legacyTabs }
         }
-        .background(Color.appBackground)
+        .appPageBackground()
         .tint(.primary)
         .sheet(isPresented: $showingAccount) {
             AccountScreen(store: account, library: library)
@@ -46,7 +46,7 @@ struct AppNavigationView: View {
                             Button {
                                 showingStudio = false
                             } label: {
-                                ActionIcon("关闭", systemImage: "xmark")
+                                ToolbarActionIcon("关闭", systemImage: "xmark")
                             }
                         }
                     }

@@ -37,26 +37,27 @@ struct SitePhotoPicker: View {
                                         Text("\(index + 1)").font(.caption.bold()).foregroundStyle(.white).frame(width: 24, height: 24).background(Color.appAccent, in: .circle).padding(6)
                                     } else { Circle().strokeBorder(.white.opacity(0.85), lineWidth: 1.5).frame(width: 24, height: 24).padding(6) }
                                 }
-                        }.buttonStyle(.plain).accessibilityLabel("选择照片").accessibilityAddTraits(selected.contains(photo.id) ? .isSelected : [])
+                        }.buttonStyle(CollectionPressStyle()).accessibilityLabel("选择照片").accessibilityAddTraits(selected.contains(photo.id) ? .isSelected : [])
                     }
                 }.padding(12)
             }
-            .navigationTitle(selected.isEmpty ? "照片墙" : "照片墙 · 已选 \(selected.count) 张")
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageBackground()
+            .appNavigationTitle(selected.isEmpty ? "照片墙" : "照片墙 · 已选 \(selected.count) 张")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         dismiss()
                     } label: {
-                        ActionIcon("取消", systemImage: "xmark")
+                        ToolbarActionIcon("取消", systemImage: "xmark")
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         confirm()
                     } label: {
-                        ActionIcon("加入 \(selected.count) 张照片", systemImage: "checkmark")
+                        ToolbarActionIcon("加入 \(selected.count) 张照片", systemImage: "checkmark")
                     }
+                    .toolbarConfirmationStyle()
                     .disabled(selected.isEmpty)
                 }
             }

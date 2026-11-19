@@ -56,21 +56,16 @@ struct GitHubLoginScreen: View {
                             Spacer()
                             if store.isLoading {
                                 ProgressView()
-                                    .tint(.white)
+                                    .tint(.secondary)
                                     .padding(.trailing, 6)
                                 Text("正在验证…")
-                                    .font(.subheadline.weight(.semibold))
                             } else {
                                 Label("验证并登录", systemImage: "arrow.right.circle.fill")
-                                    .font(.subheadline.weight(.semibold))
                             }
                             Spacer()
                         }
-                        .foregroundStyle(.white)
-                        .padding(.vertical, 10)
                     }
-                    .tint(.appAccent)
-                    .nativeGlassButton(prominent: true)
+                    .contentActionStyle(.prominent, size: .large)
                     .disabled(store.isLoading || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
                     Text("使用 Token 登录")
@@ -108,8 +103,9 @@ struct GitHubLoginScreen: View {
                 }
             }
         }
-        .navigationTitle("GitHub 账户")
-        .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .appPageBackground()
+        .appNavigationTitle("GitHub 账户")
         .onDisappear {
             token = ""
             loginTask?.cancel()

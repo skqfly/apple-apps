@@ -140,13 +140,15 @@ struct MediaViewer: View {
                                     turnPage(by: position - index)
                                 } label: {
                                     thumbnail(item)
-                                        .frame(width: position == index ? 40 : 30, height: 44)
+                                        .frame(width: position == index ? 40 : 30, height: ButtonMetrics.minimumHitSide)
                                         .clipShape(.rect(cornerRadius: 6))
                                         .overlay {
                                             RoundedRectangle(cornerRadius: 6)
                                                 .strokeBorder(.white.opacity(position == index ? 0.9 : 0), lineWidth: 2)
                                         }
                                         .opacity(position == index ? 1 : 0.6)
+                                        .frame(minWidth: ButtonMetrics.minimumHitSide)
+                                        .contentShape(Rectangle())
                                 }
                                 .buttonStyle(CollectionPressStyle())
                                 .id(item.id)
@@ -183,7 +185,7 @@ struct MediaViewer: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 0) {
+        GlassActionGroup {
             if let actions { actions }
 
             Button(action: prepareShare) {
@@ -210,9 +212,6 @@ struct MediaViewer: View {
         }
         .buttonStyle(CollectionPressStyle())
         .foregroundStyle(.white)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .liquidGlassCapsule(interactive: false)
     }
 
     private var magnifyGesture: some Gesture {
@@ -374,7 +373,7 @@ private struct MediaViewerImage: View {
                         preview.opacity(0.4)
                         VStack(spacing: 12) {
                             Label("照片加载失败", systemImage: "wifi.exclamationmark")
-                            Button("重试") { retry += 1 }.buttonStyle(.bordered)
+                            Button("重试") { retry += 1 }.contentActionStyle()
                         }
                         .foregroundStyle(.white)
                     }

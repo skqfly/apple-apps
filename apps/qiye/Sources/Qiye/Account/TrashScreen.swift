@@ -4,6 +4,7 @@ import SwiftUI
 struct TrashScreen: View {
     let library: ContentLibraryStore
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var filter: TrashFilter = .all
     @State private var confirmsPurgeAll = false
     @State private var photoToPurge: WebsitePhoto?
@@ -53,7 +54,7 @@ struct TrashScreen: View {
                         .padding(.vertical, 6)
                         .liquidGlassCapsule(interactive: false)
                         .padding(.top, 4)
-                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .transition(reduceMotion ? .identity : .move(edge: .top).combined(with: .opacity))
                 }
 
                 // Filter Pill Bar
@@ -69,9 +70,8 @@ struct TrashScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 28)
         }
-        .background(Color.appBackground)
-        .navigationTitle("回收站")
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageBackground()
+        .appNavigationTitle("回收站")
         .toolbar {
             if totalCount > 0 {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -79,8 +79,7 @@ struct TrashScreen: View {
                         Haptics.medium()
                         confirmsPurgeAll = true
                     } label: {
-                        ActionIcon("清空", systemImage: "trash")
-                            .foregroundStyle(.red)
+                        ToolbarActionIcon("清空", systemImage: "trash")
                     }
                 }
             }
@@ -118,22 +117,22 @@ struct TrashScreen: View {
     // MARK: - Filter Bar
 
     private var filterBar: some View {
-        HStack(spacing: 8) {
+        ContentActionChoices {
             ForEach(TrashFilter.allCases) { item in
                 let isSelected = filter == item
                 let count = count(for: item)
                 Button {
                     Haptics.selection()
-                    withAnimation(.snappy(duration: 0.2)) {
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
                         filter = item
                     }
                 } label: {
                     HStack(spacing: 5) {
                         Text(item.rawValue)
                             .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                        Text("\(count)")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.secondary)
+                        Text(count.formatted())
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .opacity(0.80)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
                             .background(
@@ -142,20 +141,11 @@ struct TrashScreen: View {
                                 )
                             )
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .foregroundStyle(isSelected ? Color.white : Color.primary)
-                    .background {
-                        if isSelected {
-                            Capsule().fill(Color.appAccent)
-                        } else {
-                            Capsule().fill(Color.secondary.opacity(0.10))
-                        }
-                    }
                 }
-                .buttonStyle(.plain)
+                .contentActionStyle(isSelected ? .prominent : .standard)
+                .accessibilityLabel("\(item.rawValue)，\(count) 项")
+                .accessibilityAddTraits(isSelected ? [.isSelected] : [])
             }
-            Spacer()
         }
     }
 
@@ -262,23 +252,17 @@ struct TrashScreen: View {
                     restore(photo: photo)
                 } label: {
                     Label("恢复", systemImage: "arrow.uturn.backward")
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(Color.appAccent)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 5)
-                        .background(Color.appAccent.opacity(0.12), in: Capsule())
                 }
-                .buttonStyle(.plain)
+                .contentActionStyle()
 
                 Button {
                     Haptics.light()
                     photoToPurge = photo
                 } label: {
-                    Image(systemName: "trash")
-                        .font(.caption2)
+                    ActionIcon("彻底删除", systemImage: "trash")
                         .foregroundStyle(.red)
-                        .frame(width: 28, height: 28)
-                        .background(Color.red.opacity(0.10), in: Circle())
+                        .liquidGlassCircle()
                 }
                 .buttonStyle(.plain)
             }
@@ -307,20 +291,14 @@ struct TrashScreen: View {
 
                 Spacer(minLength: 8)
 
-                HStack(spacing: 8) {
+                HStack(spacing: ButtonMetrics.floatingSpacing) {
                     Button {
                         Haptics.selection()
                         restore(talk: talk)
                     } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: "arrow.uturn.backward")
-                            Text("恢复")
-                        }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.appAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.appAccent.opacity(0.12), in: Capsule())
+                        ActionIcon("恢复", systemImage: "arrow.uturn.backward")
+                            .foregroundStyle(Color.appAccent)
+                            .liquidGlassCircle()
                     }
                     .buttonStyle(.plain)
 
@@ -328,11 +306,9 @@ struct TrashScreen: View {
                         Haptics.light()
                         talkToPurge = talk
                     } label: {
-                        Image(systemName: "trash")
-                            .font(.caption)
+                        ActionIcon("彻底删除", systemImage: "trash")
                             .foregroundStyle(.red)
-                            .frame(width: 30, height: 30)
-                            .background(Color.red.opacity(0.10), in: Circle())
+                            .liquidGlassCircle()
                     }
                     .buttonStyle(.plain)
                 }
@@ -414,11 +390,11 @@ struct TrashScreen: View {
     }
 
     private func showNotice(_ text: String) {
-        withAnimation(.snappy(duration: 0.25)) { notice = text }
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { notice = text }
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation(.snappy(duration: 0.25)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) {
                 if notice == text { notice = nil }
             }
         }

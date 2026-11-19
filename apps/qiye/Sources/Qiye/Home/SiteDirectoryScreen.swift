@@ -102,16 +102,18 @@ struct SiteDirectoryScreen: View {
                     }
                 }
             }
-            .padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
+            .padding(.bottom, 16)
+            .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background(Color.appBackground)
-        .navigationTitle(kind.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageBackground()
+        .appNavigationTitle(kind.title)
         .toolbar {
             if canEdit {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { isAdding = true } label: {
-                        ActionIcon("添加\(kind.title)", systemImage: "plus")
+                        ToolbarActionIcon("添加\(kind.title)", systemImage: "plus")
                     }
                 }
             }
@@ -131,6 +133,8 @@ private struct DirectoryCard: View {
     let entry: SiteDirectoryEntry
     let kind: DirectoryKind
     @Environment(\.dynamicTypeSize) private var typeSize
+    private let cardRadius: CGFloat = 19
+    private let cardInset: CGFloat = 12
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -141,7 +145,7 @@ private struct DirectoryCard: View {
             } else {
                 DirectoryArtwork(entry: entry, kind: kind)
                     .frame(height: 82)
-                    .clipShape(.rect(cornerRadius: 10))
+                    .clipShape(.rect(cornerRadius: cardRadius - cardInset))
             }
             Text(entry.title)
                 .font(.subheadline.weight(.semibold))
@@ -153,9 +157,9 @@ private struct DirectoryCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .multilineTextAlignment(.leading)
-        .padding(12)
+        .padding(cardInset)
         .frame(maxWidth: .infinity, minHeight: kind == .friends ? 120 : 150, alignment: .topLeading)
-        .plannerSurface(tint: .indigo.opacity(0.06))
+        .plannerSurface(tint: .indigo.opacity(0.06), radius: cardRadius)
         .accessibilityElement(children: .combine)
     }
 }
@@ -180,6 +184,7 @@ private struct DirectoryEntrySheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    Text(entry.title).appContentTitle()
                     if kind == .friends {
                         DirectoryArtwork(entry: entry, kind: kind)
                             .frame(width: 72, height: 72)
@@ -189,7 +194,6 @@ private struct DirectoryEntrySheet: View {
                             .frame(height: 180)
                             .clipShape(.rect(cornerRadius: 16))
                     }
-                    Text(entry.title).font(.title.bold())
                     if !entry.description.isEmpty {
                         Text(entry.description).foregroundStyle(.secondary)
                     }
@@ -200,23 +204,24 @@ private struct DirectoryEntrySheet: View {
                         Link(destination: destination) {
                             Label(kind == .projects ? "打开项目" : "拜访网站", systemImage: "arrow.up.right")
                         }
-                        .tint(.indigo)
-                        .nativeGlassButton(prominent: true)
+                        .contentActionStyle(.prominent, size: .large)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
+                .padding(.horizontal, AppPageLayout.horizontalInset)
+                .padding(.top, AppPageLayout.topInset)
+                .padding(.bottom, 20)
+                .frame(maxWidth: 760, alignment: .leading)
+                .frame(maxWidth: .infinity)
             }
-            .background(Color.appBackground)
-            .navigationTitle(kind.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageBackground()
+            .appNavigationTitle(kind.title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { ActionIcon("关闭", systemImage: "xmark") }
+                    Button { dismiss() } label: { ToolbarActionIcon("关闭", systemImage: "xmark") }
                 }
                 if canEdit {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { isEditing = true } label: { ActionIcon("编辑\(kind.title)", systemImage: "pencil") }
+                        Button { isEditing = true } label: { ToolbarActionIcon("编辑\(kind.title)", systemImage: "pencil") }
                     }
                 }
             }

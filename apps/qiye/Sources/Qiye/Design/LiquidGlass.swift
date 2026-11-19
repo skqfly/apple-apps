@@ -40,20 +40,115 @@ enum Haptics {
 
 extension View {
     @ViewBuilder
-    func nativeGlassButton(prominent: Bool = false) -> some View {
+    func toolbarConfirmationStyle() -> some View {
         if #available(iOS 26, *) {
-            if prominent { buttonStyle(.glassProminent).buttonBorderShape(.capsule) }
-            else { buttonStyle(.glass).buttonBorderShape(.capsule) }
+            buttonStyle(.glassProminent)
+                .buttonBorderShape(.circle)
+                .tint(.blue)
         } else {
-            if prominent { buttonStyle(.borderedProminent).buttonBorderShape(.capsule) }
-            else { buttonStyle(.bordered).buttonBorderShape(.capsule) }
+            self
         }
+    }
+}
+
+enum ButtonMetrics {
+    static let minimumHitSide: CGFloat = 44
+    static let floatingSide: CGFloat = 48
+    static let floatingSpacing: CGFloat = 6
+    static let floatingInset: CGFloat = 4
+}
+
+// MARK: - Content Buttons
+
+enum ContentActionSize: Equatable {
+    case medium, large
+
+    var height: CGFloat { self == .large ? 50 : 34 }
+}
+
+enum ContentActionEmphasis: Equatable {
+    case borderless, standard, prominent
+}
+
+struct ContentActionStyle: ButtonStyle {
+    let emphasis: ContentActionEmphasis
+    let size: ContentActionSize
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        let isDestructive = configuration.role == .destructive
+        let isProminent = emphasis == .prominent && isEnabled
+        let accent = isDestructive ? Color.actionDestructive : Color.actionAccent
+        let foreground = !isEnabled ? Color(uiColor: .tertiaryLabel)
+            : isProminent ? .white
+            : colorScheme == .dark ? (isDestructive ? .actionDestructiveOnDark : .actionAccentOnDark) : accent
+        let fill = emphasis == .borderless ? Color.clear
+            : isProminent ? accent : Color(uiColor: .tertiarySystemFill)
+
+        configuration.label
+            .font(size == .large ? .body : .subheadline)
+            .padding(.horizontal, size == .large ? 20 : 14)
+            .padding(.vertical, size == .large ? 14 : 7)
+            .frame(minWidth: size.height, minHeight: size.height)
+            .foregroundStyle(foreground)
+            .background {
+                Capsule()
+                    .fill(fill)
+                    .overlay {
+                        if configuration.isPressed && isEnabled {
+                            Capsule().fill(Color.primary.opacity(0.08))
+                        }
+                    }
+                    .allowsHitTesting(false)
+            }
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
+            .frame(minWidth: ButtonMetrics.minimumHitSide, minHeight: ButtonMetrics.minimumHitSide)
+            .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    func contentActionStyle(_ emphasis: ContentActionEmphasis = .standard,
+                            size: ContentActionSize = .medium) -> some View {
+        buttonStyle(ContentActionStyle(emphasis: emphasis, size: size))
+    }
+}
+
+/// Keep choices on one line when they fit and reflow them at larger text sizes.
+struct ContentActionChoices<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { content }
+                .fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 4) { content }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 // MARK: - Icon Actions
 
-/// Shared label geometry for toolbar and floating actions. The control owns its glass.
+/// A native label lets the navigation bar size and group its own glass controls.
+struct ToolbarActionIcon: View {
+    let title: String
+    let systemImage: String
+
+    init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .labelStyle(.iconOnly)
+    }
+}
+
+/// Fixed label geometry for controls outside the system navigation bar.
 struct ActionIcon: View {
     let title: String
     let systemImage: String
@@ -66,7 +161,7 @@ struct ActionIcon: View {
     var body: some View {
         Image(systemName: systemImage)
             .symbolRenderingMode(.monochrome)
-            .font(.system(size: systemImage == "xmark" ? 16 : 18, weight: .semibold))
+            .font(.system(size: 17, weight: .medium))
             .modifier(ActionHitArea())
             .accessibilityLabel(title)
     }
@@ -75,7 +170,7 @@ struct ActionIcon: View {
 struct ActionHitArea: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .frame(width: 44, height: 44)
+            .frame(width: ButtonMetrics.floatingSide, height: ButtonMetrics.floatingSide)
             .contentShape(Rectangle())
     }
 }
@@ -168,7 +263,7 @@ struct LiquidGlassCapsule: ViewModifier {
 
 /// Standard circular glass modifier.
 struct LiquidGlassCircle: ViewModifier {
-    var size: CGFloat = 44
+    var size: CGFloat = ButtonMetrics.floatingSide
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
@@ -176,7 +271,7 @@ struct LiquidGlassCircle: ViewModifier {
             content
                 .frame(width: size, height: size)
                 .glassEffect(.regular.interactive(), in: .circle)
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         } else {
             content
                 .frame(width: size, height: size)
@@ -190,7 +285,7 @@ struct LiquidGlassCircle: ViewModifier {
                             lineWidth: 0.75
                         )
                 }
-                .contentShape(Circle())
+                .contentShape(Rectangle())
         }
     }
 }
@@ -198,7 +293,7 @@ struct LiquidGlassCircle: ViewModifier {
 // MARK: - Convenient View Extensions
 
 extension View {
-    func liquidGlassCircle(size: CGFloat = 44) -> some View {
+    func liquidGlassCircle(size: CGFloat = ButtonMetrics.floatingSide) -> some View {
         modifier(LiquidGlassCircle(size: size))
     }
 
@@ -208,5 +303,15 @@ extension View {
 
     func liquidGlassCapsule(interactive: Bool = true) -> some View {
         modifier(LiquidGlassCapsule(interactive: interactive))
+    }
+}
+
+struct GlassActionGroup<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: ButtonMetrics.floatingSpacing) { content }
+            .padding(.horizontal, ButtonMetrics.floatingInset)
+            .liquidGlassCapsule(interactive: false)
     }
 }

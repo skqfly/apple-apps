@@ -43,7 +43,7 @@ struct RemotePhotoImage: View {
                             if allowsRetry {
                                 Button("正在显示预览，重试原图", systemImage: "arrow.clockwise") { attempt += 1 }
                                     .font(.caption)
-                                    .buttonStyle(.borderedProminent)
+                                    .contentActionStyle(.prominent, size: .large)
                                     .padding()
                             }
                         }
@@ -64,7 +64,7 @@ struct RemotePhotoImage: View {
             if allowsRetry {
                 Button("重新加载") { attempt += 1 }
                     .font(.caption)
-                    .buttonStyle(.bordered)
+                    .contentActionStyle()
             }
         }
         .foregroundStyle(.secondary)

@@ -28,10 +28,17 @@ jobs:
           sudo xcode-select -s /Applications/Xcode_26.6.app
           xcodebuild -version
 
-      - name: Render original website logo
+      - name: Verify committed app icon
         run: |
-          brew install librsvg
-          rsvg-convert -w 930 -h 930 --page-width 1024 --page-height 1024 --left 47 --top 47 --background-color white Resources/Brand/logo.svg -o Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          python3 - <<'PY'
+          import struct
+          path = "Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+          with open(path, "rb") as handle:
+              header = handle.read(24)
+          width, height = struct.unpack(">II", header[16:24])
+          assert (width, height) == (1024, 1024), f"App icon is {width}x{height}, expected 1024x1024"
+          print("Verified 1024x1024 app icon")
+          PY
 
       - name: Verify contribution and article models
         run: |

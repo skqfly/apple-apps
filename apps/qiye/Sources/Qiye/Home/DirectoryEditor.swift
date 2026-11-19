@@ -52,6 +52,7 @@ struct DirectoryEditor: View {
                 }
                 Section {
                     Button("保存并提交到 GitHub") { Task { await save() } }
+                        .contentActionStyle(.prominent, size: .large)
                         .disabled(saving || title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     if saving { ProgressView("正在提交…") }
@@ -63,11 +64,12 @@ struct DirectoryEditor: View {
                 }
             }
             .tint(.indigo)
-            .navigationTitle((original == nil ? "添加" : "编辑") + kind.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .appPageBackground()
+            .appNavigationTitle((original == nil ? "添加" : "编辑") + kind.title)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { ActionIcon("关闭", systemImage: "xmark") }
+                    Button { dismiss() } label: { ToolbarActionIcon("关闭", systemImage: "xmark") }
                         .disabled(saving)
                 }
             }

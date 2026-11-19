@@ -6,11 +6,12 @@ enum CollectionStyle {
 
 struct CollectionPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.35)
             .animation(reduceMotion ? nil : CollectionStyle.spring, value: configuration.isPressed)
     }
 }
@@ -51,14 +52,14 @@ struct CollectionSearchField: View {
                     Label("清除搜索", systemImage: "xmark.circle.fill")
                         .labelStyle(.iconOnly)
                         .foregroundStyle(.secondary)
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: ButtonMetrics.minimumHitSide, minHeight: ButtonMetrics.minimumHitSide)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(CollectionPressStyle())
             }
         }
         .font(.subheadline)
-        .frame(minHeight: 44)
+        .frame(minHeight: ButtonMetrics.minimumHitSide)
         .padding(.leading, 14)
         .padding(.trailing, text.isEmpty ? 14 : 0)
         .background(Color.appSurface, in: .rect(cornerRadius: 16))
@@ -87,5 +88,24 @@ extension View {
                     .strokeBorder(Color.primary.opacity(0.045), lineWidth: 1)
                     .allowsHitTesting(false)
             }
+    }
+}
+
+enum AppPageLayout {
+    static let horizontalInset: CGFloat = 16
+    static let topInset: CGFloat = 12
+}
+
+extension View {
+    func appNavigationTitle(_ title: String) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+    }
+
+    func appContentTitle() -> some View {
+        font(.title2.weight(.semibold))
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
     }
 }

@@ -7,7 +7,7 @@ struct TalkEditorSheet: View {
     let library: ContentLibraryStore
     let onSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var content: String
     @State private var date: Date
     @State private var publishState: ContentStatusFilter
@@ -66,9 +66,9 @@ struct TalkEditorSheet: View {
                     imageGrid
 
                     // Media toolbar
-                    HStack(spacing: 20) {
+                    GlassActionGroup {
                         PhotosPicker(selection: $pickerItems, maxSelectionCount: max(1, remaining), matching: .images) {
-                            Label("相册", systemImage: "photo.on.rectangle.angled")
+                            ActionIcon("相册", systemImage: "photo.on.rectangle.angled")
                         }
 
                         Button {
@@ -78,84 +78,28 @@ struct TalkEditorSheet: View {
                                 error = "这台设备没有可用相机。"
                             }
                         } label: {
-                            Label("拍照", systemImage: "camera")
+                            ActionIcon("拍照", systemImage: "camera")
                         }
 
                         Button {
                             showPhotos = true
                         } label: {
-                            Label("照片墙", systemImage: "square.grid.2x2")
+                            ActionIcon("照片墙", systemImage: "square.grid.2x2")
                         }
                     }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.appAccent)
+                    .buttonStyle(CollectionPressStyle())
                     .disabled(remaining == 0 || busy)
 
                     Divider()
 
-                    // Publishing State Picker
-                    HStack {
-                        Text("状态")
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("发表状态")
                             .font(.subheadline.weight(.medium))
+                            .accessibilityAddTraits(.isHeader)
 
-                        Spacer()
-
-                        HStack(spacing: 8) {
-                            Button {
-                                Haptics.selection()
-                                withAnimation(.snappy(duration: 0.18)) {
-                                    publishState = .published
-                                }
-                            } label: {
-                                HStack(spacing: 5) {
-                                    Circle()
-                                        .fill(publishState == .published ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.secondary.opacity(0.5))
-                                        .frame(width: 6, height: 6)
-                                    Text("已发表")
-                                }
-                                .font(.caption.weight(publishState == .published ? .semibold : .regular))
-                                .foregroundStyle(publishState == .published ? Color.primary : Color.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    publishState == .published ? Color.appAccent.opacity(colorScheme == .dark ? 0.22 : 0.14) : Color.secondary.opacity(0.08),
-                                    in: Capsule()
-                                )
-                                .overlay {
-                                    if publishState == .published {
-                                        Capsule().strokeBorder(Color.appAccent.opacity(0.4), lineWidth: 0.8)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                Haptics.selection()
-                                withAnimation(.snappy(duration: 0.18)) {
-                                    publishState = .unpublished
-                                }
-                            } label: {
-                                HStack(spacing: 5) {
-                                    Circle()
-                                        .fill(publishState == .unpublished ? Color.orange : Color.secondary.opacity(0.5))
-                                        .frame(width: 6, height: 6)
-                                    Text("未发表")
-                                }
-                                .font(.caption.weight(publishState == .unpublished ? .semibold : .regular))
-                                .foregroundStyle(publishState == .unpublished ? Color.primary : Color.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    publishState == .unpublished ? Color.orange.opacity(colorScheme == .dark ? 0.22 : 0.14) : Color.secondary.opacity(0.08),
-                                    in: Capsule()
-                                )
-                                .overlay {
-                                    if publishState == .unpublished {
-                                        Capsule().strokeBorder(Color.orange.opacity(0.4), lineWidth: 0.8)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.plain)
+                        ContentActionChoices {
+                            stateButton("已发表", value: .published)
+                            stateButton("未发表", value: .unpublished)
                         }
                     }
 
@@ -179,15 +123,14 @@ struct TalkEditorSheet: View {
                 }
                 .padding(20)
             }
-            .background(Color.appBackground)
-            .navigationTitle(post == nil ? "写说说" : "编辑说说")
-            .navigationBarTitleDisplayMode(.inline)
+            .appPageBackground()
+            .appNavigationTitle(post == nil ? "写说说" : "编辑说说")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         if dirty { discard = true } else { dismiss() }
                     } label: {
-                        ActionIcon("取消", systemImage: "xmark")
+                        ToolbarActionIcon("取消", systemImage: "xmark")
                     }
                     .disabled(busy)
                 }
@@ -196,12 +139,12 @@ struct TalkEditorSheet: View {
                     Button {
                         save()
                     } label: {
-                        ActionIcon(
+                        ToolbarActionIcon(
                             publishState == .published ? "发表" : "保存",
                             systemImage: publishState == .published ? "paperplane" : "checkmark"
                         )
                     }
-                    .tint(.appAccent)
+                    .toolbarConfirmationStyle()
                     .disabled(!hasContent || content.count > 50_000 || busy)
                 }
             }
@@ -289,14 +232,26 @@ struct TalkEditorSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 Button(action: remove) {
-                    Image(systemName: "xmark.circle.fill")
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color.black.opacity(0.65))
-                        .padding(6)
+                    ActionIcon("移除图片", systemImage: "xmark")
+                        .liquidGlassCircle()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CollectionPressStyle())
                 .accessibilityLabel("移除图片")
             }
+    }
+
+    private func stateButton(_ title: String, value: ContentStatusFilter) -> some View {
+        let isSelected = publishState == value
+        return Button {
+            Haptics.selection()
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+                publishState = value
+            }
+        } label: {
+            Label(title, systemImage: isSelected ? "checkmark" : "circle")
+        }
+        .contentActionStyle(isSelected ? .prominent : .standard)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private func save() {

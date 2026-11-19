@@ -5,7 +5,20 @@ struct BlogDetailScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(post.title).appContentTitle()
+                    if let category = post.category, !category.isEmpty {
+                        Text(category).font(.subheadline.weight(.medium)).foregroundStyle(Color.appAccent)
+                    }
+                    if post.date != .distantPast {
+                        Text(post.date, format: .dateTime.year().month().day())
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if !post.description.isEmpty {
+                        Text(post.description).font(.body).foregroundStyle(.secondary).lineSpacing(4)
+                    }
+                }
                 if let url = post.imageURL {
                     AsyncImage(url: url) { phase in
                         if let image = phase.image {
@@ -14,40 +27,29 @@ struct BlogDetailScreen: View {
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: 14) {
-                    if let category = post.category, !category.isEmpty {
-                        Text(category).font(.subheadline.weight(.medium)).foregroundStyle(Color.appAccent)
-                    }
-                    Text(post.title).font(.system(.largeTitle, design: .serif).weight(.semibold)).accessibilityAddTraits(.isHeader)
-                    if post.date != .distantPast {
-                        Text(post.date, format: .dateTime.year().month().day())
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    if !post.description.isEmpty {
-                        Text(post.description).font(.title3).foregroundStyle(.secondary).lineSpacing(4)
-                    }
-                }
                 Divider()
                 MarkdownBlocks(post.body, baseURL: post.websiteURL).lineSpacing(6)
             }
-            .padding(22)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
+            .padding(.bottom, 22)
             .frame(maxWidth: 760, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-        .background(Color.appBackground)
-        .navigationTitle("博客")
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageBackground()
+        .appNavigationTitle("博客")
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                ShareLink(item: post.websiteURL) {
+                    ToolbarActionIcon("分享", systemImage: "square.and.arrow.up")
+                }
+
                 Menu {
                     Link(destination: post.websiteURL) {
                         Label("在浏览器打开", systemImage: "safari")
                     }
-                    ShareLink(item: post.websiteURL) {
-                        Label("分享", systemImage: "square.and.arrow.up")
-                    }
                 } label: {
-                    ActionIcon("更多", systemImage: "ellipsis")
+                    ToolbarActionIcon("更多", systemImage: "ellipsis")
                 }
             }
         }

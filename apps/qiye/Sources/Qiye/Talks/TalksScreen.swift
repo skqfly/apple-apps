@@ -39,7 +39,9 @@ struct TalksScreen: View {
         ScrollView {
             VStack(spacing: 0) {
                 CollectionSearchField(text: $store.query, prompt: "搜索说说")
-                    .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 14)
+                    .padding(.horizontal, AppPageLayout.horizontalInset)
+                    .padding(.top, AppPageLayout.topInset)
+                    .padding(.bottom, 14)
                 if let notice {
                     Text(notice)
                         .font(.caption.weight(.medium))
@@ -92,9 +94,8 @@ struct TalksScreen: View {
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
         }
-        .background(Color.appBackground)
-        .navigationTitle("说说")
-        .navigationBarTitleDisplayMode(.large)
+        .appPageBackground()
+        .appNavigationTitle("说说")
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
             TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }
@@ -151,7 +152,7 @@ struct TalksScreen: View {
             Haptics.light()
             composer = true
         } label: {
-            ActionIcon("写说说", systemImage: "square.and.pencil")
+            ToolbarActionIcon("写说说", systemImage: "square.and.pencil")
         }
         .accessibilityLabel("写说说")
         .accessibilityIdentifier("compose-talk")

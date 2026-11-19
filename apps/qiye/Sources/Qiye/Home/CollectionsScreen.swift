@@ -33,8 +33,8 @@ struct CollectionsScreen: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(Date.now, format: .dateTime.month().day().weekday(.wide))
-                    .font(.title2.weight(.semibold))
-                    .accessibilityAddTraits(.isHeader)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
                     .padding(.bottom, 4)
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
@@ -61,24 +61,27 @@ struct CollectionsScreen: View {
                     .buttonStyle(CollectionPressStyle())
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
             .padding(.bottom, 24)
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
         }
-        .background {
-            ZStack(alignment: .top) {
-                Color.appBackground
-                LinearGradient(colors: [.indigo.opacity(0.12), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
-                    .frame(height: 430)
-            }
-            .ignoresSafeArea()
-        }
-        .navigationTitle("首页")
-        .navigationBarTitleDisplayMode(.inline)
+        .appPageBackground()
+        .appNavigationTitle("首页")
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("发布与同步", systemImage: "tray.and.arrow.up", action: showStudio)
+                    Button("个人中心", systemImage: "person.crop.circle", action: showAccount)
+                } label: {
+                    ToolbarActionIcon("更多", systemImage: "ellipsis")
+                }
+            }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     if canEditDirectory {
                         Button("添加项目", systemImage: DirectoryKind.projects.symbol) { newEntry = .projects }
@@ -87,14 +90,7 @@ struct CollectionsScreen: View {
                         Button("登录 GitHub 以添加", systemImage: "person.crop.circle", action: showAccount)
                     }
                 } label: {
-                    ActionIcon("添加", systemImage: "plus")
-                }
-
-                Menu {
-                    Button("发布与同步", systemImage: "tray.and.arrow.up", action: showStudio)
-                    Button("个人中心", systemImage: "person.crop.circle", action: showAccount)
-                } label: {
-                    ActionIcon("更多", systemImage: "ellipsis")
+                    ToolbarActionIcon("添加", systemImage: "plus")
                 }
             }
         }
@@ -179,8 +175,8 @@ struct CollectionsScreen: View {
 }
 
 extension View {
-    func plannerSurface(tint: Color = .clear) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 19)
+    func plannerSurface(tint: Color = .clear, radius: CGFloat = 19) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius)
         return background(tint, in: shape)
             .background(.thinMaterial, in: shape)
             .overlay {

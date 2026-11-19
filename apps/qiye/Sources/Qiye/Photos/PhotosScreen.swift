@@ -71,13 +71,12 @@ struct PhotosScreen: View {
                 photoGrid
                     .coordinateSpace(name: "PhotoGridSpace")
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
             .padding(.bottom, 24)
         }
-        .background(Color.appBackground)
-        .navigationTitle(isSelecting ? "已选择 “\(selectedPhotoIDs.count)”" : "图片")
-        .navigationBarTitleDisplayMode(.large)
+        .appPageBackground()
+        .appNavigationTitle(isSelecting ? "已选 \(selectedPhotoIDs.count) 张" : "图片")
         .toolbar { topBarToolbar }
         .refreshable { await refresh() }
         .task {
@@ -128,7 +127,7 @@ struct PhotosScreen: View {
                 Button {
                     withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) { exitSelection() }
                 } label: {
-                    ActionIcon("取消选择", systemImage: "xmark")
+                    ToolbarActionIcon("取消选择", systemImage: "xmark")
                 }
             }
 
@@ -144,15 +143,20 @@ struct PhotosScreen: View {
                         }
                     }
                 } label: {
-                    ActionIcon(
+                    ToolbarActionIcon(
                         allSelected ? "全部不选" : "全选",
                         systemImage: allSelected ? "minus.square" : "checkmark.square"
                     )
                 }
             }
         } else {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItem(placement: .topBarTrailing) {
                 selectButton
+            }
+            if #available(iOS 26, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 addButton
             }
         }
@@ -163,7 +167,7 @@ struct PhotosScreen: View {
             withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
         } label: {
-            ActionIcon("选择照片", systemImage: "checkmark.circle")
+            ToolbarActionIcon("选择照片", systemImage: "checkmark")
         }
         .disabled(visiblePhotos.isEmpty || isBusy)
         .accessibilityLabel("选择照片")
@@ -172,7 +176,7 @@ struct PhotosScreen: View {
 
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
-            ActionIcon("添加照片", systemImage: "plus")
+            ToolbarActionIcon("添加照片", systemImage: "plus")
         }
         .disabled(isBusy)
         .accessibilityLabel("添加照片")
@@ -210,7 +214,7 @@ struct PhotosScreen: View {
                         Button { open(.local(draft)) } label: {
                             photoTile { LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true), fallbackURL: store.fileURL(for: draft, thumbnail: false)) }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(CollectionPressStyle())
                         .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
                         .accessibilityLabel(draft.title.isEmpty ? "未发表照片" : draft.title)
                         .accessibilityHint("在 App 内查看大图")
@@ -372,12 +376,7 @@ struct PhotosScreen: View {
         let isPublishing = status == .unpublished
         let hasSelection = !selectedPhotoIDs.isEmpty
 
-        return HStack(spacing: 8) {
-            Text("已选 \(selectedPhotoIDs.count)")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 10)
-
+        return GlassActionGroup {
             Button {
                 if isPublishing { publishSelected() } else { unpublishSelected() }
             } label: {
@@ -385,7 +384,6 @@ struct PhotosScreen: View {
                     isPublishing ? "发表" : "下架",
                     systemImage: isPublishing ? "tray.and.arrow.up" : "tray.and.arrow.down"
                 )
-                .foregroundStyle(canPublish && hasSelection ? Color.primary : Color.secondary)
             }
             .disabled(!canPublish || !hasSelection)
 
@@ -398,9 +396,6 @@ struct PhotosScreen: View {
             .disabled(!hasSelection)
         }
         .buttonStyle(CollectionPressStyle())
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .liquidGlassCapsule(interactive: false)
         .padding(.bottom, 12)
     }
 

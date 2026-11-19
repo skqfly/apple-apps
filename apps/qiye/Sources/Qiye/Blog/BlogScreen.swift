@@ -30,8 +30,11 @@ struct BlogScreen: View {
                     if !store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         ContentUnavailableView.search(text: store.query)
                     } else {
-                        ContentUnavailableView(category == nil ? "暂无博客" : "这个分类暂无博客",
-                                               systemImage: "doc.text")
+                        ContentUnavailableView(
+                            category == nil ? "暂无博客" : "这个分类暂无博客",
+                            systemImage: "doc.text",
+                            description: Text(category == nil ? "下拉刷新，查看最新文章。" : "切换分类，查看其他文章。")
+                        )
                     }
                 } else {
                     LazyVStack(spacing: 12) {
@@ -46,11 +49,13 @@ struct BlogScreen: View {
                     }
                 }
             }
-            .padding(18).padding(.bottom, 12)
+            .padding(.horizontal, AppPageLayout.horizontalInset)
+            .padding(.top, AppPageLayout.topInset)
+            .padding(.bottom, 30)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
-        .background(Color.appBackground)
-        .navigationTitle("博客").navigationBarTitleDisplayMode(.large)
+        .appPageBackground()
+        .appNavigationTitle("博客")
         .searchable(text: Binding(get: { store.query }, set: { store.query = $0 }),
                     placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索博客")
         .toolbar {
@@ -61,7 +66,7 @@ struct BlogScreen: View {
                         Text("最早优先").tag(false)
                     }
                 } label: {
-                    ActionIcon("排序", systemImage: "arrow.up.arrow.down")
+                    ToolbarActionIcon("排序", systemImage: "arrow.up.arrow.down")
                 }
             }
         }
@@ -104,11 +109,9 @@ struct BlogScreen: View {
             withAnimation(reduceMotion ? nil : CollectionStyle.spring) { category = value }
             Haptics.selection()
         } label: {
-            Text(title).font(.caption.weight(.semibold))
-                .padding(.horizontal, 8).frame(minHeight: 36)
-                .foregroundStyle(category == value ? Color.appBackground : Color.primary)
+            Text(title)
         }
-        .nativeGlassButton(prominent: category == value)
+        .contentActionStyle(category == value ? .prominent : .standard)
         .accessibilityAddTraits(category == value ? [.isSelected] : [])
     }
 }

@@ -20,7 +20,7 @@ struct ContentStatus: View {
                 else { Text("重新加载") }
             }
             .disabled(isRetrying)
-            .buttonStyle(.bordered)
+            .contentActionStyle()
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

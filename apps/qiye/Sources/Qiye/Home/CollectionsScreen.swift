@@ -40,7 +40,7 @@ struct CollectionsScreen: View {
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
-            .padding(.bottom, 28)
+            .padding(.bottom, 104)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
@@ -183,10 +183,10 @@ struct CollectionsScreen: View {
             HStack(alignment: .center, spacing: 10) {
                 HStack(spacing: 5) {
                     Text(contributionTotal)
-                        .font(.system(size: 17, weight: .bold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundStyle(Color.appAccent)
                     Text("次贡献 · 过去一年")
-                        .font(.system(size: 17))
+                        .font(.system(size: 18))
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
@@ -232,7 +232,7 @@ struct CollectionsScreen: View {
     private var activityPlaceholder: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
             .fill(Color.primary.opacity(0.05))
-            .frame(height: 115)
+            .frame(height: 132)
             .overlay { ProgressView().controlSize(.small) }
             .accessibilityLabel("正在读取贡献")
     }
@@ -403,8 +403,8 @@ struct CollectionsScreen: View {
 
 private struct HomeActivityGrid: View {
     let calendar: DashboardContributions
-    private let tile: CGFloat = 13
-    private let gap: CGFloat = 4
+    private let tile: CGFloat = 15
+    private let gap: CGFloat = 4.5
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -412,7 +412,7 @@ private struct HomeActivityGrid: View {
                 ForEach(calendar.weeks) { week in
                     VStack(spacing: gap) {
                         ForEach(Array(week.days.enumerated()), id: \.offset) { _, day in
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            RoundedRectangle(cornerRadius: 4.5, style: .continuous)
                                 .fill(day.map { fill(for: $0) } ?? .clear)
                                 .frame(width: tile, height: tile)
                         }
@@ -422,6 +422,12 @@ private struct HomeActivityGrid: View {
             .padding(.vertical, 2)
         }
         .defaultScrollAnchor(.trailing)
+        .mask {
+            LinearGradient(stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.06)
+            ], startPoint: .leading, endPoint: .trailing)
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("贡献热力图，最近一年共 \(calendar.total ?? 0) 次")
     }
@@ -429,9 +435,9 @@ private struct HomeActivityGrid: View {
     private func fill(for day: DashboardContributionDay) -> Color {
         switch day.level {
         case 0: return Color.primary.opacity(0.07)
-        case 1: return Color.appAccent.opacity(0.3)
-        case 2: return Color.appAccent.opacity(0.5)
-        case 3: return Color.appAccent.opacity(0.74)
+        case 1: return Color.appAccent.opacity(0.36)
+        case 2: return Color.appAccent.opacity(0.58)
+        case 3: return Color.appAccent.opacity(0.8)
         default: return Color.appAccent
         }
     }

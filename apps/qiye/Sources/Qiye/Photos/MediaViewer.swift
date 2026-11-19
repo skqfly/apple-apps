@@ -210,7 +210,11 @@ struct MediaViewer: View {
                         dragAxis = .pan
                         panOrigin = pan
                     } else {
-                        dragAxis = abs(value.translation.width) > abs(value.translation.height) ? .horizontal : .vertical
+                        let translation = value.translation
+                        // Lock the axis only once the finger has really moved, and favour
+                        // vertical so a slightly diagonal pull still dismisses.
+                        guard abs(translation.width) + abs(translation.height) >= 16 else { return }
+                        dragAxis = abs(translation.width) > abs(translation.height) * 1.2 ? .horizontal : .vertical
                     }
                 }
                 switch dragAxis {

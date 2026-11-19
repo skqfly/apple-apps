@@ -33,10 +33,10 @@ struct CollectionsScreen: View {
             VStack(alignment: .leading, spacing: 28) {
                 profileHeader
                 activitySection
-                destinationList
                 if let latest = blog.posts.first {
                     latestBlog(latest)
                 }
+                destinationList
             }
             .padding(.horizontal, 20)
             .padding(.top, 6)
@@ -257,7 +257,7 @@ struct CollectionsScreen: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .font(.system(size: 14))
+        .font(.system(size: 15))
         .accessibilityElement(children: .combine)
     }
 

@@ -93,7 +93,8 @@ struct AppNavigationView: View {
             Group {
                 switch section {
                 case .home:
-                    CollectionsScreen(blog: blog, photos: photos, library: library, repository: repository,
+                    CollectionsScreen(blog: blog, photos: photos, library: library,
+                                      dashboard: dashboard, account: account, repository: repository,
                                       open: { section in
                                           selectedSection = section
                                       }, showAccount: { showingAccount = true }, showStudio: { showingStudio = true })

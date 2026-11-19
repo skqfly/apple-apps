@@ -66,7 +66,7 @@ struct BlogScreen: View {
                         Text("最早优先").tag(false)
                     }
                 } label: {
-                    ToolbarActionIcon("排序", systemImage: "arrow.up.arrow.down")
+                    ToolbarActionIcon("排序", systemImage: "line.3.horizontal.decrease")
                 }
             }
         }
@@ -127,7 +127,7 @@ struct ArticleCollectionCard: View {
             }
             .font(.subheadline)
             Text(post.title)
-                .font(.system(.title3, design: .serif).weight(.semibold))
+                .font(.title3.weight(.semibold))
             if !post.description.isEmpty {
                 Text(post.description)
                     .font(.subheadline)

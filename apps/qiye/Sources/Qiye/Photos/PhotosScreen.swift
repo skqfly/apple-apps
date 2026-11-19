@@ -26,6 +26,7 @@ struct PhotosScreen: View {
     @State private var selectedPhotoIDs: Set<String> = []
     @State private var photoFrames: [String: CGRect] = [:]
     @State private var swipedPhotoIDs: Set<String> = []
+    @Namespace private var photoZoom
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 250 : 150), spacing: 12)]
@@ -100,6 +101,7 @@ struct PhotosScreen: View {
                 library: library, canPublish: canPublish,
                 photos: gallery.photos, drafts: gallery.drafts
             )
+            .collectionZoomDestination(id: gallery.selection.id, namespace: photoZoom)
         }
         .safeAreaInset(edge: .bottom) {
             if isSelecting {
@@ -213,6 +215,7 @@ struct PhotosScreen: View {
                     ForEach(store.drafts) { draft in
                         Button { open(.local(draft)) } label: {
                             photoTile { LocalPhotoImage(url: store.fileURL(for: draft, thumbnail: true), fallbackURL: store.fileURL(for: draft, thumbnail: false)) }
+                                .collectionZoomSource(id: PhotoSelection.local(draft).id, namespace: photoZoom)
                         }
                         .buttonStyle(CollectionPressStyle())
                         .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
@@ -338,6 +341,7 @@ struct PhotosScreen: View {
     private func draggableCell(_ photo: WebsitePhoto) -> some View {
         Button { open(.website(photo)) } label: {
             photoTile { photoImage(photo) }
+                .collectionZoomSource(id: PhotoSelection.website(photo).id, namespace: photoZoom)
         }
         .buttonStyle(CollectionPressStyle())
         .scaleEffect(draggingPhotoID == photo.id ? 1.03 : 1)

@@ -8,7 +8,7 @@ struct ContentStatusPicker: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ContentActionChoices {
+        HStack(spacing: 6) {
             ForEach(categories) { status in
                 let selected = selection == status
                 Button {
@@ -26,6 +26,7 @@ struct ContentStatusPicker: View {
                 .accessibilityAddTraits(selected ? [.isSelected] : [])
                 .accessibilityIdentifier("content-status-\(status.rawValue)")
             }
+            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("content-status-picker")

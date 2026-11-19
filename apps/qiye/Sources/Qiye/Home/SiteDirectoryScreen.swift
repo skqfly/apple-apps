@@ -64,28 +64,20 @@ struct SiteDirectoryScreen: View {
     let kind: DirectoryKind
     let canEdit: Bool
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var query = ""
     @State private var selected: SiteDirectoryEntry?
     @State private var isAdding = false
 
-    private var searchTerm: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
-
     private var entries: [SiteDirectoryEntry] {
-        let all = kind == .projects ? store.projects : store.friends
-        return all.filter { searchTerm.isEmpty || $0.title.localizedStandardContains(searchTerm)
-            || $0.description.localizedStandardContains(searchTerm) }
+        kind == .projects ? store.projects : store.friends
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                CollectionSearchField(text: $query, prompt: "搜索\(kind.title)")
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh() }
                 }
-                if entries.isEmpty && !searchTerm.isEmpty {
-                    ContentUnavailableView.search(text: searchTerm)
-                } else if entries.isEmpty {
+                if entries.isEmpty {
                     ContentUnavailableView("暂无\(kind.title)", systemImage: kind.symbol)
                 }
 
@@ -159,7 +151,7 @@ private struct DirectoryCard: View {
         .multilineTextAlignment(.leading)
         .padding(cardInset)
         .frame(maxWidth: .infinity, minHeight: kind == .friends ? 120 : 150, alignment: .topLeading)
-        .plannerSurface(tint: .indigo.opacity(0.06), radius: cardRadius)
+        .plannerSurface(tint: Color.appAccent.opacity(0.06), radius: cardRadius)
         .accessibilityElement(children: .combine)
     }
 }
@@ -240,7 +232,7 @@ private struct DirectoryArtwork: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.indigo.opacity(0.09)
+                Color.appAccent.opacity(0.09)
                 if let url = entry.imageURL {
                     if url.pathExtension.lowercased() == "svg" {
                         DirectorySVG(url: url) { placeholder }

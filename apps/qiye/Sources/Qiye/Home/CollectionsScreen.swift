@@ -40,15 +40,15 @@ struct CollectionsScreen: View {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
                                         count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
                     Button { open(.photos) } label: {
-                        tile("图片", symbol: "photo.on.rectangle", count: photos.photos.count, tint: .blue)
+                        tile("图片", symbol: "photo.on.rectangle", count: photos.photos.count, tint: Color.appAccent)
                     }
                     .accessibilityIdentifier("collection-photos")
                     Button { open(.talks) } label: {
-                        tile("说说", symbol: "text.bubble", count: library.allTalks().count, tint: .indigo)
+                        tile("说说", symbol: "text.bubble", count: library.allTalks().count, tint: Color.appAccent)
                     }
                     .accessibilityIdentifier("collection-talks")
-                    directoryTile(.projects, count: directory.projects.count, tint: .indigo)
-                    directoryTile(.friends, count: directory.friends.count, tint: .purple)
+                    directoryTile(.projects, count: directory.projects.count, tint: Color.appAccent)
+                    directoryTile(.friends, count: directory.friends.count, tint: Color.appAccent)
                 }
                 .buttonStyle(CollectionPressStyle())
 
@@ -59,6 +59,10 @@ struct CollectionsScreen: View {
                         latestBlog(latest)
                     }
                     .buttonStyle(CollectionPressStyle())
+                }
+
+                if !recentTalks.isEmpty {
+                    recentTalksSection
                 }
             }
             .padding(.horizontal, AppPageLayout.horizontalInset)
@@ -147,9 +151,49 @@ struct CollectionsScreen: View {
                 .accessibilityHidden(true)
         }
         .padding(16)
-        .plannerSurface(tint: .indigo.opacity(0.05))
+        .plannerSurface(tint: Color.appAccent.opacity(0.05))
         .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
+    }
+
+    private var recentTalks: [TalkPost] {
+        Array(library.allTalks()
+            .filter { !$0.description.isEmpty }
+            .sorted { $0.date > $1.date }
+            .prefix(3))
+    }
+
+    private var recentTalksSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("最近说说").font(.caption).foregroundStyle(.secondary)
+            ForEach(recentTalks) { talk in
+                Button { open(.talks) } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "text.bubble")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(talk.description)
+                                .font(.subheadline)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(talk.date, format: .dateTime.month().day())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(CollectionPressStyle())
+                .accessibilityLabel("说说：\(talk.description)")
+            }
+        }
+        .padding(16)
+        .plannerSurface(tint: Color.appAccent.opacity(0.05))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func tile(_ title: String, symbol: String, count: Int, tint: Color) -> some View {

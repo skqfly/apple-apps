@@ -38,10 +38,6 @@ struct TalksScreen: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                CollectionSearchField(text: $store.query, prompt: "搜索说说")
-                    .padding(.horizontal, AppPageLayout.horizontalInset)
-                    .padding(.top, AppPageLayout.topInset)
-                    .padding(.bottom, 14)
                 if let notice {
                     Text(notice)
                         .font(.caption.weight(.medium))
@@ -96,6 +92,7 @@ struct TalksScreen: View {
         }
         .appPageBackground()
         .appNavigationTitle("说说")
+        .searchable(text: $store.query, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索说说")
         .toolbar { composeToolbar }
         .sheet(isPresented: $composer) {
             TalkEditorSheet(post: nil, library: library) { showNotice("已保存到未发表") }

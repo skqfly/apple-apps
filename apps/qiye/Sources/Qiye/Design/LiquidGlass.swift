@@ -44,7 +44,7 @@ extension View {
         if #available(iOS 26, *) {
             buttonStyle(.glassProminent)
                 .buttonBorderShape(.circle)
-                .tint(.blue)
+                .tint(Color.appAccent)
         } else {
             self
         }

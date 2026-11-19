@@ -63,7 +63,7 @@ struct DirectoryEditor: View {
                     Text("提交后，网站将在 GitHub Pages 完成部署时更新。")
                 }
             }
-            .tint(.indigo)
+            .tint(Color.appAccent)
             .scrollContentBackground(.hidden)
             .appPageBackground()
             .appNavigationTitle((original == nil ? "添加" : "编辑") + kind.title)

@@ -124,4 +124,17 @@ extension Color {
         return nil
         #endif
     }
+
+    /// Blends the accent toward white so it stays readable as a foreground on dark backgrounds.
+    var accentOnDark: Color {
+        #if canImport(UIKit)
+        let ui = UIColor(self)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return self }
+        let k: CGFloat = 0.45
+        return Color(red: r + (1 - r) * k, green: g + (1 - g) * k, blue: b + (1 - b) * k, opacity: a)
+        #else
+        return self
+        #endif
+    }
 }

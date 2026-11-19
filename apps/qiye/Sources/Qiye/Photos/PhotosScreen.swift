@@ -101,7 +101,6 @@ struct PhotosScreen: View {
                 library: library, canPublish: canPublish,
                 photos: gallery.photos, drafts: gallery.drafts
             )
-            .collectionZoomDestination(id: gallery.selection.id, namespace: photoZoom)
         }
         .safeAreaInset(edge: .bottom) {
             if isSelecting {

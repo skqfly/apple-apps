@@ -116,10 +116,10 @@ final class TimelineFlowTests: XCTestCase {
         photo.tap()
         let close = app.buttons["关闭"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 5))
-        let thumbnails = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "转到第"))
-        XCTAssertGreaterThan(thumbnails.count, 1, "The first photo must open with the complete collection for browsing")
-        thumbnails.element(boundBy: 1).tap()
-        capture("Photo filmstrip")
+        let counter = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ / [0-9]+$")).firstMatch
+        XCTAssertTrue(counter.waitForExistence(timeout: 5), "The viewer must show its position in the collection")
+        XCTAssertFalse(counter.label.hasSuffix(" / 1"), "The first photo must open with the complete collection for browsing")
+        capture("Photo viewer")
         close.tap()
 
         app.tabBars.buttons["首页"].tap()

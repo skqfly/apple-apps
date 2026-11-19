@@ -98,6 +98,7 @@ struct MediaViewer: View {
             .overlay(alignment: .bottomTrailing) { viewerDock.padding(18) }
         }
         .background(.black)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("media-viewer")
         .preferredColorScheme(.dark)
         .statusBarHidden()

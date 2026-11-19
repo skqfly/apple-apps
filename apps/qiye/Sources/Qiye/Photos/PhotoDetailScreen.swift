@@ -49,6 +49,7 @@ struct PhotoDetailScreen: View {
             actions: AnyView(managementMenu),
             onIndexChange: { currentIndex = $0 }
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("photo-detail-screen")
         .confirmationDialog("移到回收站？", isPresented: $confirmsDelete, titleVisibility: .visible) {
             Button("移到回收站", role: .destructive) { moveToTrash() }

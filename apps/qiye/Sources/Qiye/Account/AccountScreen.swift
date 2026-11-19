@@ -100,7 +100,11 @@ struct AccountScreen: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button {
+                        dismiss()
+                    } label: {
+                        ActionIcon("完成", systemImage: "checkmark")
+                    }
                 }
             }
         }

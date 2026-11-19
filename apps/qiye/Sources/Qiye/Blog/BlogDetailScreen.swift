@@ -47,7 +47,7 @@ struct BlogDetailScreen: View {
                         Label("分享", systemImage: "square.and.arrow.up")
                     }
                 } label: {
-                    Label("更多", systemImage: "ellipsis")
+                    ActionIcon("更多", systemImage: "ellipsis")
                 }
             }
         }

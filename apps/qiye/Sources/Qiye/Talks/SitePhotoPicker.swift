@@ -41,10 +41,24 @@ struct SitePhotoPicker: View {
                     }
                 }.padding(12)
             }
-            .navigationTitle("照片墙").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(selected.isEmpty ? "照片墙" : "照片墙 · 已选 \(selected.count) 张")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("加入 \(selected.count)") { confirm() }.disabled(selected.isEmpty) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        ActionIcon("取消", systemImage: "xmark")
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        confirm()
+                    } label: {
+                        ActionIcon("加入 \(selected.count) 张照片", systemImage: "checkmark")
+                    }
+                    .disabled(selected.isEmpty)
+                }
             }
         }
     }

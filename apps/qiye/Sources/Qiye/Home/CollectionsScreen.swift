@@ -5,19 +5,24 @@ struct CollectionsScreen: View {
     let blog: BlogStore
     let photos: PhotoLibraryStore
     let library: ContentLibraryStore
+    let canEditDirectory: Bool
     let open: (SiteSection) -> Void
     let showAccount: () -> Void
     let showStudio: () -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
     @State private var directory: SiteDirectoryStore
+    @State private var newEntry: DirectoryKind?
+    #if DEBUG
     @State private var screenshotDestination: DirectoryKind?
+    #endif
 
     init(blog: BlogStore, photos: PhotoLibraryStore, library: ContentLibraryStore,
-         repository: GitHubRepository, open: @escaping (SiteSection) -> Void,
+         repository: GitHubRepository, canEditDirectory: Bool, open: @escaping (SiteSection) -> Void,
          showAccount: @escaping () -> Void, showStudio: @escaping () -> Void) {
         self.blog = blog
         self.photos = photos
         self.library = library
+        self.canEditDirectory = canEditDirectory
         self.open = open
         self.showAccount = showAccount
         self.showStudio = showStudio
@@ -26,28 +31,24 @@ struct CollectionsScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(Date.now, format: .dateTime.month().day().weekday(.wide))
+                    .font(.title2.weight(.semibold))
+                    .accessibilityAddTraits(.isHeader)
+                    .padding(.bottom, 4)
+
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
                                         count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
                     Button { open(.photos) } label: {
-                        tile("图片", symbol: "photo.on.rectangle", count: "\(photos.photos.count) 张")
+                        tile("图片", symbol: "photo.on.rectangle", count: photos.photos.count, tint: .blue)
                     }
                     .accessibilityIdentifier("collection-photos")
                     Button { open(.talks) } label: {
-                        tile("说说", symbol: "text.bubble", count: "\(library.allTalks().count) 条")
+                        tile("说说", symbol: "text.bubble", count: library.allTalks().count, tint: .indigo)
                     }
-                    NavigationLink {
-                        SiteDirectoryScreen(store: directory, kind: .projects)
-                    } label: {
-                        tile("项目", symbol: "square.stack.3d.up", count: "\(directory.projects.count) 个")
-                    }
-                    .accessibilityIdentifier("collection-projects")
-                    NavigationLink {
-                        SiteDirectoryScreen(store: directory, kind: .friends)
-                    } label: {
-                        tile("友链", symbol: "person.2", count: "\(directory.friends.count) 个")
-                    }
-                    .accessibilityIdentifier("collection-friends")
+                    .accessibilityIdentifier("collection-talks")
+                    directoryTile(.projects, count: directory.projects.count, tint: .indigo)
+                    directoryTile(.friends, count: directory.friends.count, tint: .purple)
                 }
                 .buttonStyle(CollectionPressStyle())
 
@@ -60,21 +61,45 @@ struct CollectionsScreen: View {
                     .buttonStyle(CollectionPressStyle())
                 }
             }
-            .padding(.horizontal, 18).padding(.top, 12).padding(.bottom, 24)
-            .frame(maxWidth: 760).frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
         }
-        .background(Color.appBackground)
+        .background {
+            ZStack(alignment: .top) {
+                Color.appBackground
+                LinearGradient(colors: [.indigo.opacity(0.12), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
+                    .frame(height: 430)
+            }
+            .ignoresSafeArea()
+        }
         .navigationTitle("首页")
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    if canEditDirectory {
+                        Button("添加项目", systemImage: DirectoryKind.projects.symbol) { newEntry = .projects }
+                        Button("添加友链", systemImage: DirectoryKind.friends.symbol) { newEntry = .friends }
+                    } else {
+                        Button("登录 GitHub 以添加", systemImage: "person.crop.circle", action: showAccount)
+                    }
+                } label: {
+                    ActionIcon("添加", systemImage: "plus")
+                }
+
                 Menu {
                     Button("发布与同步", systemImage: "tray.and.arrow.up", action: showStudio)
                     Button("个人中心", systemImage: "person.crop.circle", action: showAccount)
                 } label: {
-                    Label("更多", systemImage: "ellipsis")
+                    ActionIcon("更多", systemImage: "ellipsis")
                 }
             }
+        }
+        .sheet(item: $newEntry) { kind in
+            DirectoryEditor(store: directory, kind: kind)
         }
         .task {
             await blog.loadIfNeeded()
@@ -88,7 +113,7 @@ struct CollectionsScreen: View {
         }
         #if DEBUG
         .navigationDestination(item: $screenshotDestination) { kind in
-            SiteDirectoryScreen(store: directory, kind: kind)
+            SiteDirectoryScreen(store: directory, kind: kind, canEdit: canEditDirectory)
         }
         .task {
             let arguments = ProcessInfo.processInfo.arguments
@@ -98,20 +123,26 @@ struct CollectionsScreen: View {
         #endif
     }
 
+    private func directoryTile(_ kind: DirectoryKind, count: Int, tint: Color) -> some View {
+        NavigationLink {
+            SiteDirectoryScreen(store: directory, kind: kind, canEdit: canEditDirectory)
+        } label: {
+            tile(kind.title, symbol: kind.symbol, count: count, tint: tint)
+        }
+        .accessibilityIdentifier("collection-\(kind.rawValue)")
+    }
+
     private func latestBlog(_ post: BlogPost) -> some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                Label("最新博客", systemImage: "doc.text")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.appAccent)
-                Text(post.title)
-                    .font(.headline)
+        HStack(spacing: 12) {
+            Image(systemName: "doc.text")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("最新博客").font(.caption).foregroundStyle(.secondary)
+                Text(post.title).font(.subheadline.weight(.semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                if post.date != .distantPast {
-                    Text(post.date, format: .dateTime.year().month().day())
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
             }
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
@@ -120,33 +151,42 @@ struct CollectionsScreen: View {
                 .accessibilityHidden(true)
         }
         .padding(16)
-        .collectionSurface(radius: 20)
-        .contentShape(.rect(cornerRadius: 20))
+        .plannerSurface(tint: .indigo.opacity(0.05))
         .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
-        .accessibilityHint("打开全文")
     }
 
-    private func tile(_ title: String, symbol: String, count: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+    private func tile(_ title: String, symbol: String, count: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center) {
                 Image(systemName: symbol)
-                    .font(.title3.weight(.medium))
-                    .foregroundStyle(Color.appAccent)
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
+                    .font(.title3.weight(.semibold))
+                Spacer(minLength: 5)
+                Text(count.formatted())
+                    .font(.title2.weight(.semibold).monospacedDigit())
             }
             .accessibilityHidden(true)
-            Text(title).font(.subheadline.weight(.medium))
-            Text(count)
-                .font(.title3.weight(.semibold).monospacedDigit())
+            Text(title).font(.subheadline.weight(.semibold))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .collectionSurface(radius: 20)
-        .contentShape(.rect(cornerRadius: 20))
-        .accessibilityElement(children: .combine)
+        .foregroundStyle(Color.primary)
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+        .plannerSurface(tint: tint.opacity(0.10))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(count.formatted())
+    }
+}
+
+extension View {
+    func plannerSurface(tint: Color = .clear) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 19)
+        return background(tint, in: shape)
+            .background(.thinMaterial, in: shape)
+            .overlay {
+                shape.strokeBorder(Color.primary.opacity(0.055), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .contentShape(shape)
     }
 }

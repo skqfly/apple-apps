@@ -119,49 +119,52 @@ struct PhotosScreen: View {
         }
     }
 
-    // MARK: - Navigation Bar Toolbar (Apple Native Photos / Files Style)
+    // MARK: - Navigation Bar Actions
 
     @ToolbarContentBuilder
     private var topBarToolbar: some ToolbarContent {
         if isSelecting {
             ToolbarItem(placement: .topBarLeading) {
-                Button("取消") {
+                Button {
                     withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) { exitSelection() }
+                } label: {
+                    ActionIcon("取消选择", systemImage: "xmark")
                 }
-
-                .accessibilityLabel("取消选择")
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                Button(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选") {
+                let allSelected = selectedPhotoIDs.count == visiblePhotos.count
+                Button {
                     Haptics.selection()
                     withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
-                        if selectedPhotoIDs.count == visiblePhotos.count {
+                        if allSelected {
                             selectedPhotoIDs.removeAll()
                         } else {
                             selectedPhotoIDs = Set(visiblePhotos.map(\.id))
                         }
                     }
+                } label: {
+                    ActionIcon(
+                        allSelected ? "全部不选" : "全选",
+                        systemImage: allSelected ? "minus.square" : "checkmark.square"
+                    )
                 }
-
-                .accessibilityLabel(selectedPhotoIDs.count == visiblePhotos.count ? "全部不选" : "全选")
             }
         } else {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 selectButton
-            }
-            ToolbarItem(placement: .topBarTrailing) {
                 addButton
             }
         }
     }
 
     private var selectButton: some View {
-        Button("选择") {
+        Button {
             withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { isSelecting = true }
             Haptics.medium()
+        } label: {
+            ActionIcon("选择照片", systemImage: "checkmark.circle")
         }
-
         .disabled(visiblePhotos.isEmpty || isBusy)
         .accessibilityLabel("选择照片")
         .accessibilityIdentifier("photo-select-button")
@@ -169,9 +172,8 @@ struct PhotosScreen: View {
 
     private var addButton: some View {
         PhotosPicker(selection: $pickerItems, maxSelectionCount: 10, matching: .images) {
-            Image(systemName: "plus")
+            ActionIcon("添加照片", systemImage: "plus")
         }
-
         .disabled(isBusy)
         .accessibilityLabel("添加照片")
         .accessibilityIdentifier("photo-add-button")
@@ -364,79 +366,41 @@ struct PhotosScreen: View {
         ))
     }
 
-    // MARK: - Harmonized, Well-proportioned Floating Batch Bar (Balancing with Tab Bar)
+    // MARK: - Batch Actions
 
-    @ViewBuilder
     private var batchBar: some View {
-        HStack(spacing: 12) {
+        let isPublishing = status == .unpublished
+        let hasSelection = !selectedPhotoIDs.isEmpty
+
+        return HStack(spacing: 8) {
             Text("已选 \(selectedPhotoIDs.count)")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .padding(.leading, 6)
+                .padding(.leading, 10)
 
-            Spacer(minLength: 4)
-
-            if status == .unpublished {
-                Button {
-                    publishSelected()
-                } label: {
-                    Text("发表")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(
-                            selectedPhotoIDs.isEmpty ? Color.secondary.opacity(0.15) : Color.appAccent,
-                            in: Capsule()
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-
-                Button {
-                    trashSelected()
-                } label: {
-                    Text("移到回收站")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.red)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.red.opacity(selectedPhotoIDs.isEmpty ? 0.05 : 0.12), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(selectedPhotoIDs.isEmpty)
-            } else {
-                Button {
-                    unpublishSelected()
-                } label: {
-                    Text("下架")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.primary)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(0.15), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(!canPublish || selectedPhotoIDs.isEmpty)
-
-                Button {
-                    trashSelected()
-                } label: {
-                    Text("移到回收站")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(selectedPhotoIDs.isEmpty ? Color.secondary : Color.red)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.red.opacity(selectedPhotoIDs.isEmpty ? 0.05 : 0.12), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(selectedPhotoIDs.isEmpty)
+            Button {
+                if isPublishing { publishSelected() } else { unpublishSelected() }
+            } label: {
+                ActionIcon(
+                    isPublishing ? "发表" : "下架",
+                    systemImage: isPublishing ? "tray.and.arrow.up" : "tray.and.arrow.down"
+                )
+                .foregroundStyle(canPublish && hasSelection ? Color.primary : Color.secondary)
             }
+            .disabled(!canPublish || !hasSelection)
+
+            Button(role: .destructive) {
+                trashSelected()
+            } label: {
+                ActionIcon("移到回收站", systemImage: "trash")
+                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
+            }
+            .disabled(!hasSelection)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .frame(maxWidth: 320)
-        .liquidGlassCapsule(interactive: true)
+        .buttonStyle(CollectionPressStyle())
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .liquidGlassCapsule(interactive: false)
         .padding(.bottom, 12)
     }
 

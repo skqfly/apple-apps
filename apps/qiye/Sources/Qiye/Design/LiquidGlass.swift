@@ -42,21 +42,41 @@ extension View {
     @ViewBuilder
     func nativeGlassButton(prominent: Bool = false) -> some View {
         if #available(iOS 26, *) {
-            if prominent { buttonStyle(.glassProminent) }
-            else { buttonStyle(.glass) }
+            if prominent { buttonStyle(.glassProminent).buttonBorderShape(.capsule) }
+            else { buttonStyle(.glass).buttonBorderShape(.capsule) }
         } else {
-            if prominent { buttonStyle(.borderedProminent) }
-            else { buttonStyle(.bordered) }
+            if prominent { buttonStyle(.borderedProminent).buttonBorderShape(.capsule) }
+            else { buttonStyle(.bordered).buttonBorderShape(.capsule) }
         }
     }
+}
 
-    @ViewBuilder
-    func nativeGlassCircleButton() -> some View {
-        if #available(iOS 26, *) {
-            buttonStyle(.glass).buttonBorderShape(.circle).controlSize(.large)
-        } else {
-            buttonStyle(.bordered).buttonBorderShape(.capsule)
-        }
+// MARK: - Icon Actions
+
+/// Shared label geometry for toolbar and floating actions. The control owns its glass.
+struct ActionIcon: View {
+    let title: String
+    let systemImage: String
+
+    init(_ title: String, systemImage: String) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .symbolRenderingMode(.monochrome)
+            .font(.system(size: systemImage == "xmark" ? 16 : 18, weight: .semibold))
+            .modifier(ActionHitArea())
+            .accessibilityLabel(title)
+    }
+}
+
+struct ActionHitArea: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
     }
 }
 
@@ -175,23 +195,6 @@ struct LiquidGlassCircle: ViewModifier {
     }
 }
 
-/// Prominent tinted glass action modifier.
-struct LiquidGlassProminentButton: ViewModifier {
-    var tintColor: Color = Color.appAccent
-    var cornerRadius: CGFloat = 12
-
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .glassEffect(.regular.tint(tintColor).interactive(), in: .rect(cornerRadius: cornerRadius))
-        } else {
-            content
-                .background(tintColor, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .shadow(color: tintColor.opacity(0.3), radius: 6, y: 2)
-        }
-    }
-}
-
 // MARK: - Convenient View Extensions
 
 extension View {
@@ -205,9 +208,5 @@ extension View {
 
     func liquidGlassCapsule(interactive: Bool = true) -> some View {
         modifier(LiquidGlassCapsule(interactive: interactive))
-    }
-
-    func liquidGlassProminent(tint: Color = Color.appAccent, cornerRadius: CGFloat = 12) -> some View {
-        modifier(LiquidGlassProminentButton(tintColor: tint, cornerRadius: cornerRadius))
     }
 }

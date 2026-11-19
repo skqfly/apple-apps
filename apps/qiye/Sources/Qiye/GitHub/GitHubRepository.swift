@@ -394,6 +394,18 @@ extension GitHubRepository {
         return sha
     }
 
+    func saveDirectoryEntry(_ draft: SiteDirectoryEntry, kind: DirectoryKind,
+                            replacing original: SiteDirectoryEntry?) async throws -> SiteDirectoryEntry {
+        let entry = try draft.validated(for: kind, replacing: original)
+        _ = try await publish(message: "Update website \(kind.rawValue) from Qiye", assets: [:]) { head in
+            let path = SiteDirectoryDocument.path
+            let current = try await self.repositoryFile(path: path, ref: head)
+            let updated = try SiteDirectoryDocument.applying(entry, kind: kind, replacing: original, to: current)
+            return [path: try Self.json(updated)]
+        }
+        return entry
+    }
+
     /// The caller supplies JPEG bytes (for example UIImage.jpegData), not HEIC/PNG bytes.
     /// `title` is stored only as accessibility alt text; it adds no visible photo caption.
     @discardableResult

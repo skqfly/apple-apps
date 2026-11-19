@@ -184,18 +184,24 @@ struct TalkEditorSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                    Button {
                         if dirty { discard = true } else { dismiss() }
+                    } label: {
+                        ActionIcon("取消", systemImage: "xmark")
                     }
                     .disabled(busy)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(publishState == .published ? "发表" : "保存") {
+                    Button {
                         save()
+                    } label: {
+                        ActionIcon(
+                            publishState == .published ? "发表" : "保存",
+                            systemImage: publishState == .published ? "paperplane" : "checkmark"
+                        )
                     }
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.appAccent)
+                    .tint(.appAccent)
                     .disabled(!hasContent || content.count > 50_000 || busy)
                 }
             }

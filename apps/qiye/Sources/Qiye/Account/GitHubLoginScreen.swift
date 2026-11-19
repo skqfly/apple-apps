@@ -68,9 +68,9 @@ struct GitHubLoginScreen: View {
                         }
                         .foregroundStyle(.white)
                         .padding(.vertical, 10)
-                        .liquidGlassProminent(tint: Color.appAccent, cornerRadius: 12)
                     }
-                    .buttonStyle(.plain)
+                    .tint(.appAccent)
+                    .nativeGlassButton(prominent: true)
                     .disabled(store.isLoading || token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } header: {
                     Text("使用 Token 登录")

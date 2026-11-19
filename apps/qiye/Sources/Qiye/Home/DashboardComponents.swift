@@ -69,45 +69,50 @@ struct DashboardWorkflowRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Link(destination: run.htmlURL) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: run.state.symbol)
-                    .foregroundStyle(run.state.color)
-                    .font(.title3)
-                    .frame(width: 24)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
+
+        return Link(destination: run.htmlURL) {
+            layout {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(run.title)
-                        .font(.subheadline.weight(.medium))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                         .fixedSize(horizontal: false, vertical: true)
                     ViewThatFits(in: .horizontal) {
                         HStack(spacing: 6) { metadata }
-                        VStack(alignment: .leading, spacing: 4) { metadata }
+                            .fixedSize(horizontal: true, vertical: false)
+                        VStack(alignment: .leading, spacing: 3) { metadata }
                     }
                     .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "arrow.up.right")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Label {
+                    Text(run.state.label)
+                        .foregroundStyle(Color.primary)
+                } icon: {
+                    Image(systemName: run.state.symbol)
+                        .foregroundStyle(run.state.color)
+                }
+                .font(.caption.weight(.semibold))
+                .fixedSize(horizontal: true, vertical: false)
             }
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .padding(.vertical, 7)
-            .contentShape(.rect)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CollectionPressStyle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("在 GitHub 打开工作流运行详情")
     }
 
     @ViewBuilder private var metadata: some View {
-        Text(run.state.label).foregroundStyle(run.state.color)
         Text("#\(run.runNumber) · \(run.headBranch ?? "分支未知")")
-            .foregroundStyle(.secondary)
-        Text(run.updatedAt, style: .relative).foregroundStyle(.secondary)
+        Text(run.updatedAt, style: .relative)
     }
 }
 

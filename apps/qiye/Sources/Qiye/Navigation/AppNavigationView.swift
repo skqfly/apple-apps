@@ -43,7 +43,11 @@ struct AppNavigationView: View {
                 HomeScreen(store: dashboard, pending: pending, repository: repository, canPush: account.isSignedIn)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
-                            Button("关闭") { showingStudio = false }
+                            Button {
+                                showingStudio = false
+                            } label: {
+                                ActionIcon("关闭", systemImage: "xmark")
+                            }
                         }
                     }
             }
@@ -94,7 +98,7 @@ struct AppNavigationView: View {
                 switch section {
                 case .home:
                     CollectionsScreen(blog: blog, photos: photos, library: library, repository: repository,
-                                      open: { section in
+                                      canEditDirectory: account.isSignedIn, open: { section in
                                           selectedSection = section
                                       }, showAccount: { showingAccount = true }, showStudio: { showingStudio = true })
                 case .photos:

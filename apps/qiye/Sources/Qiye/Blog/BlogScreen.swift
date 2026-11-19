@@ -61,7 +61,7 @@ struct BlogScreen: View {
                         Text("最早优先").tag(false)
                     }
                 } label: {
-                    Label("排序", systemImage: "arrow.up.arrow.down")
+                    ActionIcon("排序", systemImage: "arrow.up.arrow.down")
                 }
             }
         }

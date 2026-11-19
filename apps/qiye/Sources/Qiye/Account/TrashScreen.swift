@@ -79,8 +79,7 @@ struct TrashScreen: View {
                         Haptics.medium()
                         confirmsPurgeAll = true
                     } label: {
-                        Text("清空")
-                            .font(.subheadline.weight(.semibold))
+                        ActionIcon("清空", systemImage: "trash")
                             .foregroundStyle(.red)
                     }
                 }

@@ -75,11 +75,16 @@ struct MediaViewer: View {
                 }
             }
             .overlay(alignment: .topLeading) {
-                Button("关闭", systemImage: "xmark") { dismiss() }
-                    .labelStyle(.iconOnly)
-                    .viewerControl()
-                    .padding(20)
-                    .accessibilityIdentifier("media-viewer-close")
+                Button {
+                    dismiss()
+                } label: {
+                    ActionIcon("关闭", systemImage: "xmark")
+                        .foregroundStyle(.white)
+                        .liquidGlassCircle()
+                }
+                .buttonStyle(CollectionPressStyle())
+                .padding(20)
+                .accessibilityIdentifier("media-viewer-close")
             }
             .overlay(alignment: .top) {
                 if items.count > 1 {
@@ -178,37 +183,36 @@ struct MediaViewer: View {
     }
 
     private var controls: some View {
-        Group {
-            if #available(iOS 26, *) {
-                GlassEffectContainer(spacing: 14) {
-                    controlsRow
-                }
-            } else {
-                controlsRow
-            }
-        }
-    }
+        HStack(spacing: 0) {
+            if let actions { actions }
 
-    private var controlsRow: some View {
-        HStack(spacing: 14) {
-            if let actions { actions.viewerControl() }
             Button(action: prepareShare) {
-                if isPreparingShare { ProgressView().tint(.white) }
-                else { Image(systemName: "square.and.arrow.up") }
+                if isPreparingShare {
+                    ProgressView().tint(.white).modifier(ActionHitArea())
+                } else {
+                    ActionIcon("分享照片", systemImage: "square.and.arrow.up")
+                }
             }
-            .viewerControl()
             .disabled(current == nil || isPreparingShare)
             .accessibilityLabel("分享照片")
+
             Button {
                 Task { await saveToPhotos() }
             } label: {
-                if isSaving { ProgressView().tint(.white) }
-                else { Image(systemName: "square.and.arrow.down") }
+                if isSaving {
+                    ProgressView().tint(.white).modifier(ActionHitArea())
+                } else {
+                    ActionIcon("保存到系统相册", systemImage: "square.and.arrow.down")
+                }
             }
-            .viewerControl()
             .disabled(current == nil || isSaving)
             .accessibilityLabel("保存到系统相册")
         }
+        .buttonStyle(CollectionPressStyle())
+        .foregroundStyle(.white)
+        .padding(.horizontal, 4)
+        .padding(.vertical, 2)
+        .liquidGlassCapsule(interactive: false)
     }
 
     private var magnifyGesture: some Gesture {
@@ -390,16 +394,6 @@ private struct MediaViewerImage: View {
                 AsyncImage(url: preview) { image in image.resizable().scaledToFit() } placeholder: { Color.clear }
             }
         } else { Color.clear }
-    }
-}
-
-private extension View {
-    @ViewBuilder
-    func viewerControl() -> some View {
-        self
-            .font(.system(size: 19, weight: .semibold))
-            .foregroundStyle(.white)
-            .nativeGlassCircleButton()
     }
 }
 

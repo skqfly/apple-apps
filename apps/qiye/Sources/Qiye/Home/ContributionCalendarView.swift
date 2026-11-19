@@ -6,16 +6,15 @@ struct ContributionCalendarView: View {
     @State private var selectedDayID: String?
     @State private var visibleWeekID: String?
     @State private var selectedYear: Int?
-    @ScaledMetric(relativeTo: .caption) private var scaledTileSize: CGFloat = 16
-    @ScaledMetric(relativeTo: .caption) private var monthHeaderHeight: CGFloat = 20
-    @ScaledMetric(relativeTo: .caption) private var legendWidth: CGFloat = 32
-    @Environment(\.colorScheme) private var colorScheme
+    @ScaledMetric(relativeTo: .caption) private var scaledTileSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .caption2) private var monthLabelHeight: CGFloat = 16
+    @ScaledMetric(relativeTo: .caption2) private var monthLabelWidth: CGFloat = 32
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.colorSchemeContrast) private var accessibilityContrast
-    private let gap: CGFloat = 4.5
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let gap: CGFloat = 3
 
     private var tileSize: CGFloat {
-        dynamicTypeSize.isAccessibilitySize ? max(40, scaledTileSize) : scaledTileSize
+        dynamicTypeSize.isAccessibilitySize ? max(44, scaledTileSize) : scaledTileSize
     }
 
     private var availableYears: [Int] {
@@ -28,44 +27,121 @@ struct ContributionCalendarView: View {
         selectedYear ?? DashboardDates.calendar.component(.year, from: calendar.endDate)
     }
 
-    private var selectedDay: DashboardContributionDay? {
-        calendar.days.first { $0.id == selectedDayID }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-            calendarGrid
-                .environment(\.layoutDirection, .leftToRight)
-            footer
+        VStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
+                header
+                summary
+                calendarGrid.environment(\.layoutDirection, .leftToRight)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .collectionSurface(radius: 16)
+
+            recentActivity
         }
-        .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .liquidGlassCard(cornerRadius: 24)
-        .tint(Color.appAccent)
     }
 
-    // MARK: - Header (matching the reference Activity card)
+    private var summary: some View {
+        let totals = calendar.weekTotals
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+
+        return layout {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("当前连续")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("\(calendar.currentStreak) 天")
+                    .font(.largeTitle.bold())
+                    .monospacedDigit()
+                if let total = calendar.total {
+                    Text("过去一年贡献 \(total.formatted()) 次")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+                Text("本周贡献")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let current = totals.current {
+                    Text(current.formatted())
+                        .font(.title2.bold())
+                        .monospacedDigit()
+                    if let previous = totals.previous {
+                        let difference = current - previous
+                        Text("较上周同期 \(difference > 0 ? "+" : "")\(difference.formatted())")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("暂无次数")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private var recentActivity: some View {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 4))
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("最近 7 天")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .accessibilityAddTraits(.isHeader)
+            layout {
+                ForEach(calendar.days.suffix(7)) { day in
+                    let isAccessibilitySize = dynamicTypeSize.isAccessibilitySize
+                    let dayLayout = isAccessibilitySize
+                        ? AnyLayout(HStackLayout(spacing: 8))
+                        : AnyLayout(VStackLayout(spacing: 4))
+
+                    dayLayout {
+                        Text(day.count.map { $0.formatted() } ?? "—")
+                            .font(.caption.weight(.semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(day.hasActivity ? Color.appSurface : Color.primary)
+                            .padding(.horizontal, 4)
+                            .frame(minWidth: 30, minHeight: 30)
+                            .background(day.hasActivity ? Color.primary : tileFill(0), in: Capsule())
+                        Text(Self.weekdayFormatter.string(from: day.date))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: isAccessibilitySize ? .leading : .center)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(dayAccessibility(day))
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .collectionSurface(radius: 16)
+    }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
             HStack(spacing: 8) {
-                Image("GitHubMark")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(Color.primary)
-
-                Text("Activity")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                Text("贡献活动")
+                    .font(.headline)
                     .foregroundStyle(Color.primary)
                     .accessibilityAddTraits(.isHeader)
 
                 if isLoading {
                     ProgressView().controlSize(.small)
                         .padding(.leading, 4)
-                        .accessibilityLabel("Updating activity")
+                        .accessibilityLabel("正在更新贡献活动")
                 }
             }
 
@@ -91,7 +167,9 @@ struct ContributionCalendarView: View {
                     Button("回到最新") {
                         Haptics.medium()
                         selectedYear = nil
-                        showRecentWeeks(12)
+                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) {
+                            visibleWeekID = calendar.weeks.last?.id
+                        }
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -103,22 +181,19 @@ struct ContributionCalendarView: View {
                     }
                     .foregroundStyle(Color.primary)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .liquidGlassCapsule(interactive: true)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .liquidGlassCapsule()
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("选择年份，当前为 \(displayedYear) 年")
 
-                // Menu button
                 Link(destination: DashboardService.profileURL) {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 13, weight: .bold))
+                    ActionIcon("在 GitHub 中查看", systemImage: "arrow.up.right")
                         .foregroundStyle(Color.primary)
-                        .frame(width: 30, height: 30)
-                        .liquidGlassCapsule(interactive: true)
+                        .liquidGlassCircle()
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("View on GitHub")
             }
         }
     }
@@ -127,36 +202,34 @@ struct ContributionCalendarView: View {
 
     private var calendarGrid: some View {
         GeometryReader { geometry in
-            let availableWidth = max(tileSize, geometry.size.width - legendWidth - 8)
+            let availableWidth = max(tileSize, geometry.size.width)
             let weekCount = min(calendar.weeks.count, max(1, Int((availableWidth + gap) / (tileSize + gap))))
             let gridWidth = CGFloat(weekCount) * (tileSize + gap) - gap
-            HStack(alignment: .top, spacing: 8) {
-                weekdayLegend
-                VStack(alignment: .leading, spacing: gap) {
-                    monthHeader(weekCount: weekCount, width: gridWidth)
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(alignment: .top, spacing: gap) {
-                            ForEach(calendar.weeks) { week in
-                                weekColumn(week).id(week.id)
-                            }
+
+            VStack(alignment: .leading, spacing: gap) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: gap) {
+                        ForEach(calendar.weeks) { week in
+                            weekColumn(week).id(week.id)
                         }
-                        .scrollTargetLayout()
                     }
-                    .scrollTargetBehavior(.viewAligned)
-                    .scrollPosition(id: $visibleWeekID, anchor: .leading)
-                    .frame(width: gridWidth, height: 7 * tileSize + 6 * gap)
-                    .onChange(of: calendar.endDate, initial: true) {
-                        showRecentWeeks(weekCount)
-                    }
-                    .onChange(of: weekCount) {
-                        showRecentWeeks(weekCount)
-                    }
+                    .scrollTargetLayout()
                 }
-                .frame(width: gridWidth)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollPosition(id: $visibleWeekID, anchor: .leading)
+                .frame(width: gridWidth, height: 7 * tileSize + 6 * gap)
+                .onChange(of: calendar.endDate, initial: true) {
+                    selectedDayID = nil
+                    showRecentWeeks(weekCount)
+                }
+                .onChange(of: weekCount) {
+                    showRecentWeeks(weekCount)
+                }
+                monthHeader(weekCount: weekCount, width: gridWidth)
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(height: monthHeaderHeight + 7 * tileSize + 7 * gap + 4)
+        .frame(height: monthLabelHeight + 7 * tileSize + 7 * gap)
     }
 
     private func showRecentWeeks(_ count: Int) {
@@ -171,20 +244,16 @@ struct ContributionCalendarView: View {
                 return DashboardDates.calendar.component(.year, from: day.date) == year
             }
         }) {
-            withAnimation(.snappy(duration: 0.3)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) {
                 visibleWeekID = targetWeek.id
             }
         }
     }
 
-    // English month abbreviations: Jan, Feb, Mar, etc.
-    private static let englishMonths = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
     private func monthHeader(weekCount: Int, width: CGFloat) -> some View {
         let firstIndex = calendar.weeks.firstIndex { $0.id == visibleWeekID }
             ?? max(0, calendar.weeks.count - weekCount)
         let weeks = Array(calendar.weeks.dropFirst(firstIndex).prefix(weekCount))
-        let labelWidth: CGFloat = 32
 
         let labels = weeks.enumerated().compactMap { index, week -> (index: Int, text: String, x: CGFloat)? in
             let monthIndex: Int?
@@ -199,13 +268,13 @@ struct ContributionCalendarView: View {
             } else {
                 monthIndex = nil
             }
-            guard let m = monthIndex, m >= 0, m < Self.englishMonths.count else { return nil }
-            let text = Self.englishMonths[m]
-            return (index, text, min(CGFloat(index) * (tileSize + gap), max(0, width - labelWidth)))
+            guard let monthIndex else { return nil }
+            let text = "\(monthIndex + 1)月"
+            return (index, text, min(CGFloat(index) * (tileSize + gap), max(0, width - monthLabelWidth)))
         }
 
         let visibleLabels = labels.reversed().reduce(into: [(index: Int, text: String, x: CGFloat)]()) { result, label in
-            if result.last.map({ $0.x - label.x >= labelWidth + gap }) ?? true {
+            if result.last.map({ $0.x - label.x >= monthLabelWidth + gap }) ?? true {
                 result.append(label)
             }
         }
@@ -213,40 +282,14 @@ struct ContributionCalendarView: View {
         return ZStack(alignment: .topLeading) {
             ForEach(visibleLabels, id: \.index) { label in
                 Text(label.text)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .frame(width: labelWidth, height: monthHeaderHeight, alignment: .leading)
+                    .frame(width: monthLabelWidth, height: monthLabelHeight, alignment: .leading)
                     .offset(x: label.x)
             }
         }
-        .frame(width: width, height: monthHeaderHeight, alignment: .topLeading)
+        .frame(width: width, height: monthLabelHeight, alignment: .topLeading)
         .accessibilityHidden(true)
-    }
-
-    // English weekday abbreviations matching reference: Mon, Tue, Wed, Thu, Fri
-    private var weekdayLegend: some View {
-        VStack(spacing: gap) {
-            Color.clear.frame(width: legendWidth, height: monthHeaderHeight)
-            // 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
-            ForEach(0..<7) { index in
-                Text(weekdayTitle(for: index))
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .frame(width: legendWidth, height: tileSize, alignment: .trailing)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    private func weekdayTitle(for index: Int) -> String {
-        switch index {
-        case 1: return "Mon"
-        case 2: return "Tue"
-        case 3: return "Wed"
-        case 4: return "Thu"
-        case 5: return "Fri"
-        default: return ""
-        }
     }
 
     private func weekColumn(_ week: DashboardContributionWeek) -> some View {
@@ -255,23 +298,35 @@ struct ContributionCalendarView: View {
                 if let day = week.days[index] {
                     Button {
                         Haptics.selection()
-                        withAnimation(.snappy(duration: 0.18)) {
-                            selectedDayID = (selectedDayID == day.id ? nil : day.id)
-                        }
+                        selectedDayID = day.id
                     } label: {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        RoundedRectangle(cornerRadius: 3)
                             .fill(tileFill(day.level))
                             .overlay {
-                                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                                    .strokeBorder(tileStroke(day.level), lineWidth: selectedDayID == day.id ? 1.8 : 0.6)
+                                if selectedDayID == day.id {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .strokeBorder(Color.primary, lineWidth: 1.5)
+                                }
                             }
-                            .shadow(color: day.level > 0 ? tileFill(day.level).opacity(0.35) : .clear, radius: 2, y: 1)
                             .frame(width: tileSize, height: tileSize)
-                            .scaleEffect(selectedDayID == day.id ? 1.15 : 1)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(dayAccessibility(day))
+                    .popover(isPresented: Binding(
+                        get: { selectedDayID == day.id },
+                        set: { if !$0 && selectedDayID == day.id { selectedDayID = nil } }
+                    )) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(Self.dateFormatter.string(from: day.date))
+                                .font(.headline)
+                            Text(dayCountText(day))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(16)
+                        .presentationCompactAdaptation(.popover)
+                    }
                 } else {
                     Color.clear.frame(width: tileSize, height: tileSize)
                         .accessibilityHidden(true)
@@ -280,111 +335,31 @@ struct ContributionCalendarView: View {
         }
     }
 
-    // MARK: - Footer (refined and concise)
-
-    private var footer: some View {
-        HStack(alignment: .center, spacing: 8) {
-            if let selectedDay {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(tileFill(selectedDay.level))
-                        .frame(width: 8, height: 8)
-                    Text(dayDetailText(selectedDay))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.primary)
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            } else if let total = calendar.total {
-                Text("\(total.formatted()) contributions in the last year")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("Daily contribution levels")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            // Mini intensity legend (Green theme, not purple)
-            HStack(spacing: 3.5) {
-                Text("Less")
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundStyle(.secondary)
-                ForEach(0..<5) { level in
-                    RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                        .fill(tileFill(level))
-                        .frame(width: 8.5, height: 8.5)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                                .strokeBorder(tileStroke(level), lineWidth: 0.5)
-                        }
-                }
-                Text("More")
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    // MARK: - Green Emerald Theme Colors (No Purple)
-
     private func tileFill(_ level: Int) -> Color {
-        if colorScheme == .dark {
-            switch level {
-            case 0:
-                return Color(white: 0.16).opacity(0.85)
-            case 1:
-                return Color(red: 0.18, green: 0.42, blue: 0.32)
-            case 2:
-                return Color(red: 0.25, green: 0.62, blue: 0.46)
-            case 3:
-                return Color(red: 0.35, green: 0.82, blue: 0.60)
-            default:
-                return Color(red: 0.48, green: 0.95, blue: 0.72)
-            }
-        } else {
-            switch level {
-            case 0:
-                return Color(red: 0.90, green: 0.93, blue: 0.92)
-            case 1:
-                return Color(red: 0.65, green: 0.88, blue: 0.76)
-            case 2:
-                return Color(red: 0.40, green: 0.78, blue: 0.62)
-            case 3:
-                return Color(red: 0.20, green: 0.65, blue: 0.48)
-            default:
-                return Color(red: 0.08, green: 0.48, blue: 0.34)
-            }
-        }
+        let intensity = [0.08, 0.25, 0.44, 0.68, 0.92]
+        return Color.primary.opacity(intensity[min(max(level, 0), intensity.count - 1)])
     }
 
-    private func tileStroke(_ level: Int) -> Color {
-        if colorScheme == .dark {
-            return level == 0
-                ? Color.white.opacity(0.08)
-                : Color.white.opacity(0.20)
-        } else {
-            return level == 0
-                ? Color.black.opacity(0.06)
-                : Color.black.opacity(0.12)
-        }
-    }
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DashboardDates.dayFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年M月d日，EEEE"
+        return formatter
+    }()
 
-    private func dayDetailText(_ day: DashboardContributionDay) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "MMM d, yyyy"
-        let dateStr = formatter.string(from: day.date)
-        if let count = day.count {
-            return "\(dateStr): \(count) contribution\(count == 1 ? "" : "s")"
-        } else {
-            return "\(dateStr): level \(day.level)"
-        }
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DashboardDates.dayFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "EEE"
+        return formatter
+    }()
+
+    private func dayCountText(_ day: DashboardContributionDay) -> String {
+        if let count = day.count { return "\(count.formatted()) 次贡献" }
+        return "贡献强度 \(day.level) 级，次数未提供"
     }
 
     private func dayAccessibility(_ day: DashboardContributionDay) -> String {
-        dayDetailText(day)
+        "\(Self.dateFormatter.string(from: day.date))，\(dayCountText(day))"
     }
 }

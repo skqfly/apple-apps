@@ -107,19 +107,13 @@ struct PhotoDetailScreen: View {
                 .disabled(ProcessInfo.processInfo.arguments.contains("--uitest-long-photo"))
             }
         } label: {
-            ZStack {
-                Color.clear
-                if isWorking {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+            if isWorking {
+                ProgressView().tint(.white).modifier(ActionHitArea())
+            } else {
+                ActionIcon("管理照片", systemImage: "ellipsis")
             }
-            .frame(width: 48, height: 48)
-            .contentShape(Circle())
         }
+        .buttonStyle(.plain)
         .disabled(isWorking)
         .accessibilityLabel("管理照片")
     }

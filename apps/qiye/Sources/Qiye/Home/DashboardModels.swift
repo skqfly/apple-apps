@@ -130,6 +130,8 @@ struct DashboardContributionDay: Identifiable, Sendable {
     let date: Date
     let level: Int
     let count: Int?
+
+    var hasActivity: Bool { count.map { $0 > 0 } ?? (level > 0) }
 }
 
 struct DashboardContributionWeek: Identifiable, Sendable {
@@ -148,6 +150,27 @@ struct DashboardContributions: Sendable {
     let total: Int?
     let source: Source
     let notice: String?
+
+    var currentStreak: Int {
+        let latestFirst = days.reversed()
+        // A day in progress can still extend yesterday's streak.
+        let firstDayOffset = latestFirst.first?.hasActivity == true ? 0 : 1
+        return latestFirst.dropFirst(firstDayOffset).prefix(while: { $0.hasActivity }).count
+    }
+
+    var weekTotals: (current: Int?, previous: Int?) {
+        let dateCalendar = DashboardDates.calendar
+        let weekday = dateCalendar.component(.weekday, from: endDate)
+        let elapsedDays = (weekday - dateCalendar.firstWeekday + 7) % 7 + 1
+
+        func total(_ period: ArraySlice<DashboardContributionDay>) -> Int? {
+            let counts = period.compactMap(\.count)
+            guard counts.count == elapsedDays else { return nil }
+            return counts.reduce(0, +)
+        }
+
+        return (total(days.suffix(elapsedDays)), total(days.dropLast(7).suffix(elapsedDays)))
+    }
 
     init(days: [DashboardContributionDay], source: Source, notice: String? = nil) throws {
         let sorted = days.sorted { $0.date < $1.date }

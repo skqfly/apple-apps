@@ -12,6 +12,8 @@ struct HomeScreen: View {
     @State private var showsWebsiteDetails = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
+    @Environment(\.colorScheme) private var colorScheme
+
     private var canClickPush: Bool {
         !pending.isCommitting && !pending.changes.isEmpty && canPush
     }
@@ -19,13 +21,10 @@ struct HomeScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                // Top status chip (Refined, un-tinted, concise)
                 statusSummaryBar
 
-                // Activity (English GitHub Calendar card matching reference)
                 contributionsCard
 
-                // Actions (Workflow runs)
                 workflowsCard
 
                 refreshStatus
@@ -34,14 +33,21 @@ struct HomeScreen: View {
             .padding(.top, 12)
             .padding(.bottom, 96)
         }
-        .background(Color.appBackground)
+        .background {
+            ZStack(alignment: .topLeading) {
+                Color.appBackground
+                LinearGradient(
+                    colors: [Color.indigo.opacity(colorScheme == .dark ? 0.13 : 0.08), .clear],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .frame(height: 420)
+            }
+            .ignoresSafeArea()
+        }
         .navigationTitle("发布与同步")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                headerActionButtons
-            }
-        }
+        .toolbar { headerActions }
         .sheet(isPresented: $showsPendingDetails) {
             pendingDetails
         }
@@ -57,95 +63,107 @@ struct HomeScreen: View {
         } message: { Text(pushMessage ?? "") }
     }
 
-    // MARK: - Navigation Bar Right Actions (Two Independent Liquid Glass Circles, Pure and Un-nested)
-
-    private var headerActionButtons: some View {
-        HStack(spacing: 8) {
-            // Website button
+    private var headerActions: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
             Button {
                 Haptics.light()
                 showsWebsiteDetails = true
             } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "globe")
-                        .font(.system(size: 16, weight: .semibold))
-                    if let health = store.website.value {
-                        Circle()
-                            .fill(health.isReachable ? Color(red: 0.16, green: 0.65, blue: 0.45) : Color.orange)
-                            .frame(width: 5, height: 5)
+                ActionIcon("网站状态与仓库", systemImage: "globe")
+                    .overlay(alignment: .topTrailing) {
+                        if store.website.value != nil {
+                            Circle()
+                                .fill(websiteStatusColor)
+                                .frame(width: 5, height: 5)
+                                .padding(8)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
             }
-
-            .accessibilityLabel("网站状态与仓库")
-
-            // Staging & Push button
             Button {
                 Haptics.light()
                 showsPendingDetails = true
             } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: pending.changes.isEmpty ? "tray" : "tray.and.arrow.up.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(pending.changes.isEmpty ? Color.primary : Color.appAccent)
-                    if !pending.changes.isEmpty {
-                        Circle()
-                            .fill(Color.appAccent)
-                            .frame(width: 6, height: 6)
-                            .offset(x: 3, y: -2)
+                ActionIcon("待推送改动，\(pending.changes.count) 项", systemImage: "tray.and.arrow.up")
+                    .overlay(alignment: .topTrailing) {
+                        if !pending.changes.isEmpty {
+                            Circle()
+                                .fill(Color.appAccent)
+                                .frame(width: 5, height: 5)
+                                .padding(8)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
             }
-
-            .accessibilityLabel("待推送改动，\(pending.changes.count) 项")
         }
     }
 
-    // MARK: - Refined Status Summary Bar (Un-tinted, Elegant)
-
     private var statusSummaryBar: some View {
-        HStack(spacing: 8) {
-            // Website indicator
+        VStack(alignment: .leading, spacing: 8) {
+            Link(destination: DashboardService.websiteURL) {
+                HStack(spacing: 12) {
+                    Image(systemName: "globe")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(activityAccent)
+                        .frame(width: 44, height: 44)
+                        .background(activityAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("栖野")
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(Color.primary)
+                        Label("mmddskq.top", systemImage: "arrow.up.right")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(activityAccent)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("访问栖野网站，mmddskq.top")
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { statusDetails }
+                    .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: 6) { statusDetails }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var statusDetails: some View {
+        if let health = store.website.value {
             HStack(spacing: 6) {
                 Circle()
                     .fill(websiteStatusColor)
                     .frame(width: 7, height: 7)
-
-                Link("mmddskq.top", destination: DashboardService.websiteURL)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.primary)
-
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
-            // Response time or state
-            if let health = store.website.value {
+                    .accessibilityHidden(true)
+                Text(health.isReachable ? "站点在线" : "站点异常")
                 Text("\(Int(health.duration * 1_000)) ms")
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.secondary)
-            } else if store.website.isLoading {
-                Text("检测中…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-
-            // Deployment status tag
-            if let pages = store.pages.value {
-                Text(pages.statusLabel)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2.5)
-                    .background(Color.secondary.opacity(0.12), in: Capsule())
-            }
+        } else {
+            Text(store.website.isLoading ? "正在检测站点" : "暂无站点状态")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .liquidGlassCard(cornerRadius: 14)
+
+        if let pages = store.pages.value {
+            Text(pages.statusLabel)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+        }
+    }
+
+    private var activityAccent: Color {
+        colorScheme == .dark ? Color(red: 0.66, green: 0.72, blue: 0.98)
+            : Color(red: 0.24, green: 0.32, blue: 0.65)
     }
 
     private var websiteStatusColor: Color {
@@ -162,14 +180,14 @@ struct HomeScreen: View {
         if let calendar = store.contributions.value {
             ContributionCalendarView(calendar: calendar, isLoading: store.contributions.isLoading)
         } else {
-            DashboardCard(title: "Activity", symbol: "github-mark", isLoading: store.contributions.isLoading) {
+            DashboardCard(title: "贡献活动", symbol: "github-mark", isLoading: store.contributions.isLoading) {
                 if store.contributions.isLoading {
-                    loading("Loading GitHub activity…")
+                    loading("正在读取 GitHub 贡献活动…")
                 }
                 if let error = store.contributions.error {
                     DashboardErrorNote(message: error)
                 }
-                Link("View skqfly on GitHub", destination: DashboardService.profileURL)
+                Link("在 GitHub 查看 skqfly", destination: DashboardService.profileURL)
                     .font(.caption)
                     .frame(minHeight: 44, alignment: .leading)
             }
@@ -179,9 +197,9 @@ struct HomeScreen: View {
     // MARK: - Actions Card
 
     private var workflowsCard: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Label("Actions", systemImage: "play.circle")
+                Text("Actions")
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
                 if store.workflows.isLoading {
@@ -189,37 +207,47 @@ struct HomeScreen: View {
                         .accessibilityLabel("正在更新 Actions")
                 }
                 Spacer(minLength: 0)
-                Link("全部运行", destination: DashboardService.actionsURL)
-                    .font(.caption)
-                    .foregroundStyle(Color.appAccent)
-                    .frame(minHeight: 44)
-            }
-            if !store.isConnected {
-                Label("登录 GitHub，查看工作流实时状态。", systemImage: "person.crop.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 8)
-            }
-            if let runs = store.workflows.value {
-                if runs.isEmpty {
-                    Label("暂无工作流运行记录", systemImage: "tray")
-                        .font(.subheadline).foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
-                } else {
-                    ForEach(runs) { run in
-                        if run.id != runs.first?.id { Divider() }
-                        DashboardWorkflowRow(run: run)
-                    }
+                Link(destination: DashboardService.actionsURL) {
+                    Label("全部运行", systemImage: "arrow.up.right")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
-            } else if store.workflows.isLoading {
-                loading("正在读取最近的运行记录…")
             }
-            if let error = store.workflows.error {
-                DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
+            .padding(.horizontal, 4)
+
+            VStack(alignment: .leading, spacing: 0) {
+                if !store.isConnected {
+                    Label("登录 GitHub，查看工作流实时状态。", systemImage: "person.crop.circle")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(14)
+                }
+                if let runs = store.workflows.value {
+                    if runs.isEmpty {
+                        Label("暂无工作流运行记录", systemImage: "tray")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(14)
+                    } else {
+                        ForEach(runs) { run in
+                            if run.id != runs.first?.id { Divider().padding(.horizontal, 14) }
+                            DashboardWorkflowRow(run: run)
+                        }
+                    }
+                } else if store.workflows.isLoading {
+                    loading("正在读取最近的运行记录…")
+                        .padding(14)
+                }
+                if let error = store.workflows.error {
+                    DashboardErrorNote(message: error, showsPrevious: store.workflows.value != nil)
+                        .padding(14)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .collectionSurface(radius: 16)
         }
-        .padding(14)
-        .liquidGlassCard(cornerRadius: 18)
     }
 
     // MARK: - Refresh Status
@@ -282,7 +310,11 @@ struct HomeScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { showsPendingDetails = false }
+                    Button {
+                        showsPendingDetails = false
+                    } label: {
+                        ActionIcon("完成", systemImage: "checkmark")
+                    }
                 }
             }
         }
@@ -385,7 +417,11 @@ struct HomeScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { showsWebsiteDetails = false }
+                    Button {
+                        showsWebsiteDetails = false
+                    } label: {
+                        ActionIcon("完成", systemImage: "checkmark")
+                    }
                 }
             }
         }

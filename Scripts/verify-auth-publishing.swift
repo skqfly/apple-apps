@@ -133,10 +133,55 @@ struct VerifyAuthPublishing {
         let posts = try await repository.fetchBlogPosts()
         try require(posts.count == 1 && apiReads == 0, "public index failed or duplicated entries")
 
+        let project: [String: Any] = [
+            "title": "Old", "description": "Old summary", "url": "https://example.com/project",
+            "image": "/projects/a.png", "tags": ["Web"], "categories": ["Tools"], "futureField": true
+        ]
+        let projectsPage: [String: Any] = ["projects": [project], "subtitle": "Keep subtitle"]
+        let site = try json([
+            "projectsPageContent": projectsPage,
+            "friendsPageContent": ["friends": [[String: Any]]()],
+            "talksPageContent": ["entries": [["id": "keep-talk"]]]
+        ] as [String: Any])
+        let original = try JSONDecoder().decode(SiteDirectoryEntry.self, from: json(project))
+        try require(original.imageURL?.absoluteString == "https://mmddskq.top/projects/a.png",
+                    "relative project artwork must resolve on the website")
+        let projectDraft = SiteDirectoryEntry(title: "New", description: "New summary", url: original.url,
+            image: original.image, tags: original.tags, categories: original.categories, domain: nil)
+        let update = try projectDraft.validated(for: .projects, replacing: original)
+        let updated = try SiteDirectoryDocument.applying(update, kind: .projects, replacing: original, to: site)
+        let updatedPage = updated["projectsPageContent"] as? [String: Any]
+        let updatedProject = (updatedPage?["projects"] as? [[String: Any]])?.first
+        try require(updatedProject?["title"] as? String == "New", "project edit not applied")
+        try require(updatedProject?["futureField"] as? Bool == true && updatedPage?["subtitle"] as? String == "Keep subtitle",
+                    "editing must preserve unknown fields and page metadata")
+        try require(updatedProject?["categories"] as? [String] == ["Tools"], "project categories were lost")
+
+        let friendDraft = SiteDirectoryEntry(title: "Friend", description: "", url: "https://friend.example/notes/",
+            image: nil, tags: nil, categories: nil, domain: nil)
+        let friend = try friendDraft.validated(for: .friends, replacing: nil)
+        try require(friend.image == "https://friend.example/favicon.ico" && friend.domain == "friend.example",
+                    "friend domain and fallback icon must use the destination origin")
+        let added = try SiteDirectoryDocument.applying(friend, kind: .friends, replacing: nil, to: json(updated))
+        let decoded = try JSONDecoder().decode(SiteDirectoryDocument.self, from: json(added))
+        try require(decoded.friendsPageContent.friends == [friend] && decoded.projectsPageContent.projects == [update],
+                    "adding a friend altered the project collection")
+        try require((added["talksPageContent"] as? [String: Any])?["entries"] != nil,
+                    "directory edit altered unrelated website content")
+
+        do {
+            _ = try SiteDirectoryDocument.applying(update, kind: .projects, replacing: original, to: json(added))
+            throw Failure(message: "stale directory edit overwrote a concurrent change")
+        } catch GitHubError.invalidContent(_) {}
+        do {
+            _ = try SiteDirectoryDocument.applying(friend, kind: .friends, replacing: nil, to: json(added))
+            throw Failure(message: "duplicate friend link was accepted")
+        } catch GitHubError.invalidContent(_) {}
+
         // Persisted pre-refresh-expiry credentials remain decodable.
         let previous = Data("{\"accessToken\":\"mock\",\"expiresAt\":0}".utf8)
         let credential = try JSONDecoder().decode(GitHubCredential.self, from: previous)
         try require(credential.refreshExpiresAt == nil && credential.needsRefresh, "legacy credential compatibility")
-        print("Auth/publishing checks passed: stale credential, conflict rebuild, public quota fallback, credential migration")
+        print("Auth/publishing checks passed: stale credential, conflict rebuild, public quota fallback, credential migration, directory edits")
     }
 }

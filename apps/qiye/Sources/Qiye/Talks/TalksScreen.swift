@@ -151,9 +151,8 @@ struct TalksScreen: View {
             Haptics.light()
             composer = true
         } label: {
-            Image(systemName: "square.and.pencil")
+            ActionIcon("写说说", systemImage: "square.and.pencil")
         }
-
         .accessibilityLabel("写说说")
         .accessibilityIdentifier("compose-talk")
         .disabled(pending.isCommitting)
@@ -317,11 +316,11 @@ private struct TalkTimelineRow: View {
                 Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
             }
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.primary)
+            ActionIcon("说说操作", systemImage: "ellipsis")
+                .foregroundStyle(Color.primary)
+                .liquidGlassCircle()
         }
-        .nativeGlassCircleButton()
+        .buttonStyle(.plain)
         .accessibilityLabel("说说操作")
         .accessibilityIdentifier("talk-actions-\(post.id)")
     }

@@ -1,47 +1,20 @@
 import SwiftUI
-
-enum DirectoryKind: String, Hashable {
-    case projects, friends
-    var title: String { self == .projects ? "项目" : "友链" }
-}
-
-struct SiteDirectoryEntry: Decodable, Identifiable {
-    var id: String { url }
-    let title: String
-    let description: String
-    let url: String
-    let image: String?
-    let tags: [String]?
-
-    var destination: URL? {
-        guard let value = URL(string: url), value.scheme == "https" || value.scheme == "http" else { return nil }
-        return value
-    }
-
-    var imageURL: URL? {
-        image.flatMap { URL(string: $0, relativeTo: DashboardService.websiteURL)?.absoluteURL }
-    }
-}
+import WebKit
 
 @Observable @MainActor
 final class SiteDirectoryStore {
-    private struct Site: Decodable {
-        struct Projects: Decodable { let projects: [SiteDirectoryEntry] }
-        struct Friends: Decodable { let friends: [SiteDirectoryEntry] }
-        let projectsPageContent: Projects
-        let friendsPageContent: Friends
-    }
-
     private(set) var projects: [SiteDirectoryEntry] = []
     private(set) var friends: [SiteDirectoryEntry] = []
     private(set) var error: String?
     private(set) var isLoading = false
+    private var revision = 0
     private let repository: GitHubRepository
 
     init(repository: GitHubRepository) {
         self.repository = repository
         if let url = Bundle.main.url(forResource: "site", withExtension: "json"),
-           let data = try? Data(contentsOf: url), let site = try? JSONDecoder().decode(Site.self, from: data) {
+           let data = try? Data(contentsOf: url),
+           let site = try? JSONDecoder().decode(SiteDirectoryDocument.self, from: data) {
             projects = site.projectsPageContent.projects
             friends = site.friendsPageContent.friends
         }
@@ -50,15 +23,38 @@ final class SiteDirectoryStore {
     func refresh() async {
         guard !isLoading else { return }
         isLoading = true
+        let capturedRevision = revision
         defer { isLoading = false }
         do {
-            let data = try await repository.getRepositoryFile(path: "src/data/site.json")
-            let site = try JSONDecoder().decode(Site.self, from: data)
+            let data = try await repository.getRepositoryFile(path: SiteDirectoryDocument.path)
+            let site = try JSONDecoder().decode(SiteDirectoryDocument.self, from: data)
+            guard revision == capturedRevision else { return }
             projects = site.projectsPageContent.projects
             friends = site.friendsPageContent.friends
             error = nil
         } catch is CancellationError { }
-        catch { self.error = "暂时无法更新，正在显示已保存的内容。" }
+        catch {
+            guard revision == capturedRevision else { return }
+            self.error = "暂时无法更新，正在显示已保存的内容。"
+        }
+    }
+
+    func save(_ draft: SiteDirectoryEntry, kind: DirectoryKind,
+              replacing original: SiteDirectoryEntry?) async throws -> SiteDirectoryEntry {
+        let entry = try await repository.saveDirectoryEntry(draft, kind: kind, replacing: original)
+        revision += 1
+        if kind == .projects { Self.update(&projects, entry: entry, replacing: original) }
+        else { Self.update(&friends, entry: entry, replacing: original) }
+        return entry
+    }
+
+    private static func update(_ entries: inout [SiteDirectoryEntry], entry: SiteDirectoryEntry,
+                               replacing original: SiteDirectoryEntry?) {
+        if let index = entries.firstIndex(where: { $0.url == (original?.url ?? entry.url) }) {
+            entries[index] = entry
+        } else {
+            entries.insert(entry, at: 0)
+        }
     }
 }
 
@@ -66,19 +62,23 @@ final class SiteDirectoryStore {
 struct SiteDirectoryScreen: View {
     let store: SiteDirectoryStore
     let kind: DirectoryKind
+    let canEdit: Bool
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var query = ""
     @State private var selected: SiteDirectoryEntry?
+    @State private var isAdding = false
 
     private var searchTerm: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var entries: [SiteDirectoryEntry] {
         let all = kind == .projects ? store.projects : store.friends
-        return all.filter { searchTerm.isEmpty || $0.title.localizedStandardContains(searchTerm) || $0.description.localizedStandardContains(searchTerm) }
+        return all.filter { searchTerm.isEmpty || $0.title.localizedStandardContains(searchTerm)
+            || $0.description.localizedStandardContains(searchTerm) }
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 12) {
                 CollectionSearchField(text: $query, prompt: "搜索\(kind.title)")
                 if let error = store.error {
                     ContentStatus(message: error) { await store.refresh() }
@@ -86,80 +86,145 @@ struct SiteDirectoryScreen: View {
                 if entries.isEmpty && !searchTerm.isEmpty {
                     ContentUnavailableView.search(text: searchTerm)
                 } else if entries.isEmpty {
-                    ContentUnavailableView("暂无\(kind.title)", systemImage: kind == .projects ? "square.stack.3d.up" : "person.2")
+                    ContentUnavailableView("暂无\(kind.title)", systemImage: kind.symbol)
                 }
-                ForEach(entries) { entry in
-                    Button { selected = entry; Haptics.light() } label: {
-                        VStack(alignment: .leading, spacing: 0) {
-                            DirectoryArtwork(entry: entry, kind: kind)
-                                .frame(height: kind == .projects ? 190 : 140)
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(entry.title).font(.title3.weight(.semibold))
-                                    Text(entry.description).font(.subheadline).foregroundStyle(.secondary)
-                                        .lineLimit(3).lineSpacing(3)
-                                    if let host = entry.destination?.host {
-                                        Text(host).font(.caption).foregroundStyle(.tertiary)
-                                    }
-                                }
-                                Spacer(minLength: 8)
-                                Image(systemName: "arrow.up.right").foregroundStyle(.secondary)
-                            }
-                            .padding(18)
+
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
+                                        count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
+                    ForEach(entries) { entry in
+                        Button {
+                            selected = entry
+                            Haptics.light()
+                        } label: {
+                            DirectoryCard(entry: entry, kind: kind)
                         }
-                        .collectionSurface().clipShape(.rect(cornerRadius: 22))
-                        .multilineTextAlignment(.leading)
+                        .buttonStyle(CollectionPressStyle())
                     }
-                    .buttonStyle(CollectionPressStyle())
                 }
             }
-            .padding(18).frame(maxWidth: 760).frame(maxWidth: .infinity)
+            .padding(16).frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
         .background(Color.appBackground)
-        .navigationTitle(kind.title).navigationBarTitleDisplayMode(.large)
+        .navigationTitle(kind.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if canEdit {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isAdding = true } label: {
+                        ActionIcon("添加\(kind.title)", systemImage: "plus")
+                    }
+                }
+            }
+        }
         .refreshable { await store.refresh() }
-        .sheet(item: $selected) { entry in DirectoryEntrySheet(entry: entry, kind: kind) }
+        .sheet(item: $selected) { entry in
+            DirectoryEntrySheet(entry: entry, kind: kind, store: store, canEdit: canEdit)
+        }
+        .sheet(isPresented: $isAdding) {
+            DirectoryEditor(store: store, kind: kind)
+        }
         .accessibilityIdentifier("directory-\(kind.rawValue)")
     }
 }
 
-private struct DirectoryEntrySheet: View {
+private struct DirectoryCard: View {
     let entry: SiteDirectoryEntry
     let kind: DirectoryKind
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 7) {
+            if kind == .friends {
                 DirectoryArtwork(entry: entry, kind: kind)
-                    .frame(height: 220).clipShape(.rect(cornerRadius: 22))
-                Text(entry.title).font(.largeTitle.bold())
-                Text(entry.description).font(.body).foregroundStyle(.secondary).lineSpacing(6)
-                if let tags = entry.tags, !tags.isEmpty {
-                    Text(tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
-                }
-                if let destination = entry.destination {
-                    Link(destination: destination) {
-                        HStack {
-                            Text(kind == .projects ? "查看项目" : "拜访网站")
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                        }
-                        .font(.headline).padding(12)
+                    .frame(width: 48, height: 48)
+                    .clipShape(Circle())
+            } else {
+                DirectoryArtwork(entry: entry, kind: kind)
+                    .frame(height: 82)
+                    .clipShape(.rect(cornerRadius: 10))
+            }
+            Text(entry.title)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 1)
+            Text(entry.description.isEmpty ? (entry.destination?.host ?? "") : entry.description)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(typeSize.isAccessibilitySize ? nil : 2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .multilineTextAlignment(.leading)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: kind == .friends ? 120 : 150, alignment: .topLeading)
+        .plannerSurface(tint: .indigo.opacity(0.06))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+@MainActor
+private struct DirectoryEntrySheet: View {
+    let kind: DirectoryKind
+    let store: SiteDirectoryStore
+    let canEdit: Bool
+    @Environment(\.dismiss) private var dismiss
+    @State private var entry: SiteDirectoryEntry
+    @State private var isEditing = false
+
+    init(entry: SiteDirectoryEntry, kind: DirectoryKind, store: SiteDirectoryStore, canEdit: Bool) {
+        _entry = State(initialValue: entry)
+        self.kind = kind
+        self.store = store
+        self.canEdit = canEdit
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if kind == .friends {
+                        DirectoryArtwork(entry: entry, kind: kind)
+                            .frame(width: 72, height: 72)
+                            .clipShape(Circle())
+                    } else {
+                        DirectoryArtwork(entry: entry, kind: kind)
+                            .frame(height: 180)
+                            .clipShape(.rect(cornerRadius: 16))
                     }
-                    .nativeGlassButton(prominent: true)
+                    Text(entry.title).font(.title.bold())
+                    if !entry.description.isEmpty {
+                        Text(entry.description).foregroundStyle(.secondary)
+                    }
+                    if let tags = entry.tags, !tags.isEmpty {
+                        Text(tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let destination = entry.destination {
+                        Link(destination: destination) {
+                            Label(kind == .projects ? "打开项目" : "拜访网站", systemImage: "arrow.up.right")
+                        }
+                        .tint(.indigo)
+                        .nativeGlassButton(prominent: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
+            }
+            .background(Color.appBackground)
+            .navigationTitle(kind.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: { ActionIcon("关闭", systemImage: "xmark") }
+                }
+                if canEdit {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { isEditing = true } label: { ActionIcon("编辑\(kind.title)", systemImage: "pencil") }
+                    }
                 }
             }
-            .padding(24).padding(.top, 24)
         }
-        .background(Color.appBackground)
-        .overlay(alignment: .topTrailing) {
-            Button("关闭", systemImage: "xmark") { dismiss() }
-                .labelStyle(.iconOnly).nativeGlassCircleButton().padding(16)
+        .sheet(isPresented: $isEditing) {
+            DirectoryEditor(store: store, kind: kind, original: entry) { entry = $0 }
         }
-        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationCornerRadius(30)
     }
 }
 
@@ -168,21 +233,96 @@ private struct DirectoryArtwork: View {
     let kind: DirectoryKind
 
     var body: some View {
-        ZStack {
-            Color.primary.opacity(0.04)
-            Image(systemName: kind == .projects ? "cube.transparent" : "person.crop.circle")
-                .font(.system(size: 64, weight: .ultraLight)).foregroundStyle(.tertiary)
-            if let url = entry.imageURL {
-                GeometryReader { geometry in
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                                .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+        GeometryReader { geometry in
+            ZStack {
+                Color.indigo.opacity(0.09)
+                if let url = entry.imageURL {
+                    if url.pathExtension.lowercased() == "svg" {
+                        DirectorySVG(url: url) { placeholder }
+                    } else {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image.resizable()
+                                    .aspectRatio(contentMode: kind == .friends ? .fit : .fill)
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                            } else {
+                                placeholder
+                            }
                         }
                     }
+                } else {
+                    placeholder
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .clipped().accessibilityHidden(true)
+        .clipped()
+        .accessibilityHidden(true)
     }
+
+    private var placeholder: some View {
+        Group {
+            if kind == .friends, let first = entry.title.first {
+                Text(String(first).uppercased())
+            } else {
+                Image(systemName: kind.symbol)
+            }
+        }
+        .font(.headline.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+}
+
+private struct DirectorySVG<Placeholder: View>: View {
+    let url: URL
+    @ViewBuilder let placeholder: Placeholder
+    @State private var svg: Data?
+
+    var body: some View {
+        Group {
+            if let svg {
+                SVGImageView(data: svg)
+                    .id(url)
+                    .allowsHitTesting(false)
+            } else {
+                placeholder
+            }
+        }
+        .task(id: url) {
+            svg = nil
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let status = (response as? HTTPURLResponse)?.statusCode,
+                      (200..<300).contains(status), data.count <= 1_048_576,
+                      let text = String(data: data, encoding: .utf8),
+                      text.contains("<svg") else { return }
+                try Task.checkCancellation()
+                svg = data
+            } catch { }
+        }
+    }
+}
+
+private struct SVGImageView: UIViewRepresentable {
+    let data: Data
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.isOpaque = false
+        view.backgroundColor = .clear
+        view.scrollView.isScrollEnabled = false
+        view.loadHTMLString("""
+            <!doctype html>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+            <style>html,body{margin:0;width:100%;height:100%}img{display:block;width:100%;height:100%;object-fit:contain}</style>
+            <img alt="" src="data:image/svg+xml;base64,\(data.base64EncodedString())">
+            """, baseURL: nil)
+        return view
+    }
+
+    func updateUIView(_ view: WKWebView, context: Context) {}
 }

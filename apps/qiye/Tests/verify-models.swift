@@ -36,6 +36,22 @@ private func expect(_ condition: @autoclosure () -> Bool, _ reason: String) thro
             throw VerificationFailure(reason: "Calendar accepted duplicate dates")
         } catch is DashboardFailure { }
         let formatter = DashboardDates.dayFormatter()
+        let sunday = formatter.date(from: "2026-01-04")!
+        let activityDays = [2, 3, 7, 1, 0, 4, 1, 4, 2, 0].enumerated().map { offset, count in
+            let date = DashboardDates.calendar.date(byAdding: .day, value: offset, to: sunday)!
+            return DashboardContributionDay(id: formatter.string(from: date), date: date,
+                level: count > 0 ? 1 : 0, count: count)
+        }
+        let activity = try DashboardContributions(days: activityDays, source: .graphQL)
+        try expect(activity.currentStreak == 4, "A quiet day in progress must retain yesterday's streak")
+        try expect(activity.weekTotals.current == 6 && activity.weekTotals.previous == 12,
+                   "Current week must compare with the same days in the previous week")
+        let publicDays = activityDays.map { DashboardContributionDay(id: $0.id, date: $0.date,
+            level: $0.level, count: nil) }
+        let publicActivity = try DashboardContributions(days: publicDays, source: .publicHTML)
+        try expect(publicActivity.currentStreak == 4 && publicActivity.weekTotals.current == nil,
+                   "Contribution levels can establish streaks but cannot supply exact totals")
+
         let leapNow = formatter.date(from: "2024-03-01")!
         let range = DashboardDates.range(now: leapNow)
         try expect(DashboardDates.calendar.dateComponents([.day], from: range.start, to: range.end).day == 365,

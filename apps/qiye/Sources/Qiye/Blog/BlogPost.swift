@@ -13,7 +13,7 @@ struct BlogPost: Identifiable, Hashable, Sendable {
     var imageURL: URL? {
         guard let value = metadata["image.url"] ?? metadata["image"],
               !value.hasPrefix("{"), !value.isEmpty else { return nil }
-        return URL(string: value, relativeTo: GitHubRepository.websiteURL)?.absoluteURL
+        return URL(string: value, relativeTo: GitHubRepository.websiteURL).map { WebsiteMedia.currentURL($0.absoluteURL) }
     }
     var websiteURL: URL {
         let slug = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent

@@ -111,7 +111,7 @@ struct MarkdownBlocks: View {
     private func imageURL(_ path: String) -> URL? {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL,
               ["https", "http"].contains(url.scheme ?? "") else { return nil }
-        return url
+        return WebsiteMedia.currentURL(url)
     }
 
     private func markdownImage(url: URL, alt: String) -> some View {

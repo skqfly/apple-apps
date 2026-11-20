@@ -12,7 +12,7 @@ struct WebsiteSettingsScreen: View {
             }
             Section("博客") {
                 TextField("默认作者", text: $author)
-                Text("文章从 GitHub 读取，长文仍可在 Trilium 编辑和同步。")
+                Text("栖页从网站仓库读取文章。请在 GitHub 的 src/content/posts/ 目录维护 Markdown 正文。")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("低频栏目") {
@@ -30,11 +30,11 @@ struct PublishingSettingsScreen: View {
     var body: some View {
         Form {
             Section("内容来源") {
-                LabeledContent("博客文章", value: "GitHub · Trilium 同步")
+                LabeledContent("博客文章", value: "GitHub · Markdown")
                 LabeledContent("说说与照片", value: "GitHub · 栖页发布")
             }
             Section("发布记录") {
-                Link("网站构建与部署", destination: URL(string: "https://github.com/skqfly/skqfly.github.io/actions")!)
+                Link("网站构建与部署", destination: DashboardService.actionsURL)
                 Link("查看提交历史", destination: URL(string: "https://github.com/skqfly/skqfly.github.io/commits/main")!)
             }
             Section {

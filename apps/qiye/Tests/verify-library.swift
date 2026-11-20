@@ -166,6 +166,31 @@ private func encoded(_ object: Any) throws -> Data {
         let restoredReplay = try PublishingManifest.apply([restored], site: restoredBatch.files["src/data/site.json"]!, photos: emptyPhotos,
             talkImages: ["restored": [reusedImage]])
         try check(restoredReplay.files == restoredBatch.files, "restored metadata changed on retry")
+
+        let legacySource = "/trilium-media/old.webp"
+        let canonicalSource = "/media/old.webp"
+        let legacyImage = TalkImage(src: legacySource, width: 400, height: 300, alt: "saved caption",
+                                    preview: "/trilium-media/old-480.webp", previewLarge: nil)
+        let legacyDraft = PendingChange(kind: .addTalk(talkID: "legacy", text: "restored", date: date,
+            images: [], reusedSources: [legacySource, canonicalSource]))
+        let legacyPhoto = PendingChange(kind: .addPhoto(photoID: "legacy", source: legacySource, imageName: "",
+            width: 400, height: 300, alt: "saved caption"))
+        let migratedMediaBatch = try PublishingManifest.apply([legacyDraft, legacyPhoto], site: emptySite, photos: emptyPhotos,
+            talkImages: ["legacy": [legacyImage]])
+        let migratedSite = try JSONSerialization.jsonObject(with: migratedMediaBatch.files["src/data/site.json"]!) as! [String: Any]
+        let migratedPage = migratedSite["talksPageContent"] as! [String: Any]
+        let migratedEntries = migratedPage["entries"] as! [[String: Any]]
+        let migratedImages = migratedEntries[0]["images"] as! [[String: Any]]
+        try check(migratedImages.count == 1, "old and new URLs for a restored talk produced duplicate images")
+        let migratedImage = migratedImages[0]
+        try check(migratedImage["src"] as? String == canonicalSource &&
+                  migratedImage["preview"] as? String == "/media/old-480.webp" &&
+                  migratedImage["width"] as? Int == 400, "restored talk did not migrate image metadata")
+        let migratedPhotos = try WebsitePhoto.decode(migratedMediaBatch.files["src/data/photo-library.json"]!,
+            relativeTo: GitHubRepository.websiteURL)
+        try check(migratedPhotos.first?.sourcePath == canonicalSource, "restored photo did not use its current path")
+        try check(PendingChange.Kind.repoDeletionPath(forSource: canonicalSource) == nil, "shared migrated asset became deletable")
+
         let localImage = TalkImage(src: "file:///tmp/library/local.jpg", width: 90, height: 60, alt: "local caption",
             preview: "file:///tmp/library/preview.jpg", previewLarge: nil)
         let localSpec = PendingChange.Kind.TalkImageSpec(imageName: "local.jpg", width: 90, height: 60)

@@ -26,7 +26,7 @@ struct RemotePhotoImage: View {
     }
 
     private var remoteImage: some View {
-        AsyncImage(url: url) { phase in
+        AsyncImage(url: WebsiteMedia.currentURL(url)) { phase in
             switch phase {
             case .empty:
                 if let bundledURL {

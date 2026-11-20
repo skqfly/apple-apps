@@ -74,7 +74,7 @@ extension PendingChange.Kind {
     }
 
     /// The repository file path to delete, but only for images this app uploaded.
-    /// Trilium-managed media is shared and must never be removed by Qiye.
+    /// Shared website assets are outside the app-owned photo and talk directories.
     static func repoDeletionPath(forSource source: String) -> String? {
         // Validate before URL resolution, which can otherwise hide traversal segments.
         guard !source.contains("%"), !source.contains("\\"),

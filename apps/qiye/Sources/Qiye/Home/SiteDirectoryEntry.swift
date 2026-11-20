@@ -21,7 +21,7 @@ struct SiteDirectoryEntry: Decodable, Equatable, Identifiable, Sendable {
 
     var destination: URL? { Self.webURL(url) }
     var imageURL: URL? {
-        image.flatMap { Self.webURL($0, relativeTo: GitHubRepository.websiteURL) }
+        image.flatMap { Self.webURL($0, relativeTo: GitHubRepository.websiteURL) }.map(WebsiteMedia.currentURL)
     }
 
     private static func webURL(_ value: String, relativeTo base: URL? = nil) -> URL? {
@@ -45,7 +45,7 @@ struct SiteDirectoryEntry: Decodable, Equatable, Identifiable, Sendable {
         let favicon = URL(string: "/favicon.ico", relativeTo: destination)?.absoluteURL.absoluteString
         let fallbackImage = kind == .friends ? favicon : "/favicon.svg"
         return Self(title: title, description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                    url: url, image: image.isEmpty ? fallbackImage : image,
+                    url: url, image: image.isEmpty ? fallbackImage : WebsiteMedia.currentSource(image),
                     tags: kind == .projects ? tags ?? [] : nil,
                     categories: kind == .projects ? categories ?? [] : nil,
                     domain: kind == .friends ? (original?.url == url ? original?.domain ?? host : host) : nil)

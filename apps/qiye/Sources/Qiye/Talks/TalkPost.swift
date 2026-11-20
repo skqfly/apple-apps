@@ -70,6 +70,6 @@ struct TalkImage: Codable, Hashable, Sendable, Identifiable {
     private func resolve(_ path: String) -> URL? {
         guard let url = URL(string: path, relativeTo: GitHubRepository.websiteURL)?.absoluteURL,
               ["https", "http", "file"].contains(url.scheme ?? "") else { return nil }
-        return url
+        return WebsiteMedia.currentURL(url)
     }
 }

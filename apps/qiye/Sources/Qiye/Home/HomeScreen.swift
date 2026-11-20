@@ -182,12 +182,12 @@ struct HomeScreen: View {
     private var workflowsCard: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 8) {
-                Text("Actions")
+                Text("网站部署")
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
                 if store.workflows.isLoading {
                     ProgressView().controlSize(.small)
-                        .accessibilityLabel("正在更新 Actions")
+                        .accessibilityLabel("正在更新网站部署")
                 }
                 Spacer(minLength: 0)
                 Link(destination: DashboardService.actionsURL) {

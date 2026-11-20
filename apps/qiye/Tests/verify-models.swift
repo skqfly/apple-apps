@@ -10,6 +10,18 @@ private func expect(_ condition: @autoclosure () -> Bool, _ reason: String) thro
 
 @main struct VerifyModels {
     static func main() async throws {
+        let oldMedia = "https://mmddskq.top/trilium-media/a%20b.webp?v=2#photo"
+        let newMedia = "https://mmddskq.top/media/a%20b.webp?v=2#photo"
+        try expect(WebsiteMedia.currentSource(oldMedia) == newMedia, "Legacy URL lost its filename, query or fragment")
+        try expect(WebsiteMedia.currentSource("/trilium-media/a.webp") == "/media/a.webp", "Root-relative media was not migrated")
+        try expect(WebsiteMedia.currentSource("https://example.org/trilium-media/a.webp") == "https://example.org/trilium-media/a.webp",
+                   "External media URL must be preserved")
+        try expect(WebsiteMedia.currentSource("file:///trilium-media/a.webp") == "file:///trilium-media/a.webp",
+                   "Local draft URL must be preserved")
+        let paths = ["public/media/a b.webp", "public/trilium-media/a b.webp"]
+        try expect(WebsiteMedia.storedPaths(for: URL(string: newMedia)!) == paths, "New URL must find the legacy offline snapshot")
+        try expect(WebsiteMedia.storedPaths(for: URL(string: oldMedia)!) == paths, "Legacy URL must prefer a new offline snapshot")
+
         let html = """
         <td id="day-a" data-level="0" data-date="2026-01-01"></td>
         <td id="day-b" data-level="2" data-date="2026-01-02"></td>

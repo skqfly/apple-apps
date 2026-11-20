@@ -16,9 +16,9 @@
 
 发布成功代表 GitHub 接受了提交；网站需等待 Pages 构建部署。失败或结果不确定会明确提示，不自动重复提交。App 不内置私人令牌或 Client Secret。
 
-## 网站与 Trilium 的职责
+## 网站内容与部署
 
-网站仓库 `skqfly/skqfly.github.io`，域名 `mmddskq.top`。Trilium 只管理博客文章与文章图片，保留文章发布、下架及同步日志。说说、相册、友链、项目和站点设置不再由旧 Trilium 快照覆盖。
+网站仓库 `skqfly/skqfly.github.io`，域名 `mmddskq.top`。文章在仓库的 `src/content/posts/` 维护，栖页从 GitHub 读取。说说、相册、友链和项目可在栖页编辑并写入网站仓库。网站由 GitHub Pages 工作流构建部署。
 
 网站的照片 `alt` 用于无障碍描述，不显示图片下方的图注。应用图标直接转换网站原始 `public/logo.svg`，全不透明方图由 iOS 裁圆角。
 

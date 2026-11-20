@@ -3,7 +3,8 @@ import Foundation
 struct DashboardService: Sendable {
     static let websiteURL = URL(string: "https://mmddskq.top")!
     static let repositoryURL = URL(string: "https://github.com/skqfly/skqfly.github.io")!
-    static let actionsURL = repositoryURL.appending(path: "actions")
+    static let pagesWorkflowFile = "deploy-pages.yml"
+    static let actionsURL = repositoryURL.appending(path: "actions/workflows/\(pagesWorkflowFile)")
     static let profileURL = URL(string: "https://github.com/skqfly")!
     private static let apiBase = "https://api.github.com/repos/skqfly/skqfly.github.io"
 
@@ -30,7 +31,9 @@ struct DashboardService: Sendable {
         struct Response: Decodable { let workflowRuns: [DashboardWorkflowRun]
             enum CodingKeys: String, CodingKey { case workflowRuns = "workflow_runs" }
         }
-        let result: Response = try await get(Self.apiBase + "/actions/runs?per_page=5", token: token)
+        let result: Response = try await get(
+            Self.apiBase + "/actions/workflows/\(Self.pagesWorkflowFile)/runs?branch=main&per_page=5", token: token
+        )
         return result.workflowRuns
     }
 

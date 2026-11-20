@@ -52,8 +52,8 @@ struct MediaViewer: View {
     }
 
     private func offlineItem(_ item: MediaViewerItem) -> MediaViewerItem {
-        let preview = item.previewURL.map { offlineWebsite?.imageURL(for: $0) ?? $0 }
-        let original = offlineWebsite?.imageURL(for: item.url) ?? item.url
+        let preview = item.previewURL.map { offlineWebsite?.imageURL(for: $0) ?? WebsiteMedia.currentURL($0) }
+        let original = offlineWebsite?.imageURL(for: item.url) ?? WebsiteMedia.currentURL(item.url)
         return MediaViewerItem(id: item.id, url: original, previewURL: preview)
     }
 

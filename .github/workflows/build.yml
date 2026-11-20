@@ -45,7 +45,7 @@ jobs:
           swiftc -parse-as-library \
             Sources/Qiye/Home/DashboardModels.swift \
             Sources/Qiye/Home/DashboardService.swift \
-            Sources/Qiye/Blog/BlogPost.swift Sources/Qiye/GitHub/ContentDate.swift \
+            Sources/Qiye/Blog/BlogPost.swift Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/GitHub/WebsiteMedia.swift \
             Tests/verify-models.swift -o "$RUNNER_TEMP/verify-models"
           "$RUNNER_TEMP/verify-models"
 
@@ -53,7 +53,7 @@ jobs:
         run: |
           swiftc -swift-version 5 -parse-as-library \
             Sources/Qiye/Home/SiteDirectoryEntry.swift Sources/Qiye/GitHub/GitHubRepository.swift Sources/Qiye/GitHub/GitHubError.swift \
-            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/Account/GitHubCredential.swift \
+            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/GitHub/WebsiteMedia.swift Sources/Qiye/Account/GitHubCredential.swift \
             Sources/Qiye/Blog/BlogPost.swift Sources/Qiye/Talks/TalkPost.swift \
             Sources/Qiye/Photos/WebsitePhoto.swift ../../Scripts/verify-auth-publishing.swift \
             -o "$RUNNER_TEMP/verify-publishing"
@@ -63,7 +63,7 @@ jobs:
         run: |
           swiftc -swift-version 5 -D LIBRARY_VERIFICATION -parse-as-library \
             Sources/Qiye/Home/SiteDirectoryEntry.swift Sources/Qiye/GitHub/GitHubRepository.swift Sources/Qiye/GitHub/GitHubError.swift \
-            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/Blog/BlogPost.swift \
+            Sources/Qiye/GitHub/ContentDate.swift Sources/Qiye/GitHub/WebsiteMedia.swift Sources/Qiye/Blog/BlogPost.swift \
             Sources/Qiye/Talks/TalkPost.swift Sources/Qiye/Photos/WebsitePhoto.swift \
             Sources/Qiye/Photos/PhotoDraft.swift Sources/Qiye/Photos/PhotoUploadPreparation.swift \
             Sources/Qiye/Publishing/*.swift Tests/verify-library.swift \

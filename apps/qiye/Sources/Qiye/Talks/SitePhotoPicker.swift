@@ -27,7 +27,7 @@ struct SitePhotoPicker: View {
                                     Group {
                                         if photo.preview.isFileURL { LocalPhotoImage(url: photo.preview) }
                                         else if let local = offlineWebsite?.imageURL(for: photo.preview) { LocalPhotoImage(url: local) }
-                                        else { AsyncImage(url: photo.preview) { phase in
+                                        else { AsyncImage(url: WebsiteMedia.currentURL(photo.preview)) { phase in
                                             if let image = phase.image { image.resizable().scaledToFill() }
                                             else { Color.secondary.opacity(0.12).overlay { Image(systemName: "photo") } }
                                         } }

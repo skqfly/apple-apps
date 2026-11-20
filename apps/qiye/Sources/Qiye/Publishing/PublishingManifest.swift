@@ -47,6 +47,7 @@ enum PublishingManifest {
                 candidates.formUnion(sources.compactMap { PendingChange.Kind.repoDeletionPath(forSource: $0) })
             case .addPhoto(let id, let source, _, let width, let height, let alt):
                 photosChanged = true
+                let source = WebsiteMedia.currentSource(source)
                 library[id] = ["src": source, "preview": source, "previewLarge": source,
                                "width": width, "height": height, "alt": alt]
             case .unpublishPhoto(let id, _):
@@ -86,7 +87,10 @@ enum PublishingManifest {
 
     private static func imageEntries(id: String, images: [PendingChange.Kind.TalkImageSpec], reused: [String], previous: [String: Any]?, retained: [TalkImage]) -> [[String: Any]] {
         var metadata: [String: [String: Any]] = [:]
-        for entry in previous?["images"] as? [[String: Any]] ?? [] {
+        for var entry in previous?["images"] as? [[String: Any]] ?? [] {
+            for key in ["src", "preview", "previewLarge"] {
+                if let value = entry[key] as? String { entry[key] = WebsiteMedia.currentSource(value) }
+            }
             if let src = entry["src"] as? String { metadata[src] = entry }
         }
         for image in retained {
@@ -95,12 +99,12 @@ enum PublishingManifest {
                 src = PendingChange.Kind.talkSource(talkID: id, image: .init(imageName: url.lastPathComponent,
                     width: image.width ?? 1, height: image.height ?? 1))
             } else {
-                src = image.src
+                src = WebsiteMedia.currentSource(image.src)
             }
             // Local previews cannot be published. Remote previews survive restore/reuse.
             func preview(_ value: String?) -> String {
                 guard let value, URL(string: value)?.isFileURL != true else { return src }
-                return value
+                return WebsiteMedia.currentSource(value)
             }
             var entry: [String: Any] = ["src": src, "alt": image.alt ?? "说说照片",
                 "preview": preview(image.preview), "previewLarge": preview(image.previewLarge ?? image.preview)]
@@ -117,7 +121,7 @@ enum PublishingManifest {
             return src
         }
         var seen: Set<String> = []
-        return (reused + uploaded).compactMap { src in
+        return (reused.map(WebsiteMedia.currentSource) + uploaded).compactMap { src in
             guard seen.insert(src).inserted else { return nil }
             return metadata[src] ?? ["src": src, "alt": "说说照片", "preview": src, "previewLarge": src]
         }

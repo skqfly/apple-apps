@@ -121,11 +121,7 @@ struct OfflineWebsite: Sendable {
     }
 
     func imageURL(for url: URL) -> URL? {
-        guard url.scheme == "https",
-              [GitHubRepository.websiteURL.host, "skqfly.github.io"].contains(url.host),
-              let path = URLComponents(url: url, resolvingAgainstBaseURL: true)?.path,
-              path.hasPrefix("/") else { return nil }
-        return file("public" + path)
+        WebsiteMedia.storedPaths(for: url).lazy.compactMap { self.file($0) }.first
     }
 
     static func createStagingDirectory(in storage: URL) throws -> URL {
@@ -166,8 +162,10 @@ struct OfflineWebsite: Sendable {
             var markdown = "# \(title)\n\n\(ContentDate.string(talk.date))\n\n\(talk.content)\n"
             for image in talk.images {
                 guard let original = image.originalURL else { continue }
-                let path = URLComponents(url: original, resolvingAgainstBaseURL: true)?.percentEncodedPath
-                let link = imageURL(for: original) != nil ? "../public\(path ?? "")" : original.absoluteString
+                let localPath = imageURL(for: original).flatMap {
+                    String($0.path.dropFirst(directory.path.count)).addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+                }
+                let link = localPath.map { ".." + $0 } ?? original.absoluteString
                 let alt = (image.alt ?? "图片").replacingOccurrences(of: "]", with: "\\]")
                 markdown += "\n![\(alt)](<\(link)>)\n"
             }

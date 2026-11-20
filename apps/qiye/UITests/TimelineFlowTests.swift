@@ -151,7 +151,11 @@ final class TimelineFlowTests: XCTestCase {
         app.buttons["photo-select-button"].tap()
         selectedPhoto.tap()
         let initialHeight = selectedPhoto.frame.midY
-        app.swipeUp()
+        // Start the scroll on the page margin so the synthesized drag cannot land on
+        // another tile; the check is that selection mode still scrolls.
+        let marginStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.8))
+        let marginEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.03, dy: 0.35))
+        marginStart.press(forDuration: 0.05, thenDragTo: marginEnd)
         XCTAssertTrue(app.navigationBars["已选 1 张"].exists, "Vertical scrolling must preserve the selection")
         XCTAssertTrue(!selectedPhoto.isHittable || selectedPhoto.frame.midY < initialHeight - 30,
                       "Selection mode must allow vertical scrolling")

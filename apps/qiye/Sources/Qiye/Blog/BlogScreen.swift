@@ -21,36 +21,10 @@ struct BlogScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
                 filters
-                if let error = store.error { ContentStatus(message: error) { await store.refresh() } }
-                if store.isLoading && store.posts.isEmpty {
-                    ProgressView("正在读取博客…").frame(maxWidth: .infinity).padding(40)
-                } else if posts.isEmpty {
-                    if !store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        ContentUnavailableView.search(text: store.query)
-                    } else {
-                        ContentUnavailableView(
-                            category == nil ? "暂无博客" : "这个分类暂无博客",
-                            systemImage: "doc.text",
-                            description: Text(category == nil ? "下拉刷新，查看最新文章。" : "切换分类，查看其他文章。")
-                        )
-                    }
-                } else {
-                    LazyVStack(spacing: 12) {
-                        ForEach(posts) { post in
-                            NavigationLink(value: post) {
-                                ArticleCollectionCard(post: post)
-                                    .collectionZoomSource(id: post.id, namespace: articleTransition)
-                            }
-                            .buttonStyle(CollectionPressStyle())
-                            .accessibilityIdentifier("article-\(post.id)")
-                        }
-                    }
-                }
+                articleResults
             }
-            .padding(.horizontal, AppPageLayout.horizontalInset)
-            .padding(.top, AppPageLayout.topInset)
             .padding(.bottom, 30)
             .frame(maxWidth: 760).frame(maxWidth: .infinity)
         }
@@ -95,13 +69,41 @@ struct BlogScreen: View {
     }
 
     private var filters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                categoryButton("全部", value: nil)
-                ForEach(categories, id: \.self) { value in categoryButton(value, value: value) }
-            }
-            .padding(.vertical, 6)
+        CollectionFilterBar {
+            categoryButton("全部", value: nil)
+            ForEach(categories, id: \.self) { value in categoryButton(value, value: value) }
         }
+    }
+
+    private var articleResults: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            if let error = store.error { ContentStatus(message: error) { await store.refresh() } }
+            if store.isLoading && store.posts.isEmpty {
+                ProgressView("正在读取博客…").frame(maxWidth: .infinity).padding(40)
+            } else if posts.isEmpty {
+                if !store.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    ContentUnavailableView.search(text: store.query)
+                } else {
+                    ContentUnavailableView(
+                        category == nil ? "暂无博客" : "这个分类暂无博客",
+                        systemImage: "doc.text",
+                        description: Text(category == nil ? "下拉刷新，查看最新文章。" : "切换分类，查看其他文章。")
+                    )
+                }
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(posts) { post in
+                        NavigationLink(value: post) {
+                            ArticleCollectionCard(post: post)
+                                .collectionZoomSource(id: post.id, namespace: articleTransition)
+                        }
+                        .buttonStyle(CollectionPressStyle())
+                        .accessibilityIdentifier("article-\(post.id)")
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, AppPageLayout.horizontalInset)
     }
 
     private func categoryButton(_ title: String, value: String?) -> some View {

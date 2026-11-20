@@ -208,8 +208,8 @@ struct MediaViewer: View {
                         panOrigin = pan
                     } else {
                         let translation = value.translation
-                        // Only track a vertical drag ourselves when the presentation
-                        // does not provide the system's interactive zoom.
+                        // The viewer owns the downward gesture and the presentation
+                        // handles the closing transition.
                         guard abs(translation.width) + abs(translation.height) >= 16 else { return }
                         if abs(translation.width) > abs(translation.height) * 1.2 { dragAxis = .horizontal }
                         else if allowsDismissal { dragAxis = .vertical }

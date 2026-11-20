@@ -16,6 +16,18 @@ struct CollectionPressStyle: ButtonStyle {
     }
 }
 
+struct CollectionFilterBar<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) { content }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 6)
+        }
+    }
+}
+
 struct CollectionFilterChip: View {
     let title: String
     let isSelected: Bool

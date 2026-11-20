@@ -44,7 +44,7 @@ struct CollectionsScreen: View {
                     }
                     .accessibilityIdentifier("collection-photos")
                     Button { open(.talks) } label: {
-                        tile("说说", symbol: "text.bubble", count: library.allTalks().count)
+                        tile("说说", symbol: "text.bubble", count: library.visibleTalks().count)
                     }
                     .accessibilityIdentifier("collection-talks")
                     directoryTile(.projects, count: directory.projects.count)
@@ -157,7 +157,7 @@ struct CollectionsScreen: View {
     }
 
     private var recentTalks: [TalkPost] {
-        Array(library.allTalks()
+        Array(library.visibleTalks()
             .filter { !$0.description.isEmpty }
             .sorted { $0.date > $1.date }
             .prefix(3))

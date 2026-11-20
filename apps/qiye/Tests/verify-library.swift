@@ -23,6 +23,8 @@ private func encoded(_ object: Any) throws -> Data {
         try check(library.talks(in: .published).map(\.id) == [first.id, second.id], "same-date input order lost")
         try library.setTalkState(first, to: .deleted)
         try check(library.stateOfTalk(first.id) == .deleted && pending.count == 1, "trash must unpublish")
+        try check(library.visibleTalks().map(\.id) == [second.id], "deleted talks must be hidden from the homepage and timeline")
+        try check(library.talks(in: .deleted).map(\.id) == [first.id], "deleted talk must remain in the trash")
         pending.remove(pending.changes[0])
         try check(library.stateOfTalk(first.id) == .published && pending.count == 0, "cancellation did not restore state")
         try library.setTalkState(first, to: .unpublished)

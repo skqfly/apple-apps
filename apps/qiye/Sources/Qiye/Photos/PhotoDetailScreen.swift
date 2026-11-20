@@ -10,7 +10,10 @@ struct PhotoDetailScreen: View {
     let canPublish: Bool
     var photos: [WebsitePhoto] = []
     var drafts: [PhotoDraft] = []
+    let zoomNamespace: Namespace.ID
+    let onPhotoChange: (String) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var currentIndex: Int?
     @State private var deleteTarget: WebsitePhoto?
     @State private var purgeTarget: WebsitePhoto?
@@ -48,7 +51,10 @@ struct PhotoDetailScreen: View {
             items: items, initialIndex: initialIndex,
             actions: AnyView(managementMenu),
             allowsDismissal: !isWorking,
-            onIndexChange: { currentIndex = $0 }
+            onIndexChange: { index in
+                currentIndex = index
+                onPhotoChange(current.id)
+            }
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("photo-detail-screen")
@@ -69,6 +75,7 @@ struct PhotoDetailScreen: View {
                 if dismissesAfterMessage { dismiss() }
             }
         } message: { Text(message ?? "") }
+        .collectionZoomDestination(id: current.id, namespace: zoomNamespace, enabled: !reduceMotion)
     }
 
     private var managementMenu: some View {

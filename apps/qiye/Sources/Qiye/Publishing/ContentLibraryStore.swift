@@ -120,10 +120,10 @@ final class ContentLibraryStore {
         }.map(\.post)
     }
 
-    /// All unpurged talks regardless of state, sorted with newest on top.
-    func allTalks() -> [TalkPost] {
+    /// Talks shown on the homepage and timeline, sorted with newest on top.
+    func visibleTalks() -> [TalkPost] {
         _ = revision
-        return pending.document.talks.values.filter { !$0.purged }.sorted {
+        return pending.document.talks.values.filter { !$0.purged && $0.state != .deleted }.sorted {
             if $0.post.date != $1.post.date { return $0.post.date > $1.post.date }
             if $0.order != $1.order { return ($0.order ?? Int.max) < ($1.order ?? Int.max) }
             return $0.post.id < $1.post.id

@@ -17,6 +17,7 @@ struct PhotosScreen: View {
     @State private var status: ContentStatusFilter = ProcessInfo.processInfo.arguments.contains("--uitest-long-photo") ? .unpublished : .published
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var gallery: PhotoGallery?
+    @State private var scrollPhotoID: String?
     @State private var importMessage: String?
     @State private var showsImportResult = false
     @State private var isMovingDrafts = false
@@ -26,6 +27,8 @@ struct PhotosScreen: View {
     @State private var selectedPhotoIDs: Set<String> = []
     @State private var photoFrames: [String: CGRect] = [:]
     @State private var swipedPhotoIDs: Set<String> = []
+    @State private var isSweepingHorizontally: Bool?
+    @GestureState private var isSelectionDragActive = false
     @Namespace private var photoZoom
 
     private var columns: [GridItem] {
@@ -76,6 +79,7 @@ struct PhotosScreen: View {
             .padding(.top, AppPageLayout.topInset)
             .padding(.bottom, 24)
         }
+        .scrollPosition(id: $scrollPhotoID, anchor: .center)
         .appPageBackground()
         .appNavigationTitle(isSelecting ? "已选 \(selectedPhotoIDs.count) 张" : "图片")
         .toolbar { topBarToolbar }
@@ -99,9 +103,13 @@ struct PhotosScreen: View {
             PhotoDetailScreen(
                 selection: gallery.selection, store: store, repository: repository, pending: pending,
                 library: library, canPublish: canPublish,
-                photos: gallery.photos, drafts: gallery.drafts
+                photos: gallery.photos, drafts: gallery.drafts, zoomNamespace: photoZoom,
+                onPhotoChange: { id in
+                    var transaction = Transaction(animation: nil)
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { scrollPhotoID = id }
+                }
             )
-            .collectionZoomDestination(id: gallery.selection.id, namespace: photoZoom, enabled: !reduceMotion)
         }
         .safeAreaInset(edge: .bottom) {
             if isSelecting {
@@ -117,6 +125,9 @@ struct PhotosScreen: View {
         .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
+        }
+        .onChange(of: isSelectionDragActive) { _, active in
+            if !active { resetSwipeSelection() }
         }
     }
 
@@ -210,6 +221,7 @@ struct PhotosScreen: View {
                                     )
                             }
                         )
+                        .id(PhotoSelection.website(photo).id)
                 }
                 if status == .unpublished {
                     ForEach(store.drafts) { draft in
@@ -221,13 +233,15 @@ struct PhotosScreen: View {
                         .accessibilityIdentifier("photo-draft-\(draft.id.uuidString)")
                         .accessibilityLabel(draft.title.isEmpty ? "未发表照片" : draft.title)
                         .accessibilityHint("在 App 内查看大图")
+                        .id(PhotoSelection.local(draft).id)
                     }
                 }
             }
+            .scrollTargetLayout()
             .onPreferenceChange(PhotoFramePreferenceKey.self) { frames in
                 photoFrames = frames
             }
-            .gesture(
+            .simultaneousGesture(
                 isSelecting ? swipeSelectGesture : nil
             )
             .onDrop(of: [.text], delegate: PhotoReorderDrop(
@@ -240,26 +254,30 @@ struct PhotosScreen: View {
 
     // Swipe to select gesture (Apple Photos official experience)
     private var swipeSelectGesture: some Gesture {
-        DragGesture(minimumDistance: 10)
+        DragGesture(minimumDistance: 12, coordinateSpace: .named("PhotoGridSpace"))
+            .updating($isSelectionDragActive) { _, active, _ in active = true }
             .onChanged { value in
-                let point = value.location
-                for (id, frame) in photoFrames {
-                    if frame.contains(point) && !swipedPhotoIDs.contains(id) {
-                        swipedPhotoIDs.insert(id)
-                        Haptics.selection()
-                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.12)) {
-                            if selectedPhotoIDs.contains(id) {
-                                selectedPhotoIDs.remove(id)
-                            } else {
-                                selectedPhotoIDs.insert(id)
-                            }
-                        }
-                    }
+                guard isSelecting else { return }
+                if isSweepingHorizontally == nil {
+                    let translation = value.translation
+                    isSweepingHorizontally = abs(translation.width) > abs(translation.height) * 1.2
                 }
+                guard isSweepingHorizontally == true else { return }
+                sweepSelectPhoto(at: value.startLocation)
+                sweepSelectPhoto(at: value.location)
             }
-            .onEnded { _ in
-                swipedPhotoIDs.removeAll()
-            }
+            .onEnded { _ in resetSwipeSelection() }
+    }
+
+    private func sweepSelectPhoto(at point: CGPoint) {
+        guard let id = photoFrames.first(where: { $0.value.contains(point) })?.key,
+              swipedPhotoIDs.insert(id).inserted else { return }
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.12)) { toggleSelection(id) }
+    }
+
+    private func resetSwipeSelection() {
+        isSweepingHorizontally = nil
+        swipedPhotoIDs.removeAll()
     }
 
     /// Bound both drawing and hit testing to the tile, including very tall images.
@@ -303,7 +321,7 @@ struct PhotosScreen: View {
     private func selectableCell(_ photo: WebsitePhoto) -> some View {
         let isSelected = selectedPhotoIDs.contains(photo.id)
         return Button {
-            toggleSelection(photo)
+            toggleSelection(photo.id)
         } label: {
             photoTile { photoImage(photo) }
                 .scaleEffect(isSelected ? 0.95 : 1.0)
@@ -331,6 +349,7 @@ struct PhotosScreen: View {
             }
             .padding(8)
             .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+            .allowsHitTesting(false)
         }
         .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: isSelected)
         .accessibilityLabel(photo.title)
@@ -405,20 +424,16 @@ struct PhotosScreen: View {
 
     // MARK: - Selection & Batch Actions
 
-    private func toggleSelection(_ photo: WebsitePhoto) {
-        if selectedPhotoIDs.contains(photo.id) {
-            selectedPhotoIDs.remove(photo.id)
-            Haptics.selection()
-        } else {
-            selectedPhotoIDs.insert(photo.id)
-            Haptics.selection()
-        }
+    private func toggleSelection(_ id: String) {
+        if selectedPhotoIDs.contains(id) { selectedPhotoIDs.remove(id) }
+        else { selectedPhotoIDs.insert(id) }
+        Haptics.selection()
     }
 
     private func exitSelection() {
         isSelecting = false
         selectedPhotoIDs.removeAll()
-        swipedPhotoIDs.removeAll()
+        resetSwipeSelection()
         Haptics.light()
     }
 

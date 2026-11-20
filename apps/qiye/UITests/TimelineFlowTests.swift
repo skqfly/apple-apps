@@ -84,14 +84,25 @@ final class TimelineFlowTests: XCTestCase {
 
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         menu.tap()
-        app.buttons["移到已删除"].tap()
-        app.sheets.buttons["移到已删除"].tap()
-        XCTAssertTrue(badge.waitForExistence(timeout: 5))
-        XCTAssertTrue(badge.label.contains("已删除"))
+        app.buttons["移到回收站"].tap()
+        app.sheets.buttons["移到回收站"].tap()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: badge
+        )], timeout: 5) == .completed)
+        XCTAssertFalse(app.buttons["talk-filter-deleted"].exists)
 
-        XCTAssertTrue(menu.waitForExistence(timeout: 5))
-        menu.tap()
-        app.buttons["恢复到未发表"].tap()
+        app.tabBars.buttons["首页"].tap()
+        app.buttons["更多"].tap()
+        app.buttons["个人中心"].tap()
+        XCTAssertTrue(app.navigationBars["个人中心"].waitForExistence(timeout: 5))
+        app.staticTexts["回收站"].tap()
+        XCTAssertTrue(app.navigationBars["回收站"].waitForExistence(timeout: 5))
+        let restore = app.buttons["恢复"].firstMatch
+        XCTAssertTrue(restore.waitForExistence(timeout: 5))
+        restore.tap()
+        app.navigationBars["回收站"].buttons.element(boundBy: 0).tap()
+        app.buttons["完成"].tap()
+        app.tabBars.buttons["说说"].tap()
         XCTAssertTrue(badge.waitForExistence(timeout: 5))
         XCTAssertTrue(badge.label.contains("未发表"))
     }
@@ -132,9 +143,22 @@ final class TimelineFlowTests: XCTestCase {
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         app.tabBars.buttons["图片"].tap()
-        let photo = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "photo-tile-")).firstMatch
+        let photos = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "photo-tile-"))
+        let photo = photos.firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 10))
         capture("Photo collection")
+        let selectedPhoto = app.buttons[photo.identifier]
+        app.buttons["photo-select-button"].tap()
+        selectedPhoto.tap()
+        let initialHeight = selectedPhoto.frame.midY
+        app.swipeUp()
+        XCTAssertTrue(app.navigationBars["已选 1 张"].exists, "Vertical scrolling must preserve the selection")
+        XCTAssertTrue(!selectedPhoto.isHittable || selectedPhoto.frame.midY < initialHeight - 30,
+                      "Selection mode must allow vertical scrolling")
+        app.buttons["取消选择"].tap()
+        app.swipeDown()
+        XCTAssertTrue(photo.isHittable)
+        let nextThumbnail = app.buttons[photos.element(boundBy: 1).identifier]
         photo.tap()
         let close = app.buttons["关闭"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 5))
@@ -142,10 +166,18 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(counter.waitForExistence(timeout: 5), "The viewer must show its position in the collection")
         XCTAssertFalse(counter.label.hasSuffix(" / 1"), "The first photo must open with the complete collection for browsing")
         XCTAssertEqual(counter.frame.midX, app.frame.midX, accuracy: 2)
+        let initialPage = counter.label
+        let pageStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.78, dy: 0.5))
+        let pageEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.5))
+        pageStart.press(forDuration: 0.05, thenDragTo: pageEnd)
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label != %@", initialPage), object: counter
+        )], timeout: 5) == .completed, "The gallery must page before dismissal")
         capture("Photo viewer")
         dragViewerDown()
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)], timeout: 5) == .completed)
-        XCTAssertTrue(photo.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextThumbnail.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextThumbnail.isHittable, "The current photo's thumbnail must be visible after closing")
 
         app.tabBars.buttons["首页"].tap()
         let projects = app.buttons["collection-projects"]

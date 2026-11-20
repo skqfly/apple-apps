@@ -14,7 +14,6 @@ struct TalksScreen: View {
     @State private var editing: TalkPost?
     @State private var viewing: TalkGallerySelection?
     @State private var deleting: TalkPost?
-    @State private var purging: TalkPost?
     @State private var notice: String?
     @State private var statusFilter: ContentStatusFilter?
     @Namespace private var imageZoom
@@ -34,7 +33,7 @@ struct TalksScreen: View {
 
     private var posts: [TalkPost] {
         let query = searchTerm
-        let visible = statusFilter.map { library.talks(in: $0) } ?? library.allTalks()
+        let visible = statusFilter.map { library.talks(in: $0) } ?? library.visibleTalks()
         return visible.filter { query.isEmpty || $0.description.localizedStandardContains(query) }
     }
 
@@ -84,8 +83,6 @@ struct TalksScreen: View {
                                 edit: { editing = post },
                                 changeState: { newState in change(post, to: newState) },
                                 delete: { deleting = post },
-                                restore: { restore(post) },
-                                purge: { purging = post },
                                 imageZoom: imageZoom,
                                 openImage: { index in viewing = TalkGallerySelection(post: post, index: index) }
                             )
@@ -112,25 +109,12 @@ struct TalksScreen: View {
             MediaViewer(items: selection.items, initialIndex: selection.initialIndex)
                 .collectionZoomDestination(id: selection.sourceID, namespace: imageZoom, enabled: !reduceMotion)
         }
-        .confirmationDialog("移到已删除？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-            Button("移到已删除", role: .destructive) {
+        .confirmationDialog("移到回收站？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
+            Button("移到回收站", role: .destructive) {
                 if let post = deleting { change(post, to: .deleted) }
                 deleting = nil
             }
-        } message: { Text("内容会保留在列表中并标为已删除，可以随时恢复。") }
-        .confirmationDialog("彻底删除这条说说？", isPresented: Binding(get: { purging != nil }, set: { if !$0 { purging = nil } }), titleVisibility: .visible) {
-            Button("彻底删除", role: .destructive) {
-                if let post = purging {
-                    do {
-                        try library.purgeTalk(post)
-                        showNotice("已彻底删除")
-                    } catch {
-                        showNotice(error.localizedDescription)
-                    }
-                }
-                purging = nil
-            }
-        } message: { Text("本机保留的内容将被彻底移除，无法再恢复。") }
+        } message: { Text("可以在个人中心的回收站恢复说说。") }
         .task {
             library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
             await store.loadIfNeeded()
@@ -149,13 +133,10 @@ struct TalksScreen: View {
     }
 
     private var filters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(nil)
-                ForEach(ContentStatusFilter.allCases) { filterChip($0) }
-            }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 6)
+        CollectionFilterBar {
+            filterChip(nil)
+            filterChip(.published)
+            filterChip(.unpublished)
         }
     }
 
@@ -197,20 +178,16 @@ struct TalksScreen: View {
     private func change(_ post: TalkPost, to state: ContentStatusFilter) {
         do {
             try library.setTalkState(post, to: state)
-            showNotice(state == .published ? "已加入发表队列，可从首页右上角的「更多」进入「发布与同步」" : "已设为\(state.title)")
+            switch state {
+            case .published: showNotice("已加入发表队列，可从首页右上角的「更多」进入「发布与同步」")
+            case .unpublished: showNotice("已设为未发表")
+            case .deleted: showNotice("已移到回收站")
+            }
         } catch {
             showNotice(error.localizedDescription)
         }
     }
 
-    private func restore(_ post: TalkPost) {
-        do {
-            try library.restoreTalk(post)
-            showNotice("已恢复到未发表")
-        } catch {
-            showNotice(error.localizedDescription)
-        }
-    }
 }
 
 private struct TalkGallerySelection: Identifiable {
@@ -240,8 +217,6 @@ private struct TalkTimelineRow: View {
     let edit: () -> Void
     let changeState: (ContentStatusFilter) -> Void
     let delete: () -> Void
-    let restore: () -> Void
-    let purge: () -> Void
     let imageZoom: Namespace.ID
     let openImage: (Int) -> Void
 
@@ -280,7 +255,6 @@ private struct TalkTimelineRow: View {
         }
         .padding(18)
         .collectionSurface(radius: 22)
-        .opacity(state == .deleted ? 0.65 : 1)
         .padding(.horizontal, 18).padding(.vertical, 7)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("talk-row-\(post.id)")
@@ -334,18 +308,13 @@ private struct TalkTimelineRow: View {
 
     private var actionMenu: some View {
         Menu {
-            if state == .deleted {
-                Button("恢复到未发表", systemImage: "arrow.uturn.backward", action: restore)
-                Button("彻底删除", systemImage: "trash.slash", role: .destructive, action: purge)
+            Button("编辑", systemImage: "pencil", action: edit)
+            if state == .published {
+                Button("下架到未发表", systemImage: "arrow.down.circle") { changeState(.unpublished) }
             } else {
-                Button("编辑", systemImage: "pencil", action: edit)
-                if state == .published {
-                    Button("下架到未发表", systemImage: "arrow.down.circle") { changeState(.unpublished) }
-                } else {
-                    Button("发表", systemImage: "arrow.up.circle") { changeState(.published) }
-                }
-                Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
+                Button("发表", systemImage: "arrow.up.circle") { changeState(.published) }
             }
+            Button("移到回收站", systemImage: "trash", role: .destructive, action: delete)
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .semibold))

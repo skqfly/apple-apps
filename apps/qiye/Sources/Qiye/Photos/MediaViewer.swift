@@ -16,9 +16,11 @@ struct MediaViewer: View {
     var onIndexChange: ((Int) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.offlineWebsite) private var offlineWebsite
     @State private var index: Int
     @State private var zoom: CGFloat = 1
     @GestureState private var magnification: CGFloat = 1
+    @GestureState private var isDragging = false
     @State private var pan: CGSize = .zero
     @State private var panOrigin: CGSize = .zero
     @State private var pageOffset: CGFloat = 0
@@ -43,21 +45,23 @@ struct MediaViewer: View {
         let url: URL
         var id: URL { url }
     }
-    private var current: MediaViewerItem? { items.indices.contains(index) ? items[index] : nil }
+    private var current: MediaViewerItem? { items.indices.contains(index) ? offlineItem(items[index]) : nil }
     private var effectiveZoom: CGFloat { min(max(zoom * magnification, 1), 5) }
     private var nearbyItems: [MediaViewerItem] {
         items.enumerated().filter { abs($0.offset - index) <= 1 }.map(\.element)
     }
 
+    private func offlineItem(_ item: MediaViewerItem) -> MediaViewerItem {
+        let preview = item.previewURL.map { offlineWebsite?.imageURL(for: $0) ?? $0 }
+        let original = offlineWebsite?.imageURL(for: item.url) ?? item.url
+        return MediaViewerItem(id: item.id, url: original, previewURL: preview)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                blurredBackground
                 if current != nil {
                     imagePages(size: geometry.size)
-                        .offset(y: dismissOffset)
-                        .scaleEffect(1 - min(dismissOffset / max(geometry.size.height, 1), 0.2))
-                        .opacity(1 - min(dismissOffset / max(geometry.size.height, 1), 0.5))
                         .gesture(dragGesture(size: geometry.size))
                         .simultaneousGesture(magnifyGesture)
                         .onTapGesture(count: 2, perform: toggleZoom)
@@ -74,6 +78,8 @@ struct MediaViewer: View {
                     ContentUnavailableView("暂无照片", systemImage: "photo")
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background { blurredBackground }
             .overlay(alignment: .topLeading) {
                 Button {
                     dismiss()
@@ -97,7 +103,6 @@ struct MediaViewer: View {
             }
             .overlay(alignment: .bottomTrailing) { viewerDock.padding(18) }
         }
-        .background(.black)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("media-viewer")
         .preferredColorScheme(.dark)
@@ -109,6 +114,14 @@ struct MediaViewer: View {
             MediaShareSheet(url: asset.url)
         }
         .onChange(of: index) { _, value in onIndexChange?(value) }
+        .onChange(of: isDragging) { _, active in
+            guard !active, dragAxis != nil else { return }
+            dragAxis = nil
+            animate {
+                pageOffset = 0
+                dismissOffset = 0
+            }
+        }
         .onDisappear { shareTask?.cancel() }
     }
 
@@ -116,7 +129,7 @@ struct MediaViewer: View {
         ZStack {
             ForEach(nearbyItems) { item in
                 let position = items.firstIndex(where: { $0.id == item.id }) ?? index
-                MediaViewerImage(item: item)
+                MediaViewerImage(item: offlineItem(item))
                     .frame(width: size.width, height: size.height)
                     .scaleEffect(position == index ? effectiveZoom : 1)
                     .offset(position == index ? pan : .zero)
@@ -124,6 +137,9 @@ struct MediaViewer: View {
                     .accessibilityHidden(position != index)
             }
         }
+        .offset(y: dismissOffset)
+        .scaleEffect(1 - min(dismissOffset / max(size.height, 1), 0.2))
+        .opacity(1 - min(dismissOffset / max(size.height, 1), 0.5))
         .frame(width: size.width, height: size.height)
         .contentShape(.rect)
         .clipped()
@@ -164,16 +180,18 @@ struct MediaViewer: View {
     }
 
     private var blurredBackground: some View {
-        ZStack {
-            Color.black
-            if let item = current {
-                backgroundImage(item)
-                    .blur(radius: 44)
-                    .scaleEffect(1.4)
+        Color.black
+            .overlay {
+                if let item = current {
+                    backgroundImage(item)
+                        .blur(radius: 44)
+                        .scaleEffect(1.4)
+                }
             }
-        }
-        .ignoresSafeArea()
-        .accessibilityHidden(true)
+            .clipped()
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -203,6 +221,7 @@ struct MediaViewer: View {
 
     private func dragGesture(size: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 12)
+            .updating($isDragging) { _, active, _ in active = true }
             .onChanged { value in
                 guard magnification == 1 else { return }
                 if dragAxis == nil {

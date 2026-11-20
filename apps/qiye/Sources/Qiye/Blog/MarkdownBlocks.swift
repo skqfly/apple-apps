@@ -3,6 +3,7 @@ import SwiftUI
 struct MarkdownBlocks: View {
     private let blocks: [MarkdownBlock]
     private let baseURL: URL
+    @Environment(\.offlineWebsite) private var offlineWebsite
 
     init(_ markdown: String, baseURL: URL = GitHubRepository.websiteURL) {
         blocks = MarkdownBlock.parse(markdown)
@@ -114,6 +115,24 @@ struct MarkdownBlocks: View {
     }
 
     private func markdownImage(url: URL, alt: String) -> some View {
+        Group {
+            if let local = offlineWebsite?.imageURL(for: url) {
+                if local.pathExtension.lowercased() == "svg" {
+                    DirectorySVG(url: local) { Color.clear }.frame(height: 180)
+                } else {
+                    LocalPhotoImage(url: local, contentMode: .fit, maximumPixelSize: 1_600)
+                }
+            } else {
+                remoteMarkdownImage(url: url)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: 600)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .accessibilityLabel(alt.isEmpty ? "文章图片" : alt)
+        .accessibilityHint("轻点查看原图")
+    }
+
+    private func remoteMarkdownImage(url: URL) -> some View {
         AsyncImage(url: url) { phase in
             switch phase {
             case let .success(image):
@@ -125,10 +144,6 @@ struct MarkdownBlocks: View {
                 ProgressView().frame(maxWidth: .infinity).frame(height: 180)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: 600)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .accessibilityLabel(alt.isEmpty ? "文章图片" : alt)
-        .accessibilityHint("轻点查看原图")
     }
 }
 

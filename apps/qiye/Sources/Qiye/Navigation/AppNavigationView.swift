@@ -8,19 +8,40 @@ struct AppNavigationView: View {
         }
         return .home
     }()
-    @State private var photos = PhotoLibraryStore()
+    @State private var photos: PhotoLibraryStore
     @State private var dashboard = DashboardStore()
-    @State private var repository = GitHubRepository()
+    @State private var repository: GitHubRepository
     @State private var pending: PendingChangesStore
     @State private var library: ContentLibraryStore
     @State private var blog: BlogStore
+    @State private var talks: TalksStore
+    @State private var directory: SiteDirectoryStore
+    @State private var offlineWebsite: OfflineWebsite?
+    @State private var offlineError: String?
+    @State private var isSyncingOffline = false
+    @State private var offlineSync = OfflineWebsiteSync()
     @State private var showingStudio = false
 
     init() {
         let pending = PendingChangesStore()
         let repository = GitHubRepository()
+        let photos = PhotoLibraryStore()
+        let blog = BlogStore(repository: repository)
+        let talks = TalksStore(repository: repository)
+        let directory = SiteDirectoryStore(repository: repository)
+        let offlineWebsite = OfflineWebsite.current()
+        if let offlineWebsite {
+            photos.useOfflineSnapshot(offlineWebsite, authoritative: false)
+            blog.useOfflineSnapshot(offlineWebsite)
+            talks.useOfflineSnapshot(offlineWebsite, authoritative: false)
+            directory.useOfflineSnapshot(offlineWebsite)
+        }
         _repository = State(initialValue: repository)
-        _blog = State(initialValue: BlogStore(repository: repository))
+        _photos = State(initialValue: photos)
+        _blog = State(initialValue: blog)
+        _talks = State(initialValue: talks)
+        _directory = State(initialValue: directory)
+        _offlineWebsite = State(initialValue: offlineWebsite)
         _pending = State(initialValue: pending)
         _library = State(initialValue: ContentLibraryStore(pending: pending))
     }
@@ -36,7 +57,8 @@ struct AppNavigationView: View {
         .appPageBackground()
         .tint(.primary)
         .sheet(isPresented: $showingAccount) {
-            AccountScreen(store: account, library: library)
+            AccountScreen(store: account, library: library, offlineError: offlineError,
+                          isSyncingOffline: isSyncingOffline, refreshOffline: refreshOfflineWebsite)
         }
         .sheet(isPresented: $showingStudio) {
             NavigationStack {
@@ -56,18 +78,45 @@ struct AppNavigationView: View {
         }
         .task {
             library.syncPhotos(photos.photos, authoritative: photos.hasRemoteSnapshot)
-            library.syncTalks(TalksStore(repository: repository).posts, authoritative: false)
+            library.syncTalks(talks.posts, authoritative: false)
             await account.restore()
         }
         .task(id: account.credentialRevision) {
             let token = account.currentToken()
             await repository.updateToken(token)
             dashboard.updateToken(token)
+            if token != nil { await refreshOfflineWebsite() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await account.refreshAuthorization() }
+                Task {
+                    await account.refreshAuthorization()
+                    await refreshOfflineWebsite()
+                }
             }
+        }
+        .environment(\.offlineWebsite, offlineWebsite)
+    }
+
+    private func refreshOfflineWebsite() async {
+        guard account.currentToken() != nil, !isSyncingOffline else { return }
+        isSyncingOffline = true
+        offlineError = nil
+        defer { isSyncingOffline = false }
+        do {
+            guard let snapshot = try await offlineSync.sync(repository: repository),
+                  snapshot.directory != offlineWebsite?.directory else { return }
+            offlineWebsite = snapshot
+            photos.useOfflineSnapshot(snapshot, authoritative: true)
+            blog.useOfflineSnapshot(snapshot)
+            talks.useOfflineSnapshot(snapshot, authoritative: true)
+            directory.useOfflineSnapshot(snapshot)
+            library.syncPhotos(photos.photos, authoritative: photos.hasRemoteSnapshot)
+            library.syncTalks(talks.posts, authoritative: talks.hasRemoteSnapshot)
+        } catch is CancellationError { }
+        catch let error as URLError where error.code == .cancelled { }
+        catch {
+            offlineError = "无法更新离线副本。\(error.localizedDescription)"
         }
     }
 
@@ -97,8 +146,8 @@ struct AppNavigationView: View {
             Group {
                 switch section {
                 case .home:
-                    CollectionsScreen(blog: blog, photos: photos, library: library, repository: repository,
-                                      canEditDirectory: account.isSignedIn, open: { section in
+                    CollectionsScreen(blog: blog, photos: photos, library: library,
+                                      directory: directory, canEditDirectory: account.isSignedIn, open: { section in
                                           selectedSection = section
                                       }, showAccount: { showingAccount = true }, showStudio: { showingStudio = true })
                 case .photos:
@@ -106,10 +155,14 @@ struct AppNavigationView: View {
                 case .blog:
                     BlogScreen(store: blog)
                 case .talks:
-                    TalksScreen(repository: repository, pending: pending, photos: photos, library: library, canPublish: account.isSignedIn, authorName: account.name, avatarURL: account.avatarURL)
+                    TalksScreen(store: talks, pending: pending, photos: photos, library: library, canPublish: account.isSignedIn, authorName: account.name, avatarURL: account.avatarURL)
                 }
             }
         }
     }
 
+}
+
+extension EnvironmentValues {
+    @Entry var offlineWebsite: OfflineWebsite? = nil
 }

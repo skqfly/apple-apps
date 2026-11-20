@@ -3,6 +3,11 @@ import UniformTypeIdentifiers
 
 @MainActor
 struct BackupScreen: View {
+    let canSyncWebsite: Bool
+    let offlineError: String?
+    let isSyncingOffline: Bool
+    let refreshOffline: () async -> Void
+    @Environment(\.offlineWebsite) private var offlineWebsite
     @State private var showsFolderExporter = false
     @State private var showsImporter = false
     @State private var exportFolderURL: URL?
@@ -21,6 +26,26 @@ struct BackupScreen: View {
     var body: some View {
         Form {
             Section {
+                if isSyncingOffline {
+                    Label("正在保存网站内容…", systemImage: "arrow.triangle.2.circlepath")
+                } else if let offlineError {
+                    Text(offlineError).foregroundStyle(.secondary)
+                } else {
+                    Label(offlineWebsite == nil ? "尚未保存网站内容" : "已保存网站内容", systemImage: "internaldrive")
+                }
+                if canSyncWebsite {
+                    Button("更新离线副本", systemImage: "arrow.clockwise") {
+                        Task { await refreshOffline() }
+                    }
+                    .disabled(isSyncingOffline || isWorking)
+                }
+            } header: {
+                Text("网站离线副本")
+            } footer: {
+                Text("登录 GitHub 后自动保存文章和站内图片。导出与 WebDAV 备份会带上最近一次保存成功的副本。")
+            }
+
+            Section {
                 Button {
                     Task { await exportToFiles() }
                 } label: {
@@ -36,7 +61,7 @@ struct BackupScreen: View {
             } header: {
                 Text("iCloud Drive / 文件")
             } footer: {
-                Text("备份是一个文件夹，包含照片与说说等全部数据，可存到 iCloud Drive 或任意位置。恢复后请退出并重新打开栖页。")
+                Text("备份文件夹包含草稿、发布记录和已保存的网站内容，可存到 iCloud Drive 或其他位置。恢复后请重新打开栖页。")
             }
 
             Section {
@@ -86,6 +111,7 @@ struct BackupScreen: View {
         .sheet(isPresented: $showsFolderExporter) {
             if let exportFolderURL {
                 FolderExporter(folderURL: exportFolderURL, isPresented: $showsFolderExporter) { error in
+                    try? FileManager.default.removeItem(at: exportFolderURL)
                     self.exportFolderURL = nil
                     if let error { report(error.localizedDescription) }
                 }
@@ -111,7 +137,7 @@ struct BackupScreen: View {
         isWorking = true
         defer { isWorking = false }
         do {
-            let folder = try makeTempBackupFolder()
+            let folder = try await makeTempBackupFolder()
             exportFolderURL = folder
             showsFolderExporter = true
         } catch {
@@ -128,7 +154,7 @@ struct BackupScreen: View {
                 guard let url = urls.first else { return }
                 let accessing = url.startAccessingSecurityScopedResource()
                 defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-                try service.restore(from: url)
+                try await service.restore(from: url)
                 report("已恢复。请退出并重新打开栖页让数据生效。")
             case .failure(let error):
                 report(error.localizedDescription)
@@ -138,19 +164,23 @@ struct BackupScreen: View {
         }
     }
 
-    private func makeTempBackupFolder() throws -> URL {
+    private func makeTempBackupFolder() async throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("QiyeBackups", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let folder = directory.appendingPathComponent(folderName(), isDirectory: true)
-        try? FileManager.default.removeItem(at: folder)
-        try service.prepareBackupFolder(to: folder)
-        return folder
+        do {
+            try await service.prepareBackupFolder(to: folder)
+            return folder
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw error
+        }
     }
 
     private func folderName() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "栖页备份-\(formatter.string(from: Date()))"
+        return "栖页备份-\(formatter.string(from: Date()))-\(UUID().uuidString.prefix(8))"
     }
 
     // MARK: - WebDAV
@@ -172,7 +202,8 @@ struct BackupScreen: View {
         do {
             let server = try currentServer()
             keychain.save(webdavPassword)
-            let folder = try makeTempBackupFolder()
+            let folder = try await makeTempBackupFolder()
+            defer { try? FileManager.default.removeItem(at: folder) }
             let name = folder.lastPathComponent
             try await service.webDAVUpload(folderURL: folder, folderName: name, to: server)
             webdavFolderName = name
@@ -191,7 +222,8 @@ struct BackupScreen: View {
             let name = webdavFolderName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { throw BackupError.noServer }
             let folder = try await service.webDAVDownload(folderName: name, from: server)
-            try service.restore(from: folder)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try await service.restore(from: folder)
             report("已下载并恢复。请退出并重新打开栖页让数据生效。")
         } catch {
             report(error.localizedDescription)

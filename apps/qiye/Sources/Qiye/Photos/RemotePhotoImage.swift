@@ -6,6 +6,7 @@ struct RemotePhotoImage: View {
     var allowsRetry = true
     var bundledPreviewID: String?
     var prefersBundledPreview = false
+    @Environment(\.offlineWebsite) private var offlineWebsite
     @State private var attempt = 0
 
     private var bundledURL: URL? {
@@ -15,7 +16,9 @@ struct RemotePhotoImage: View {
     }
 
     var body: some View {
-        if prefersBundledPreview, let bundledURL {
+        if let local = offlineWebsite?.imageURL(for: url) {
+            LocalPhotoImage(url: local, contentMode: contentMode)
+        } else if prefersBundledPreview, let bundledURL {
             LocalPhotoImage(url: bundledURL, contentMode: contentMode)
         } else {
             remoteImage

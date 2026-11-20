@@ -29,6 +29,7 @@ final class PhotoLibraryStore {
     private var storageError: String?
     private var canWriteDrafts = true
     private var hasRequestedRefresh = false
+    @ObservationIgnored private var snapshotRevision = 0
 
     /// Reads bundled photos and existing drafts immediately; performs no network request.
     init(bundle: Bundle = .main, directory: URL? = nil, session: URLSession = .shared) {
@@ -76,14 +77,27 @@ final class PhotoLibraryStore {
         await refresh()
     }
 
+    func useOfflineSnapshot(_ snapshot: OfflineWebsite, authoritative: Bool) {
+        guard !ProcessInfo.processInfo.arguments.contains("--uitest-long-photo"),
+              let data = try? snapshot.data(OfflineWebsite.photoIndex),
+              let saved = try? WebsitePhoto.decode(data, relativeTo: Self.siteURL) else { return }
+        snapshotRevision += 1
+        photos = saved
+        hasRequestedRefresh = true
+        hasRemoteSnapshot = authoritative
+        remoteError = nil
+    }
+
     /// A failed request leaves the bundled or last successful photo list visible.
     func refresh() async {
         guard !isLoading else { return }
+        let revision = snapshotRevision
         hasRemoteSnapshot = false
         isLoading = true
         defer { isLoading = false }
         do {
             let data = try await GitHubRepository(session: session).getRepositoryFile(path: "src/data/photo-library.json")
+            guard revision == snapshotRevision else { return }
             photos = try WebsitePhoto.decode(data, relativeTo: Self.siteURL)
             hasRemoteSnapshot = true
             remoteError = nil
@@ -92,6 +106,7 @@ final class PhotoLibraryStore {
         } catch let failure as URLError where failure.code == .cancelled {
             return
         } catch {
+            guard revision == snapshotRevision else { return }
             remoteError = photos.isEmpty
                 ? "暂时无法连接网站，且没有可用照片。请稍后重试。\(error.localizedDescription)"
                 : "暂时无法更新网站照片，正在显示内置或上次成功读取的资料。\(error.localizedDescription)"

@@ -147,54 +147,49 @@ struct ContributionCalendarView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 8) {
-                // Interactive Year Menu
-                Menu {
+            Menu {
+                Picker("年份", selection: Binding(
+                    get: { displayedYear },
+                    set: { year in
+                        Haptics.selection()
+                        scrollTo(year: year)
+                    }
+                )) {
                     ForEach(availableYears, id: \.self) { year in
-                        Button {
-                            Haptics.selection()
-                            scrollTo(year: year)
-                        } label: {
-                            HStack {
-                                Text(verbatim: "\(year) 年")
-                                if displayedYear == year {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
+                        Text(verbatim: "\(year) 年").tag(year)
                     }
-                    Divider()
-                    Button("回到最新") {
-                        Haptics.medium()
-                        selectedYear = nil
-                        withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) {
-                            visibleWeekID = calendar.weeks.last?.id
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(verbatim: "\(displayedYear)")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .foregroundStyle(Color.primary)
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                    .liquidGlassCapsule()
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("选择年份，当前为 \(displayedYear) 年")
+                .pickerStyle(.inline)
+
+                Button("回到最新", systemImage: "arrow.clockwise") {
+                    Haptics.medium()
+                    selectedYear = nil
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.3)) {
+                        visibleWeekID = calendar.weeks.last?.id
+                    }
+                }
 
                 Link(destination: DashboardService.profileURL) {
-                    ActionIcon("在 GitHub 中查看", systemImage: "arrow.up.right")
-                        .foregroundStyle(Color.primary)
-                        .liquidGlassCircle()
+                    Label("在 GitHub 中查看", systemImage: "arrow.up.right")
                 }
-                .buttonStyle(.plain)
+            } label: {
+                HStack(spacing: 5) {
+                    Text(verbatim: "\(displayedYear)")
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(Color.primary)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(Color.primary.opacity(0.06), in: Capsule())
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
             }
+            .menuOrder(.fixed)
+            .buttonStyle(.plain)
+            .accessibilityLabel("选择年份，当前为 \(displayedYear) 年")
         }
     }
 

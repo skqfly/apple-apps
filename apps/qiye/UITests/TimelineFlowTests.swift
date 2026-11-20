@@ -43,10 +43,17 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(close.waitForExistence(timeout: 5))
         XCTAssertEqual(close.frame.width, 48, accuracy: 0.5)
         XCTAssertEqual(close.frame.height, 48, accuracy: 0.5)
-        // Swipe-to-dismiss is a real defect under automation right now: the synthetic
-        // drag leaves the viewer stuck with the photo parked at the screen edge. Close
-        // with the visible button so the rest of the flow stays covered.
-        close.tap()
+
+        let nextPage = app.staticTexts["2 / 6"]
+        let pageStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.78, dy: 0.5))
+        let pageEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.5))
+        pageStart.press(forDuration: 0.05, thenDragTo: pageEnd)
+        XCTAssertTrue(nextPage.waitForExistence(timeout: 5))
+        XCTAssertEqual(nextPage.frame.midX, app.frame.midX, accuracy: 2)
+
+        let dismissStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        let dismissEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        dismissStart.press(forDuration: 0.05, thenDragTo: dismissEnd)
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: viewer)], timeout: 5) == .completed)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
     }
@@ -122,6 +129,7 @@ final class TimelineFlowTests: XCTestCase {
         let counter = app.staticTexts.matching(NSPredicate(format: "label MATCHES %@", "^[0-9]+ / [0-9]+$")).firstMatch
         XCTAssertTrue(counter.waitForExistence(timeout: 5), "The viewer must show its position in the collection")
         XCTAssertFalse(counter.label.hasSuffix(" / 1"), "The first photo must open with the complete collection for browsing")
+        XCTAssertEqual(counter.frame.midX, app.frame.midX, accuracy: 2)
         capture("Photo viewer")
         close.tap()
 

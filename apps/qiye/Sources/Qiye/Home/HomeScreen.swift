@@ -70,30 +70,37 @@ struct HomeScreen: View {
     }
 
     private var statusSummaryBar: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Link(destination: DashboardService.websiteURL) {
                 HStack(spacing: 12) {
                     Image(systemName: "globe")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(activityAccent)
-                        .frame(width: 44, height: 44)
-                        .background(activityAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 14))
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.appAccent)
+                        .frame(width: 36, height: 36)
+                        .background(Color.appAccent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("栖野")
                             .font(.headline)
                             .foregroundStyle(Color.primary)
-                        Label("mmddskq.top", systemImage: "arrow.up.right")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundStyle(activityAccent)
+                        Text(DashboardService.websiteURL.host ?? "mmddskq.top")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
                 }
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("访问栖野网站，mmddskq.top")
+
+            Divider()
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) { statusDetails }
@@ -103,7 +110,9 @@ struct HomeScreen: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-        .padding(.vertical, 8)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .collectionSurface(radius: 16)
     }
 
     @ViewBuilder

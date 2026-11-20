@@ -3,22 +3,22 @@ import ImageIO
 
 final class ImageThumbnailCache: @unchecked Sendable {
     static let shared = ImageThumbnailCache()
-    private let cache = NSCache<NSURL, CGImage>()
+    private let cache = NSCache<NSString, CGImage>()
 
     private init() {
         cache.countLimit = 240
     }
 
-    func image(for url: URL) -> CGImage? {
-        cache.object(forKey: url as NSURL)
+    func image(for url: URL, pixelSize: Int) -> CGImage? {
+        cache.object(forKey: key(for: url, pixelSize: pixelSize))
     }
 
-    func setImage(_ image: CGImage, for url: URL) {
-        cache.setObject(image, forKey: url as NSURL)
+    func setImage(_ image: CGImage, for url: URL, pixelSize: Int) {
+        cache.setObject(image, forKey: key(for: url, pixelSize: pixelSize))
     }
 
-    func remove(for url: URL) {
-        cache.removeObject(forKey: url as NSURL)
+    private func key(for url: URL, pixelSize: Int) -> NSString {
+        "\(pixelSize):\(url.absoluteString)" as NSString
     }
 }
 
@@ -49,12 +49,12 @@ struct LocalPhotoImage: View {
         }
         .task(id: url) {
             // Check in-memory thumbnail cache first for instant 0ms render
-            if let cached = ImageThumbnailCache.shared.image(for: url) {
+            if let cached = ImageThumbnailCache.shared.image(for: url, pixelSize: maximumPixelSize) {
                 image = cached
                 failed = false
                 return
             }
-            if let fallback = fallbackURL, let cached = ImageThumbnailCache.shared.image(for: fallback) {
+            if let fallback = fallbackURL, let cached = ImageThumbnailCache.shared.image(for: fallback, pixelSize: maximumPixelSize) {
                 image = cached
                 failed = false
                 return
@@ -70,7 +70,7 @@ struct LocalPhotoImage: View {
             }.value
             guard !Task.isCancelled else { return }
             if let decoded {
-                ImageThumbnailCache.shared.setImage(decoded, for: sourceURL)
+                ImageThumbnailCache.shared.setImage(decoded, for: sourceURL, pixelSize: pixelSize)
                 image = decoded
                 failed = false
             } else {

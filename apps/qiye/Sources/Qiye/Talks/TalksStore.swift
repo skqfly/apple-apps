@@ -11,6 +11,7 @@ final class TalksStore {
     var query = ""
     let repository: GitHubRepository
     @ObservationIgnored private var hasLoaded = false
+    @ObservationIgnored private var snapshotRevision = 0
 
     init(repository: GitHubRepository) {
         self.repository = repository
@@ -41,22 +42,35 @@ final class TalksStore {
         await refresh()
     }
 
+    func useOfflineSnapshot(_ snapshot: OfflineWebsite, authoritative: Bool) {
+        guard !ProcessInfo.processInfo.arguments.contains("--uitest-content"),
+              let saved = try? snapshot.talks() else { return }
+        snapshotRevision += 1
+        posts = saved
+        hasRemoteSnapshot = authoritative
+        error = nil
+        hasLoaded = true
+    }
+
     func refresh() async {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--uitest-content") { return }
         #endif
         guard !isLoading else { return }
+        let revision = snapshotRevision
         hasRemoteSnapshot = false
         isLoading = true
         defer { isLoading = false }
         do {
-            posts = try await repository.fetchTalks()
+            let fetched = try await repository.fetchTalks()
+            guard revision == snapshotRevision else { return }
+            posts = fetched
             hasRemoteSnapshot = true
             error = nil
             hasLoaded = true
         } catch is CancellationError { }
         catch {
-            if !Task.isCancelled {
+            if !Task.isCancelled, revision == snapshotRevision {
                 self.error = "\(error.localizedDescription)\(posts.isEmpty ? "" : " 正在显示上次读取的说说。")"
             }
         }

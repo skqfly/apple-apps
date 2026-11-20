@@ -4,6 +4,9 @@ import SwiftUI
 struct AccountScreen: View {
     let store: AccountStore
     let library: ContentLibraryStore
+    let offlineError: String?
+    let isSyncingOffline: Bool
+    let refreshOffline: () async -> Void
     @Environment(\.dismiss) private var dismiss
     @AppStorage("appearance") private var appearance = "dark"
     #if DEBUG
@@ -69,7 +72,8 @@ struct AccountScreen: View {
                     }
 
                     NavigationLink {
-                        BackupScreen()
+                        BackupScreen(canSyncWebsite: store.isSignedIn, offlineError: offlineError,
+                                     isSyncingOffline: isSyncingOffline, refreshOffline: refreshOffline)
                     } label: {
                         Label("备份与恢复", systemImage: "externaldrive.badge.icloud")
                     }

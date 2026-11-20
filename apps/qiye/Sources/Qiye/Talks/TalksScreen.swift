@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 struct TalksScreen: View {
-    @State private var store: TalksStore
+    let store: TalksStore
     let pending: PendingChangesStore
     let photos: PhotoLibraryStore
     let library: ContentLibraryStore
@@ -17,9 +17,9 @@ struct TalksScreen: View {
     @State private var purging: TalkPost?
     @State private var notice: String?
 
-    init(repository: GitHubRepository, pending: PendingChangesStore, photos: PhotoLibraryStore,
+    init(store: TalksStore, pending: PendingChangesStore, photos: PhotoLibraryStore,
          library: ContentLibraryStore, canPublish: Bool, authorName: String, avatarURL: URL?) {
-        _store = State(initialValue: TalksStore(repository: repository))
+        self.store = store
         self.pending = pending
         self.photos = photos
         self.library = library
@@ -149,7 +149,7 @@ struct TalksScreen: View {
             Haptics.light()
             composer = true
         } label: {
-            ToolbarActionIcon("写说说", systemImage: "square.and.pencil")
+            ToolbarActionIcon("写说说", systemImage: "plus.bubble")
         }
         .accessibilityLabel("写说说")
         .accessibilityIdentifier("compose-talk")
@@ -314,9 +314,13 @@ private struct TalkTimelineRow: View {
                 Button("移到已删除", systemImage: "trash", role: .destructive, action: delete)
             }
         } label: {
-            ActionIcon("说说操作", systemImage: "ellipsis")
-                .foregroundStyle(Color.primary)
-                .liquidGlassCircle()
+            Image(systemName: "ellipsis")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 32, height: 24)
+                .background(Color.primary.opacity(0.055), in: Capsule())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("说说操作")
@@ -327,6 +331,7 @@ private struct TalkTimelineRow: View {
 struct TalkImageGrid: View {
     let images: [TalkImage]
     let open: (Int) -> Void
+    @Environment(\.offlineWebsite) private var offlineWebsite
     private var columnCount: Int { images.count == 4 ? 2 : min(3, images.count) }
 
     var body: some View {
@@ -350,6 +355,7 @@ struct TalkImageGrid: View {
                     if let url = image.url {
                         Group {
                             if url.isFileURL { LocalPhotoImage(url: url) }
+                            else if let local = offlineWebsite?.imageURL(for: url) { LocalPhotoImage(url: local) }
                             else {
                                 AsyncImage(url: url) { phase in
                                     if let loaded = phase.image { loaded.resizable().scaledToFill() }

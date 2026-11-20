@@ -5,6 +5,7 @@ struct SitePhotoPicker: View {
     let limit: Int
     let onSelect: ([TalkImage]) -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.offlineWebsite) private var offlineWebsite
     @State private var selected: [String] = []
 
     private var uniquePhotos: [WebsitePhoto] {
@@ -25,6 +26,7 @@ struct SitePhotoPicker: View {
                                 .overlay {
                                     Group {
                                         if photo.preview.isFileURL { LocalPhotoImage(url: photo.preview) }
+                                        else if let local = offlineWebsite?.imageURL(for: photo.preview) { LocalPhotoImage(url: local) }
                                         else { AsyncImage(url: photo.preview) { phase in
                                             if let image = phase.image { image.resizable().scaledToFill() }
                                             else { Color.secondary.opacity(0.12).overlay { Image(systemName: "photo") } }

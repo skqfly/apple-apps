@@ -7,6 +7,7 @@ struct TalkEditorSheet: View {
     let library: ContentLibraryStore
     let onSaved: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.offlineWebsite) private var offlineWebsite
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var content: String
     @State private var date: Date
@@ -197,6 +198,8 @@ struct TalkEditorSheet: View {
                     Group {
                         if let url = image.url, url.isFileURL {
                             LocalPhotoImage(url: url)
+                        } else if let url = image.url, let local = offlineWebsite?.imageURL(for: url) {
+                            LocalPhotoImage(url: local)
                         } else {
                             AsyncImage(url: image.url) { phase in
                                 if let loaded = phase.image {

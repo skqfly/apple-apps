@@ -39,6 +39,15 @@ final class SiteDirectoryStore {
         }
     }
 
+    func useOfflineSnapshot(_ snapshot: OfflineWebsite) {
+        guard let data = try? snapshot.data(SiteDirectoryDocument.path),
+              let site = try? JSONDecoder().decode(SiteDirectoryDocument.self, from: data) else { return }
+        revision += 1
+        projects = site.projectsPageContent.projects
+        friends = site.friendsPageContent.friends
+        error = nil
+    }
+
     func save(_ draft: SiteDirectoryEntry, kind: DirectoryKind,
               replacing original: SiteDirectoryEntry?) async throws -> SiteDirectoryEntry {
         let entry = try await repository.saveDirectoryEntry(draft, kind: kind, replacing: original)
@@ -228,19 +237,25 @@ private struct DirectoryEntrySheet: View {
 private struct DirectoryArtwork: View {
     let entry: SiteDirectoryEntry
     let kind: DirectoryKind
+    @Environment(\.offlineWebsite) private var offlineWebsite
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.appAccent.opacity(0.09)
                 if let url = entry.imageURL {
+                    let source = offlineWebsite?.imageURL(for: url) ?? url
+                    let mode: ContentMode = kind == .friends ? .fit : .fill
                     if url.pathExtension.lowercased() == "svg" {
-                        DirectorySVG(url: url) { placeholder }
+                        DirectorySVG(url: source) { placeholder }
+                    } else if source.isFileURL {
+                        LocalPhotoImage(url: source, contentMode: mode)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
                     } else {
                         AsyncImage(url: url) { phase in
                             if let image = phase.image {
                                 image.resizable()
-                                    .aspectRatio(contentMode: kind == .friends ? .fit : .fill)
+                                    .aspectRatio(contentMode: mode)
                                     .frame(width: geometry.size.width, height: geometry.size.height)
                             } else {
                                 placeholder
@@ -270,7 +285,7 @@ private struct DirectoryArtwork: View {
     }
 }
 
-private struct DirectorySVG<Placeholder: View>: View {
+struct DirectorySVG<Placeholder: View>: View {
     let url: URL
     @ViewBuilder let placeholder: Placeholder
     @State private var svg: Data?
@@ -288,9 +303,16 @@ private struct DirectorySVG<Placeholder: View>: View {
         .task(id: url) {
             svg = nil
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
-                guard let status = (response as? HTTPURLResponse)?.statusCode,
-                      (200..<300).contains(status), data.count <= 1_048_576,
+                let data: Data
+                if url.isFileURL {
+                    data = try Data(contentsOf: url)
+                } else {
+                    let (downloaded, response) = try await URLSession.shared.data(from: url)
+                    guard let status = (response as? HTTPURLResponse)?.statusCode,
+                          (200..<300).contains(status) else { return }
+                    data = downloaded
+                }
+                guard data.count <= 1_048_576,
                       let text = String(data: data, encoding: .utf8),
                       text.contains("<svg") else { return }
                 try Task.checkCancellation()

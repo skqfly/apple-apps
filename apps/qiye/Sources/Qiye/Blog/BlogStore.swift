@@ -9,6 +9,7 @@ final class BlogStore {
     var query = ""
     private let repository: GitHubRepository
     @ObservationIgnored private var hasLoaded = false
+    @ObservationIgnored private var snapshotRevision = 0
 
     init(repository: GitHubRepository) {
         self.repository = repository
@@ -48,18 +49,28 @@ final class BlogStore {
         await refresh()
     }
 
+    func useOfflineSnapshot(_ snapshot: OfflineWebsite) {
+        guard let saved = try? snapshot.blogPosts() else { return }
+        snapshotRevision += 1
+        posts = saved
+        error = nil
+        hasLoaded = true
+    }
+
     func refresh() async {
         guard !isLoading else { return }
+        let revision = snapshotRevision
         isLoading = true
         defer { isLoading = false }
         do {
             let fetched = try await repository.fetchBlogPosts()
+            guard revision == snapshotRevision else { return }
             posts = fetched
             error = nil
             hasLoaded = true
         } catch is CancellationError { }
         catch {
-            if !Task.isCancelled {
+            if !Task.isCancelled, revision == snapshotRevision {
                 self.error = "\(error.localizedDescription)\(posts.isEmpty ? "" : " 正在显示上次读取的文章。")"
             }
         }

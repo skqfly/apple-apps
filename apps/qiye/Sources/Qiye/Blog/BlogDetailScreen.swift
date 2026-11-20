@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BlogDetailScreen: View {
     let post: BlogPost
+    @Environment(\.offlineWebsite) private var offlineWebsite
 
     var body: some View {
         ScrollView {
@@ -20,10 +21,21 @@ struct BlogDetailScreen: View {
                     }
                 }
                 if let url = post.imageURL {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image.resizable().scaledToFill()
-                                .frame(height: 230).clipped().clipShape(.rect(cornerRadius: 20))
+                    if let local = offlineWebsite?.imageURL(for: url) {
+                        Group {
+                            if local.pathExtension.lowercased() == "svg" {
+                                DirectorySVG(url: local) { Color.clear }
+                            } else {
+                                LocalPhotoImage(url: local, maximumPixelSize: 1_600)
+                            }
+                        }
+                        .frame(height: 230).clipped().clipShape(.rect(cornerRadius: 20))
+                    } else {
+                        AsyncImage(url: url) { phase in
+                            if let image = phase.image {
+                                image.resizable().scaledToFill()
+                                    .frame(height: 230).clipped().clipShape(.rect(cornerRadius: 20))
+                            }
                         }
                     }
                 }

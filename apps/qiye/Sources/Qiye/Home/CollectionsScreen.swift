@@ -10,14 +10,15 @@ struct CollectionsScreen: View {
     let showAccount: () -> Void
     let showStudio: () -> Void
     @Environment(\.dynamicTypeSize) private var typeSize
-    @State private var directory: SiteDirectoryStore
+    @Environment(\.offlineWebsite) private var offlineWebsite
+    let directory: SiteDirectoryStore
     @State private var newEntry: DirectoryKind?
     #if DEBUG
     @State private var screenshotDestination: DirectoryKind?
     #endif
 
     init(blog: BlogStore, photos: PhotoLibraryStore, library: ContentLibraryStore,
-         repository: GitHubRepository, canEditDirectory: Bool, open: @escaping (SiteSection) -> Void,
+         directory: SiteDirectoryStore, canEditDirectory: Bool, open: @escaping (SiteSection) -> Void,
          showAccount: @escaping () -> Void, showStudio: @escaping () -> Void) {
         self.blog = blog
         self.photos = photos
@@ -26,7 +27,7 @@ struct CollectionsScreen: View {
         self.open = open
         self.showAccount = showAccount
         self.showStudio = showStudio
-        _directory = State(initialValue: SiteDirectoryStore(repository: repository))
+        self.directory = directory
     }
 
     var body: some View {
@@ -103,7 +104,7 @@ struct CollectionsScreen: View {
         }
         .task {
             await blog.loadIfNeeded()
-            await directory.refresh()
+            if offlineWebsite == nil { await directory.refresh() }
         }
         .refreshable {
             await blog.refresh()

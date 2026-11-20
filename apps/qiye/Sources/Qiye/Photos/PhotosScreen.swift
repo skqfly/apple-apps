@@ -260,7 +260,10 @@ struct PhotosScreen: View {
                 guard isSelecting else { return }
                 if isSweepingHorizontally == nil {
                     let translation = value.translation
-                    isSweepingHorizontally = abs(translation.width) > abs(translation.height) * 1.2
+                    // Wait for real movement, then only sweep when the drag is clearly
+                    // horizontal so a vertical scroll never toggles a photo.
+                    guard abs(translation.width) + abs(translation.height) >= 16 else { return }
+                    isSweepingHorizontally = abs(translation.width) > abs(translation.height) * 1.5
                 }
                 guard isSweepingHorizontally == true else { return }
                 sweepSelectPhoto(at: value.startLocation)

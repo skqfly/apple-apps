@@ -72,7 +72,9 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(published.waitForExistence(timeout: 5))
         published.tap()
         XCTAssertTrue(published.isSelected)
-        XCTAssertFalse(badge.exists)
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: badge
+        )], timeout: 5) == .completed)
 
         let unpublished = app.buttons["talk-filter-unpublished"]
         unpublished.tap()

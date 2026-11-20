@@ -212,7 +212,7 @@ struct MediaViewer: View {
                         // does not provide the system's interactive zoom.
                         guard abs(translation.width) + abs(translation.height) >= 16 else { return }
                         if abs(translation.width) > abs(translation.height) * 1.2 { dragAxis = .horizontal }
-                        else if !usesNativeZoom, allowsDismissal { dragAxis = .vertical }
+                        else if allowsDismissal { dragAxis = .vertical }
                         else { dragAxis = .ignored }
                     }
                 }

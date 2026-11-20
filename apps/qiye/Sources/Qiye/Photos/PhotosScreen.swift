@@ -27,8 +27,6 @@ struct PhotosScreen: View {
     @State private var selectedPhotoIDs: Set<String> = []
     @State private var photoFrames: [String: CGRect] = [:]
     @State private var swipedPhotoIDs: Set<String> = []
-    @State private var isSweepingHorizontally: Bool?
-    @GestureState private var isSelectionDragActive = false
     @Namespace private var photoZoom
 
     private var columns: [GridItem] {
@@ -125,9 +123,6 @@ struct PhotosScreen: View {
         .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: isSelecting)
         .onChange(of: status) { _, _ in
             exitSelection()
-        }
-        .onChange(of: isSelectionDragActive) { _, active in
-            if !active { resetSwipeSelection() }
         }
     }
 
@@ -252,22 +247,17 @@ struct PhotosScreen: View {
         }
     }
 
-    // Swipe to select gesture (Apple Photos official experience)
+    // Sweep to select: a long press arms selection, then a horizontal drag across a
+    // row toggles photos. A plain drag stays with the ScrollView, so the grid scrolls.
     private var swipeSelectGesture: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .named("PhotoGridSpace"))
-            .updating($isSelectionDragActive) { _, active, _ in active = true }
+        LongPressGesture(minimumDuration: 0.2, maximumDistance: 10)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("PhotoGridSpace")))
             .onChanged { value in
-                guard isSelecting else { return }
-                if isSweepingHorizontally == nil {
-                    let translation = value.translation
-                    // Wait for real movement, then only sweep when the drag is clearly
-                    // horizontal so a vertical scroll never toggles a photo.
-                    guard abs(translation.width) + abs(translation.height) >= 16 else { return }
-                    isSweepingHorizontally = abs(translation.width) > abs(translation.height) * 1.5
-                }
-                guard isSweepingHorizontally == true else { return }
-                sweepSelectPhoto(at: value.startLocation)
-                sweepSelectPhoto(at: value.location)
+                guard isSelecting, case .second(true, let drag?) = value else { return }
+                let translation = drag.translation
+                guard abs(translation.width) >= 12, abs(translation.height) <= 24 else { return }
+                sweepSelectPhoto(at: drag.startLocation)
+                sweepSelectPhoto(at: drag.location)
             }
             .onEnded { _ in resetSwipeSelection() }
     }
@@ -279,7 +269,6 @@ struct PhotosScreen: View {
     }
 
     private func resetSwipeSelection() {
-        isSweepingHorizontally = nil
         swipedPhotoIDs.removeAll()
     }
 

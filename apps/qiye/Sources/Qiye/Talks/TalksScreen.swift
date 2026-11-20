@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 struct TalksScreen: View {
-    let store: TalksStore
+    @Bindable var store: TalksStore
     let pending: PendingChangesStore
     let photos: PhotoLibraryStore
     let library: ContentLibraryStore

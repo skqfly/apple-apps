@@ -26,7 +26,6 @@ struct PhotosScreen: View {
     @State private var isSelecting = false
     @State private var selectedPhotoIDs: Set<String> = []
     @State private var photoFrames: [String: CGRect] = [:]
-    @State private var swipedPhotoIDs: Set<String> = []
     @Namespace private var photoZoom
 
     private var columns: [GridItem] {
@@ -236,9 +235,6 @@ struct PhotosScreen: View {
             .onPreferenceChange(PhotoFramePreferenceKey.self) { frames in
                 photoFrames = frames
             }
-            .simultaneousGesture(
-                isSelecting ? swipeSelectGesture : nil
-            )
             .onDrop(of: [.text], delegate: PhotoReorderDrop(
                 destinationID: nil, draggingID: $draggingPhotoID,
                 hoveredID: $hoveredPhotoID, library: library
@@ -246,175 +242,6 @@ struct PhotosScreen: View {
             .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: visiblePhotos.map(\.id))
         }
     }
-
-    // Sweep to select: a long press arms selection, then a horizontal drag across a
-    // row toggles photos. A plain drag stays with the ScrollView, so the grid scrolls.
-    private var swipeSelectGesture: some Gesture {
-        LongPressGesture(minimumDuration: 0.2, maximumDistance: 10)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("PhotoGridSpace")))
-            .onChanged { value in
-                guard isSelecting, case .second(true, let drag?) = value else { return }
-                let translation = drag.translation
-                guard abs(translation.width) >= 12, abs(translation.height) <= 24 else { return }
-                sweepSelectPhoto(at: drag.startLocation)
-                sweepSelectPhoto(at: drag.location)
-            }
-            .onEnded { _ in resetSwipeSelection() }
-    }
-
-    private func sweepSelectPhoto(at point: CGPoint) {
-        guard let id = photoFrames.first(where: { $0.value.contains(point) })?.key,
-              swipedPhotoIDs.insert(id).inserted else { return }
-        withAnimation(reduceMotion ? nil : .snappy(duration: 0.12)) { toggleSelection(id) }
-    }
-
-    private func resetSwipeSelection() {
-        swipedPhotoIDs.removeAll()
-    }
-
-    /// Bound both drawing and hit testing to the tile, including very tall images.
-    private func photoTile<Content: View>(@ViewBuilder image: @escaping () -> Content) -> some View {
-        Color.clear
-            .aspectRatio(0.76, contentMode: .fit)
-            .overlay {
-                GeometryReader { geometry in
-                    image()
-                        .scaledToFill()
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .clipped()
-                }
-                .allowsHitTesting(false)
-            }
-            .background(.quaternary)
-            .clipShape(.rect(cornerRadius: 16))
-            .contentShape(.rect)
-    }
-
-    private func photoImage(_ photo: WebsitePhoto) -> some View {
-        if let local = library.localPreviewURL(for: photo.id) {
-            return AnyView(LocalPhotoImage(url: local))
-        }
-        if photo.preview.isFileURL {
-            return AnyView(LocalPhotoImage(url: photo.preview))
-        }
-        return AnyView(RemotePhotoImage(url: photo.preview, allowsRetry: false, bundledPreviewID: store.bundledPreviewID(for: photo)))
-    }
-
-    @ViewBuilder
-    private func photoCell(_ photo: WebsitePhoto) -> some View {
-        if isSelecting {
-            selectableCell(photo)
-        } else {
-            draggableCell(photo)
-        }
-    }
-
-    // Official Apple Photos Style Checkmark Selection (Right-Bottom Checkmark, No Heavy Border)
-    private func selectableCell(_ photo: WebsitePhoto) -> some View {
-        let isSelected = selectedPhotoIDs.contains(photo.id)
-        return Button {
-            toggleSelection(photo.id)
-        } label: {
-            photoTile { photoImage(photo) }
-                .scaleEffect(isSelected ? 0.95 : 1.0)
-                .opacity(isSelected ? 0.92 : 1.0)
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottomTrailing) {
-            ZStack {
-                if isSelected {
-                    Circle()
-                        .fill(Color.appAccent)
-                        .frame(width: 24, height: 24)
-                        .overlay {
-                            Circle().strokeBorder(Color.white, lineWidth: 1.6)
-                        }
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white)
-                } else {
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.85), lineWidth: 1.4)
-                        .background(Circle().fill(Color.black.opacity(0.25)))
-                        .frame(width: 24, height: 24)
-                }
-            }
-            .padding(8)
-            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-            .allowsHitTesting(false)
-        }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.16), value: isSelected)
-        .accessibilityLabel(photo.title)
-        .accessibilityValue(isSelected ? "已选择" : "未选择")
-        .accessibilityIdentifier("photo-tile-\(photo.id)")
-    }
-
-    private func draggableCell(_ photo: WebsitePhoto) -> some View {
-        Button { open(.website(photo)) } label: {
-            photoTile { photoImage(photo) }
-                .collectionZoomSource(id: PhotoSelection.website(photo).id, namespace: photoZoom)
-        }
-        .buttonStyle(CollectionPressStyle())
-        .scaleEffect(draggingPhotoID == photo.id ? 1.03 : 1)
-        .zIndex(draggingPhotoID == photo.id ? 1 : 0)
-        .overlay {
-            if hoveredPhotoID == photo.id && draggingPhotoID != photo.id {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(Color.appAccent, lineWidth: 2.5)
-            }
-        }
-        .animation(reduceMotion ? nil : .snappy(duration: 0.20), value: draggingPhotoID == photo.id)
-        .animation(reduceMotion ? nil : .snappy(duration: 0.20), value: hoveredPhotoID == photo.id)
-        .accessibilityLabel(photo.title)
-        .accessibilityHint("在 App 内查看大图，长按后拖动可调整顺序")
-        .accessibilityIdentifier("photo-tile-\(photo.id)")
-        .onDrag {
-            draggingPhotoID = photo.id
-            Haptics.medium()
-            return NSItemProvider(object: photo.id as NSString)
-        } preview: {
-            photoImage(photo)
-                .frame(width: 160, height: 182)
-                .clipped()
-                .clipShape(.rect(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.35), radius: 12, y: 4)
-        }
-        .onDrop(of: [.text], delegate: PhotoReorderDrop(
-            destinationID: photo.id, draggingID: $draggingPhotoID,
-            hoveredID: $hoveredPhotoID, library: library
-        ))
-    }
-
-    // MARK: - Batch Actions
-
-    private var batchBar: some View {
-        let isPublishing = status == .unpublished
-        let hasSelection = !selectedPhotoIDs.isEmpty
-
-        return GlassActionGroup {
-            Button {
-                if isPublishing { publishSelected() } else { unpublishSelected() }
-            } label: {
-                ActionIcon(
-                    isPublishing ? "发表" : "下架",
-                    systemImage: isPublishing ? "tray.and.arrow.up" : "tray.and.arrow.down"
-                )
-            }
-            .disabled(!canPublish || !hasSelection)
-
-            Button(role: .destructive) {
-                trashSelected()
-            } label: {
-                ActionIcon("移到回收站", systemImage: "trash")
-                    .foregroundStyle(hasSelection ? Color.red : Color.secondary)
-            }
-            .disabled(!hasSelection)
-        }
-        .buttonStyle(CollectionPressStyle())
-        .padding(.bottom, 12)
-    }
-
-    // MARK: - Selection & Batch Actions
 
     private func toggleSelection(_ id: String) {
         if selectedPhotoIDs.contains(id) { selectedPhotoIDs.remove(id) }
@@ -425,7 +252,6 @@ struct PhotosScreen: View {
     private func exitSelection() {
         isSelecting = false
         selectedPhotoIDs.removeAll()
-        resetSwipeSelection()
         Haptics.light()
     }
 

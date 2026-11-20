@@ -32,24 +32,23 @@ struct CollectionsScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 Text(Date.now, format: .dateTime.month().day().weekday(.wide))
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .padding(.bottom, 4)
 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12),
                                         count: typeSize.isAccessibilitySize ? 1 : 2), spacing: 12) {
                     Button { open(.photos) } label: {
-                        tile("图片", symbol: "photo.on.rectangle", count: photos.photos.count, tint: Color.appAccent)
+                        tile("图片", symbol: "photo.on.rectangle", count: photos.photos.count)
                     }
                     .accessibilityIdentifier("collection-photos")
                     Button { open(.talks) } label: {
-                        tile("说说", symbol: "text.bubble", count: library.allTalks().count, tint: Color.appAccent)
+                        tile("说说", symbol: "text.bubble", count: library.allTalks().count)
                     }
                     .accessibilityIdentifier("collection-talks")
-                    directoryTile(.projects, count: directory.projects.count, tint: Color.appAccent)
-                    directoryTile(.friends, count: directory.friends.count, tint: Color.appAccent)
+                    directoryTile(.projects, count: directory.projects.count)
+                    directoryTile(.friends, count: directory.friends.count)
                 }
                 .buttonStyle(CollectionPressStyle())
 
@@ -124,11 +123,11 @@ struct CollectionsScreen: View {
         #endif
     }
 
-    private func directoryTile(_ kind: DirectoryKind, count: Int, tint: Color) -> some View {
+    private func directoryTile(_ kind: DirectoryKind, count: Int) -> some View {
         NavigationLink {
             SiteDirectoryScreen(store: directory, kind: kind, canEdit: canEditDirectory)
         } label: {
-            tile(kind.title, symbol: kind.symbol, count: count, tint: tint)
+            tile(kind.title, symbol: kind.symbol, count: count)
         }
         .accessibilityIdentifier("collection-\(kind.rawValue)")
     }
@@ -152,7 +151,7 @@ struct CollectionsScreen: View {
                 .accessibilityHidden(true)
         }
         .padding(16)
-        .plannerSurface(tint: Color.appAccent.opacity(0.05))
+        .collectionSurface(radius: 19)
         .multilineTextAlignment(.leading)
         .accessibilityElement(children: .combine)
     }
@@ -193,18 +192,21 @@ struct CollectionsScreen: View {
             }
         }
         .padding(16)
-        .plannerSurface(tint: Color.appAccent.opacity(0.05))
+        .collectionSurface(radius: 19)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func tile(_ title: String, symbol: String, count: Int, tint: Color) -> some View {
+    private func tile(_ title: String, symbol: String, count: Int) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 Image(systemName: symbol)
-                    .font(.title3.weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 32, height: 32)
+                    .background(Color.primary.opacity(0.07), in: .rect(cornerRadius: 9))
                 Spacer(minLength: 5)
                 Text(count.formatted())
                     .font(.title2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
             }
             .accessibilityHidden(true)
             Text(title).font(.subheadline.weight(.semibold))
@@ -212,7 +214,7 @@ struct CollectionsScreen: View {
         .foregroundStyle(Color.primary)
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
-        .plannerSurface(tint: tint.opacity(0.10))
+        .collectionSurface(radius: 19)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue(count.formatted())

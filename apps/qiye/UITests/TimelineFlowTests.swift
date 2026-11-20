@@ -51,9 +51,7 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertTrue(nextPage.waitForExistence(timeout: 5))
         XCTAssertEqual(nextPage.frame.midX, app.frame.midX, accuracy: 2)
 
-        let dismissStart = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
-        let dismissEnd = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
-        dismissStart.press(forDuration: 0.05, thenDragTo: dismissEnd)
+        dragViewerDown()
         XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: viewer)], timeout: 5) == .completed)
         XCTAssertTrue(row.waitForExistence(timeout: 5))
     }
@@ -69,6 +67,18 @@ final class TimelineFlowTests: XCTestCase {
         app.buttons["下架到未发表"].tap()
         XCTAssertTrue(badge.waitForExistence(timeout: 5))
         XCTAssertTrue(badge.label.contains("未发表"))
+
+        let published = app.buttons["talk-filter-published"]
+        XCTAssertTrue(published.waitForExistence(timeout: 5))
+        published.tap()
+        XCTAssertTrue(published.isSelected)
+        XCTAssertFalse(badge.exists)
+
+        let unpublished = app.buttons["talk-filter-unpublished"]
+        unpublished.tap()
+        XCTAssertTrue(unpublished.isSelected)
+        XCTAssertTrue(badge.waitForExistence(timeout: 5))
+        app.buttons["talk-filter-all"].tap()
 
         XCTAssertTrue(menu.waitForExistence(timeout: 5))
         menu.tap()
@@ -131,7 +141,9 @@ final class TimelineFlowTests: XCTestCase {
         XCTAssertFalse(counter.label.hasSuffix(" / 1"), "The first photo must open with the complete collection for browsing")
         XCTAssertEqual(counter.frame.midX, app.frame.midX, accuracy: 2)
         capture("Photo viewer")
-        close.tap()
+        dragViewerDown()
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)], timeout: 5) == .completed)
+        XCTAssertTrue(photo.waitForExistence(timeout: 5))
 
         app.tabBars.buttons["首页"].tap()
         let projects = app.buttons["collection-projects"]
@@ -146,6 +158,12 @@ final class TimelineFlowTests: XCTestCase {
         friends.tap()
         XCTAssertTrue(app.descendants(matching: .any)["directory-friends"].firstMatch.waitForExistence(timeout: 5))
         capture("Friends")
+    }
+
+    private func dragViewerDown() {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        start.press(forDuration: 0.05, thenDragTo: end)
     }
 
     private func capture(_ name: String) {

@@ -13,10 +13,12 @@ struct MediaViewerItem: Identifiable, Equatable, Sendable {
 struct MediaViewer: View {
     let items: [MediaViewerItem]
     let actions: AnyView?
+    let allowsDismissal: Bool
     var onIndexChange: ((Int) -> Void)?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.offlineWebsite) private var offlineWebsite
+    @Environment(\.usesCollectionZoom) private var usesNativeZoom
     @State private var index: Int
     @State private var zoom: CGFloat = 1
     @GestureState private var magnification: CGFloat = 1
@@ -33,14 +35,16 @@ struct MediaViewer: View {
     @State private var isPreparingShare = false
     @State private var shareTask: Task<Void, Never>?
 
-    init(items: [MediaViewerItem], initialIndex: Int = 0, actions: AnyView? = nil, onIndexChange: ((Int) -> Void)? = nil) {
+    init(items: [MediaViewerItem], initialIndex: Int = 0, actions: AnyView? = nil,
+         allowsDismissal: Bool = true, onIndexChange: ((Int) -> Void)? = nil) {
         self.items = items
         self.actions = actions
+        self.allowsDismissal = allowsDismissal
         self.onIndexChange = onIndexChange
         _index = State(initialValue: min(max(initialIndex, 0), max(items.count - 1, 0)))
     }
 
-    private enum DragAxis { case horizontal, vertical, pan }
+    private enum DragAxis { case horizontal, vertical, pan, ignored }
     private struct ShareAsset: Identifiable {
         let url: URL
         var id: URL { url }
@@ -62,7 +66,7 @@ struct MediaViewer: View {
             ZStack {
                 if current != nil {
                     imagePages(size: geometry.size)
-                        .gesture(dragGesture(size: geometry.size))
+                        .simultaneousGesture(dragGesture(size: geometry.size))
                         .simultaneousGesture(magnifyGesture)
                         .onTapGesture(count: 2, perform: toggleZoom)
                         .accessibilityLabel("照片，第 \(index + 1) 张，共 \(items.count) 张")
@@ -79,7 +83,7 @@ struct MediaViewer: View {
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .background { blurredBackground }
+            .background { Color.black.ignoresSafeArea() }
             .overlay(alignment: .topLeading) {
                 Button {
                     dismiss()
@@ -89,6 +93,7 @@ struct MediaViewer: View {
                         .liquidGlassCircle()
                 }
                 .buttonStyle(CollectionPressStyle())
+                .disabled(!allowsDismissal)
                 .accessibilityIdentifier("media-viewer-close")
                 .padding(20)
             }
@@ -107,6 +112,7 @@ struct MediaViewer: View {
         .accessibilityIdentifier("media-viewer")
         .preferredColorScheme(.dark)
         .statusBarHidden()
+        .interactiveDismissDisabled(!allowsDismissal || effectiveZoom > 1)
         .alert("照片", isPresented: $showsFeedback) {
             Button("好", role: .cancel) { }
         } message: { Text(feedback ?? "") }
@@ -179,34 +185,6 @@ struct MediaViewer: View {
         .foregroundStyle(.white)
     }
 
-    private var blurredBackground: some View {
-        Color.black
-            .overlay {
-                if let item = current {
-                    backgroundImage(item)
-                        .blur(radius: 44)
-                        .scaleEffect(1.4)
-                }
-            }
-            .clipped()
-            .ignoresSafeArea()
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func backgroundImage(_ item: MediaViewerItem) -> some View {
-        let url = item.previewURL ?? item.url
-        if url.isFileURL {
-            LocalPhotoImage(url: url, contentMode: .fill)
-        } else {
-            AsyncImage(url: url) { phase in
-                if let image = phase.image { image.resizable().scaledToFill() }
-                else { Color.black }
-            }
-        }
-    }
-
     private var magnifyGesture: some Gesture {
         MagnifyGesture()
             .updating($magnification) { value, state, _ in state = value.magnification }
@@ -230,10 +208,12 @@ struct MediaViewer: View {
                         panOrigin = pan
                     } else {
                         let translation = value.translation
-                        // Lock the axis only once the finger has really moved, and favour
-                        // vertical so a slightly diagonal pull still dismisses.
+                        // Only track a vertical drag ourselves when the presentation
+                        // does not provide the system's interactive zoom.
                         guard abs(translation.width) + abs(translation.height) >= 16 else { return }
-                        dragAxis = abs(translation.width) > abs(translation.height) * 1.2 ? .horizontal : .vertical
+                        if abs(translation.width) > abs(translation.height) * 1.2 { dragAxis = .horizontal }
+                        else if !usesNativeZoom, allowsDismissal { dragAxis = .vertical }
+                        else { dragAxis = .ignored }
                     }
                 }
                 switch dragAxis {
@@ -246,7 +226,7 @@ struct MediaViewer: View {
                     let atEdge = (index == 0 && value.translation.width > 0) || (index == items.count - 1 && value.translation.width < 0)
                     pageOffset = value.translation.width * (atEdge ? 0.25 : 1)
                 case .vertical: dismissOffset = max(value.translation.height, 0)
-                case nil: break
+                case .ignored, nil: break
                 }
             }
             .onEnded { value in
@@ -262,7 +242,7 @@ struct MediaViewer: View {
                     if abs(distance) > min(size.width * 0.22, 90) || abs(predicted) > size.width * 0.45 {
                         turnPage(by: distance < 0 ? 1 : -1)
                     } else { animate { pageOffset = 0 } }
-                case .pan, nil: break
+                case .pan, .ignored, nil: break
                 }
             }
     }

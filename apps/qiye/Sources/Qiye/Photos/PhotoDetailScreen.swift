@@ -47,6 +47,7 @@ struct PhotoDetailScreen: View {
         MediaViewer(
             items: items, initialIndex: initialIndex,
             actions: AnyView(managementMenu),
+            allowsDismissal: !isWorking,
             onIndexChange: { currentIndex = $0 }
         )
         .accessibilityElement(children: .contain)
@@ -68,7 +69,6 @@ struct PhotoDetailScreen: View {
                 if dismissesAfterMessage { dismiss() }
             }
         } message: { Text(message ?? "") }
-        .interactiveDismissDisabled(isWorking)
     }
 
     private var managementMenu: some View {

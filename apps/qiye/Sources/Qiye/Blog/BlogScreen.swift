@@ -105,14 +105,9 @@ struct BlogScreen: View {
     }
 
     private func categoryButton(_ title: String, value: String?) -> some View {
-        Button {
-            withAnimation(reduceMotion ? nil : CollectionStyle.spring) { category = value }
-            Haptics.selection()
-        } label: {
-            Text(title)
+        CollectionFilterChip(title: title, isSelected: category == value) {
+            category = value
         }
-        .contentActionStyle(category == value ? .prominent : .standard)
-        .accessibilityAddTraits(category == value ? [.isSelected] : [])
     }
 }
 

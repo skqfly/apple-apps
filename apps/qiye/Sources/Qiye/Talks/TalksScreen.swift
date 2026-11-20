@@ -16,6 +16,8 @@ struct TalksScreen: View {
     @State private var deleting: TalkPost?
     @State private var purging: TalkPost?
     @State private var notice: String?
+    @State private var statusFilter: ContentStatusFilter?
+    @Namespace private var imageZoom
 
     init(store: TalksStore, pending: PendingChangesStore, photos: PhotoLibraryStore,
          library: ContentLibraryStore, canPublish: Bool, authorName: String, avatarURL: URL?) {
@@ -32,12 +34,14 @@ struct TalksScreen: View {
 
     private var posts: [TalkPost] {
         let query = searchTerm
-        return library.allTalks().filter { query.isEmpty || $0.description.localizedStandardContains(query) }
+        let visible = statusFilter.map { library.talks(in: $0) } ?? library.allTalks()
+        return visible.filter { query.isEmpty || $0.description.localizedStandardContains(query) }
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
+                filters
                 if let notice {
                     Text(notice)
                         .font(.caption.weight(.medium))
@@ -57,6 +61,9 @@ struct TalksScreen: View {
                 if posts.isEmpty && !searchTerm.isEmpty {
                     ContentUnavailableView.search(text: searchTerm)
                         .padding(.vertical, 24)
+                } else if posts.isEmpty, let statusFilter {
+                    ContentUnavailableView("暂无\(statusFilter.title)的说说", systemImage: "text.bubble")
+                        .padding(.vertical, 36)
                 } else if posts.isEmpty {
                     ContentUnavailableView(
                         "这里还没有说说",
@@ -79,6 +86,7 @@ struct TalksScreen: View {
                                 delete: { deleting = post },
                                 restore: { restore(post) },
                                 purge: { purging = post },
+                                imageZoom: imageZoom,
                                 openImage: { index in viewing = TalkGallerySelection(post: post, index: index) }
                             )
                         }
@@ -101,7 +109,8 @@ struct TalksScreen: View {
             TalkEditorSheet(post: post, library: library) { showNotice("已保存修改；公开内容将在“发布与同步”中推送后更新") }
         }
         .fullScreenCover(item: $viewing) { selection in
-            MediaViewer(items: selection.items, initialIndex: selection.index)
+            MediaViewer(items: selection.items, initialIndex: selection.initialIndex)
+                .collectionZoomDestination(id: selection.sourceID, namespace: imageZoom, enabled: !reduceMotion)
         }
         .confirmationDialog("移到已删除？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
             Button("移到已删除", role: .destructive) {
@@ -137,6 +146,24 @@ struct TalksScreen: View {
                 library.syncTalks(store.posts, authoritative: store.hasRemoteSnapshot)
             }
         }
+    }
+
+    private var filters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip(nil)
+                ForEach(ContentStatusFilter.allCases) { filterChip($0) }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func filterChip(_ status: ContentStatusFilter?) -> some View {
+        CollectionFilterChip(title: status?.title ?? "全部", isSelected: statusFilter == status) {
+            statusFilter = status
+        }
+        .accessibilityIdentifier("talk-filter-\(status?.rawValue ?? "all")")
     }
 
     @ToolbarContentBuilder
@@ -190,10 +217,15 @@ private struct TalkGallerySelection: Identifiable {
     let id = UUID()
     let post: TalkPost
     let index: Int
+    var sourceID: String { Self.sourceID(postID: post.id, index: index) }
+    var initialIndex: Int { items.firstIndex { $0.id == sourceID } ?? 0 }
+
+    static func sourceID(postID: String, index: Int) -> String { "\(postID)-\(index)" }
+
     var items: [MediaViewerItem] {
         post.images.enumerated().compactMap { offset, image in
-            guard let url = image.originalURL else { return nil }
-            return MediaViewerItem(id: "\(post.id)-\(offset)", url: url, previewURL: image.url)
+            guard let url = image.originalURL ?? image.url else { return nil }
+            return MediaViewerItem(id: Self.sourceID(postID: post.id, index: offset), url: url, previewURL: image.url)
         }
     }
 }
@@ -210,6 +242,7 @@ private struct TalkTimelineRow: View {
     let delete: () -> Void
     let restore: () -> Void
     let purge: () -> Void
+    let imageZoom: Namespace.ID
     let openImage: (Int) -> Void
 
     var body: some View {
@@ -235,7 +268,7 @@ private struct TalkTimelineRow: View {
                     .lineSpacing(5).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            TalkImageGrid(images: post.images, open: openImage)
+            TalkImageGrid(images: post.images, postID: post.id, imageZoom: imageZoom, open: openImage)
             HStack {
                 statusBadge(for: state)
                 Spacer()
@@ -328,8 +361,10 @@ private struct TalkTimelineRow: View {
     }
 }
 
-struct TalkImageGrid: View {
+private struct TalkImageGrid: View {
     let images: [TalkImage]
+    let postID: String
+    let imageZoom: Namespace.ID
     let open: (Int) -> Void
     @Environment(\.offlineWebsite) private var offlineWebsite
     private var columnCount: Int { images.count == 4 ? 2 : min(3, images.count) }
@@ -366,6 +401,7 @@ struct TalkImageGrid: View {
                     }
                 }
                 .clipped().clipShape(.rect(cornerRadius: 9)).contentShape(.rect)
+                .collectionZoomSource(id: TalkGallerySelection.sourceID(postID: postID, index: index), namespace: imageZoom)
         }
         .buttonStyle(CollectionPressStyle())
         .accessibilityLabel("查看第\(index + 1)张图片")

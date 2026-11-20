@@ -16,6 +16,24 @@ struct CollectionPressStyle: ButtonStyle {
     }
 }
 
+struct CollectionFilterChip: View {
+    let title: String
+    let isSelected: Bool
+    let select: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : CollectionStyle.spring) { select() }
+            Haptics.selection()
+        } label: {
+            Text(title)
+        }
+        .contentActionStyle(isSelected ? .prominent : .standard)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 /// Uses the existing bundled photograph previews, including when offline.
 struct CollectionArtwork: View {
     let name: String
@@ -75,9 +93,10 @@ extension View {
     }
 
     @ViewBuilder
-    func collectionZoomDestination(id: String, namespace: Namespace.ID) -> some View {
-        if #available(iOS 18, *) {
-            navigationTransition(.zoom(sourceID: id, in: namespace))
+    func collectionZoomDestination(id: String, namespace: Namespace.ID, enabled: Bool = true) -> some View {
+        if #available(iOS 18, *), enabled {
+            environment(\.usesCollectionZoom, true)
+                .navigationTransition(.zoom(sourceID: id, in: namespace))
         } else { self }
     }
 
@@ -89,6 +108,10 @@ extension View {
                     .allowsHitTesting(false)
             }
     }
+}
+
+extension EnvironmentValues {
+    @Entry var usesCollectionZoom = false
 }
 
 enum AppPageLayout {
